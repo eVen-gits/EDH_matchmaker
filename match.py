@@ -88,13 +88,14 @@ class Pod:
             self.id,
             self.p_count,
             '\n\t'.join(
-                [str(p) for p in self.players]
+                [p.name for p in self.players]
             ))
 
 class Round:
     def __init__(self, seq):
         self.seq = seq
         self.pods = None
+        self.players = None
 
     @property
     def concluded(self):
@@ -137,6 +138,12 @@ class Round:
                     return [pod_size] + tail
         return None
 
+    def conclude(self):
+        self.players = deepcopy(players)
+        ROUNDS.append(self)
+        ROUND = None
+        print('Round completed!\n')
+
     def won(self, tokens):
         for pname in tokens:
             pod = player = None
@@ -160,9 +167,7 @@ class Round:
                 #print(i_p)
 
             if self.concluded:
-                ROUNDS.append(self)
-                ROUND = None
-                print('Round completed!\nStandings:')
+                self.conclude()
 
     def draw(self, tokens):
         pod_id = tokens[0]
@@ -196,13 +201,13 @@ def add_player(names):
         players.append(p)
         print('\tAdded player {}'.format(p.name))
 
-
-def player_stats(tokens=['-p', '-s', 'p']):
+def player_stats(tokens=['-p', '-s', 'p'], players=players):
     parser = argparse.ArgumentParser()
 
     parser.add_argument('-p', '--points', dest='p', action='store_true')
     parser.add_argument('-u', '--unique', dest='u', action='store_true')
     parser.add_argument('-s', '--sort', dest='s', default='a')
+
 
     try:
         args, unknown = parser.parse_known_args(tokens)
@@ -244,6 +249,29 @@ def report_draw(tokens):
     if ROUND:
         ROUND.draw(tokens)
 
+def log():
+    x = 30
+    print('*'*x)
+    print('Tournament with {} attendants:'.format(len(players)))
+
+    for p in players:
+        print('\t{}'.format(p.name))
+
+    for i in range(len(ROUNDS)):
+        r = ROUNDS[i]
+        print('*'*x)
+        print('ROUND {}'.format(i + 1))
+        print('*'*x)
+
+        for pod in r.pods:
+            print(pod.__repr__())
+
+        print('\n Standings after round {}:'.format(i + 1))
+
+        player_stats(players=r.players)
+
+        print()
+
 options = {
     'add': add_player,
     'list': player_stats,
@@ -252,7 +280,8 @@ options = {
     'won': report_win,
     'draw': report_draw,
     'q': exit,
-    'def': unknown
+    'def': unknown,
+    'log': log
 }
 
 if __name__ == "__main__":
