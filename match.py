@@ -271,7 +271,7 @@ def player_stats(tokens=['-p', '-s', 'p'], players=players):
     l = {
         'a': lambda x: x.name,
         'p': lambda x: (-x.points, x.name),
-        'u': lambda x: (x.unique_opponents, x.name),
+        'u': lambda x: (-x.unique_opponents, x.name),
     }
     if args:
         for player in sorted(players, key=l[args.s]):
@@ -345,6 +345,10 @@ def log():
 
         print()
 
+def rtfm(tokens=None):
+    with open('README.md', 'r') as fin:
+        print(fin.read())
+
 options = {
     'add': add_player,
     'list': player_stats,
@@ -352,10 +356,11 @@ options = {
     'spods': Round.get_pod_sizes,
     'won': report_win,
     'draw': report_draw,
-    'q': exit,
+    'q': quit,
     'def': unknown,
     'log': log,
-    'random': random_results
+    'random': random_results,
+    'h': rtfm
 }
 
 if __name__ == "__main__":
@@ -386,10 +391,13 @@ if __name__ == "__main__":
         else:
             cmd, tokens = tokenize(input('> '))
 
+
         if tokens:
             ret = options[cmd](tokens)
         else:
             ret = options[cmd]()
+
+
         if ret:
             print(ret)
         #print('>')
