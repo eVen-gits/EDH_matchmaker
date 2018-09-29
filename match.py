@@ -1,5 +1,6 @@
 import sys, argparse
 from copy import deepcopy
+from random import shuffle
 
 POD_SIZES = [4, 3]
 MIN_POD_SIZE = min(POD_SIZES)
@@ -20,16 +21,20 @@ class Player:
     def not_played(self):
         return list(set(players) - set(self.played))
 
+    @property
+    def unique_opponents(self):
+        return len(set(self.played))
+
     def evaluate_pod(self, pod):
         score = 0
         if pod.p_count == pod.cap:
             return -sys.maxsize
         for player in pod.players:
-            score = score - self.played.count(player)
+            score = score - self.played.count(player) ** 2
         return score
 
     def __repr__(self, detailed=False):
-        ret = '{} | played: {} | pts: {}'.format(self.name, len(self.played), self.points)
+        ret = '{} | played: {} | pts: {}'.format(self.name, len(set(self.played)), self.points)
         if detailed:
             ret = ret + '\n\t' + '|'.join([p.name.split(' ')[0] for p in self.played])
         return ret
@@ -94,12 +99,12 @@ class Round:
         n_pods = len(pod_sizes)
 
         pods = [Pod(size, i) for size, i in zip(pod_sizes, range(n_pods))]
-
-        for p in sorted(players, key=lambda x: x.points, reverse=True):
+        #shuffle(players)
+        for p in sorted(players, key=lambda x: (-len(set(x.played)), x.points), reverse=True):
             pod_scores = [p.evaluate_pod(pod) for pod in pods]
             index = pod_scores.index(max(pod_scores))
-            print(pod_scores, index)
-            print('Adding {} to pod {}'.format(p.name, index))
+            #print(pod_scores, index)
+            #print('Adding {} to pod {}'.format(p.name, index))
             pods[index].add_player(p)
 
         for p in pods:
@@ -182,9 +187,31 @@ def add_player(tokens):
     players.append(p)
     print('Added player {}'.format(p.name))
 
-def player_stats():
-    for player in players:
-        print(player.__repr__(detailed=True))
+def player_stats(tokens=['-p', '-s', 'p']):
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('-p', '--points', dest='p', action='store_true')
+    parser.add_argument('-u', '--unique', dest='u', action='store_true')
+    parser.add_argument('-s', '--sort', dest='s', default='a')
+
+    args, unknown = parser.parse_known_args(tokens)
+
+    l = {
+        'a': lambda x: x.name,
+        'p': lambda x: (-x.points, x.name),
+        'u': lambda x: (x.unique_opponents, x.name),
+    }
+
+    for player in sorted(players, key=l[args.s]):
+        fields = list()
+        fields.append(player.name)
+        if args.u:
+            fields.append('unique: {}'.format(player.unique_opponents))
+        if args.p:
+            fields.append('pts: {}'.format(player.points))
+
+        print('\t{}'.format(' | '.join(fields)))
+
 
 def make_pods(tokens=len(ROUNDS)):
     global ROUND
@@ -201,7 +228,7 @@ def report_draw(tokens):
 
 options = {
     'add': add_player,
-    'players': player_stats,
+    'list': player_stats,
     'pods': make_pods,
     'spods': Round.get_pod_sizes,
     'won': report_win,
