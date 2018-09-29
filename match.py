@@ -1,6 +1,7 @@
 import sys, argparse
 from copy import deepcopy
-from random import shuffle
+import random
+import shlex
 
 POD_SIZES = [4, 3]
 MIN_POD_SIZE = min(POD_SIZES)
@@ -54,6 +55,8 @@ class Pod:
         if self.p_count >= self.cap:
             return False
         self.players.append(player)
+        if self.p_count == self.cap:
+            random.shuffle(self.players)
         return True
 
     def remove_player(self, player: Player):
@@ -93,13 +96,19 @@ class Round:
         self.seq = seq
         self.pods = None
 
+    @property
+    def concluded(self):
+        for pod in self.pods:
+            if not pod.done:
+                return False
+        return True
+
     def make_pods(self):
         n_plyr = len(players)
         pod_sizes = Round.get_pod_sizes(n_plyr)
         n_pods = len(pod_sizes)
 
         pods = [Pod(size, i) for size, i in zip(pod_sizes, range(n_pods))]
-        #shuffle(players)
         for p in sorted(players, key=lambda x: (-len(set(x.played)), x.points), reverse=True):
             pod_scores = [p.evaluate_pod(pod) for pod in pods]
             index = pod_scores.index(max(pod_scores))
@@ -142,21 +151,15 @@ class Round:
                     break
 
             #[a.played.append([b for b in pod.players if not b is a]) for a in pod.players]
+            pod.done = True
 
             for i_p in pod.players:
                 i_p.played = i_p.played + ([p for p in pod.players if not p is i_p])
-                print(i_p)
                 if i_p == player:
                     player.points = player.points + 3
+                #print(i_p)
 
-            pod.done = True
-
-            done = True
-            for pod in self.pods:
-                if not pod.done:
-                    done = False
-
-            if done:
+            if self.concluded:
                 ROUNDS.append(self)
                 ROUND = None
                 print('Round completed!\nStandings:')
@@ -166,7 +169,7 @@ class Round:
         raise NotImplementedError
 
 def tokenize(stdin):
-    tokens = stdin.split(' ')
+    tokens = shlex.split(stdin)
     if tokens[0].lower() not in options:
         tokens = ['def'] + tokens
 
@@ -182,10 +185,17 @@ def tokenize(stdin):
 def unknown(tokens):
     print('Uknown command: {} with arguments {}'.format(tokens[0], tokens[1::]))
 
-def add_player(tokens):
-    p = Player(tokens)
-    players.append(p)
-    print('Added player {}'.format(p.name))
+def add_player(names):
+    if not isinstance(names, list):
+        names =  [names]
+    for name in names:
+        if name in [p.name for p in players]:
+            print('\tPlayer {} already enlisted.'.format(token))
+            #continue
+        p = Player(name)
+        players.append(p)
+        print('\tAdded player {}'.format(p.name))
+
 
 def player_stats(tokens=['-p', '-s', 'p']):
     parser = argparse.ArgumentParser()
@@ -194,7 +204,10 @@ def player_stats(tokens=['-p', '-s', 'p']):
     parser.add_argument('-u', '--unique', dest='u', action='store_true')
     parser.add_argument('-s', '--sort', dest='s', default='a')
 
-    args, unknown = parser.parse_known_args(tokens)
+    try:
+        args, unknown = parser.parse_known_args(tokens)
+    except:
+        print('Invalid argumets')
 
     l = {
         'a': lambda x: x.name,
@@ -212,11 +225,16 @@ def player_stats(tokens=['-p', '-s', 'p']):
 
         print('\t{}'.format(' | '.join(fields)))
 
-
 def make_pods(tokens=len(ROUNDS)):
     global ROUND
-    ROUND = Round(tokens)
-    ROUND.make_pods()
+    if not ROUND or ROUND.concluded:
+        ROUND = Round(tokens)
+        ROUND.make_pods()
+    else:
+        print('Please report results of following pods:')
+        for pod in ROUND.pods:
+            if not pod.done:
+                print(str(pod))
 
 def report_win(tokens):
     if ROUND:
@@ -240,12 +258,21 @@ options = {
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-p', '--project', dest='players', nargs='*')
+    parser.add_argument('-f', '--file', dest='file')
     parser.add_argument('-i', '--input', dest='input', nargs='*')
 
     args, unknown = parser.parse_known_args()
 
-    for p in args.players:
-        add_player(p)
+    #Reads file to parse players from
+    if args.file:
+        with open(args.file) as f:
+            content = f.readlines()
+        for p in [x.strip() for x in content]:
+            add_player(p)
+
+    if args.players:
+        for p in args.players:
+            add_player(p)
 
     while True:
         ret = None
@@ -255,6 +282,7 @@ if __name__ == "__main__":
             cmd, tokens = tokenize(pre_in)
         else:
             cmd, tokens = tokenize(input('> '))
+
         if tokens:
             ret = options[cmd](tokens)
         else:
