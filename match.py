@@ -60,11 +60,14 @@ class Pod:
         return True
 
     def remove_player(self, player: Player):
-        return self.players.pop(player)
+        for i in range(len(self.players)):
+            p = self.players[i]
+            if p.name == player.name:
+                return self.players.pop(i)
 
     def swap_players(self, p1: Player, other, p2: Player):
-        self.remove_player(p1)
-        other.remove_player(p2)
+        p1 = self.remove_player(p1)
+        p2 = other.remove_player(p2)
 
         self.add_player(p2)
         other.add_player(p1)
@@ -83,10 +86,14 @@ class Pod:
         copy.add_player(player)
         return copy.score - self.score
 
+    def update_player_opponent_history(self, player):
+        player.played = player.played + ([p for p in self.players if not p is player])
+
     def __repr__(self):
-        return 'Pod {} of {} players\n\t{}'.format(
+        return 'Pod {} of {} players ~ ({}):\n\t{}'.format(
             self.id,
             self.p_count,
+            self.score,
             '\n\t'.join(
                 [p.name for p in self.players]
             ))
@@ -96,9 +103,10 @@ class Round:
         self.seq = seq
         self.pods = None
         self.players = None
+        self.concluded = False
 
     @property
-    def concluded(self):
+    def done(self):
         for pod in self.pods:
             if not pod.done:
                 return False
@@ -117,11 +125,39 @@ class Round:
             #print('Adding {} to pod {}'.format(p.name, index))
             pods[index].add_player(p)
 
-        for p in pods:
-            print('Pod score:', p.score)
+        self.pods = pods
+
+        #self.optimize()
+
+        for p in self.pods:
             print(p)
 
-        self.pods = pods
+    #TODO: This doesn't work
+    def optimize(self):
+        pod = sorted(self.pods, key=lambda x: x.score)[0]
+        player = sorted(pod.players, key=lambda x: x.evaluate_pod(pod))[0]
+
+        swap_count = 0
+
+        swap = True
+        while swap:
+            swap = False
+            for i_pod in [x for x in self.pods if not x is pod]:
+                for i_player in i_pod.players:
+                    pod1_cp = deepcopy(pod)
+                    pod2_cp = deepcopy(i_pod)
+
+                    pod1_cp.swap_players(player, pod2_cp, i_player)
+
+                    gain = pod1_cp.score + pod2_cp.score - pod.score - i_pod.score
+
+                    if gain > 0:
+                        pod.swap_players(player, i_pod, i_player)
+                        swap_count = swap_count + 1
+                        break
+                if swap:
+                    break
+        print(swap_count, 'swaps in optimization stage.')
 
     @staticmethod
     def get_pod_sizes(n):
@@ -139,16 +175,20 @@ class Round:
         return None
 
     def conclude(self):
+        for pod in self.pods:
+            for p in pod.players:
+                pod.update_player_opponent_history(p)
+
         self.players = deepcopy(players)
         ROUNDS.append(self)
         ROUND = None
-        print('Round completed!\n')
+        self.concluded = True
+        print('{}{}{}'.format(30*'*', '\nRound completed!\n', 30*'*',))
 
-    def won(self, tokens):
-        for pname in tokens:
-            pod = player = None
+    def find_player_pod(self, pname):
+        pod = player = None
 
-            for i_pod in self.pods:
+        for i_pod in self.pods:
                 for i_p in i_pod.players:
                     if pname.lower() in i_p.name.lower():
                         pod = i_pod
@@ -156,22 +196,35 @@ class Round:
                         break
                 if pod:
                     break
+        return player, pod
 
-            #[a.played.append([b for b in pod.players if not b is a]) for a in pod.players]
+    def won(self, tokens):
+        for pname in tokens:
+            player, pod = self.find_player_pod(pname)
+
+            if not player or not pod:
+                print('Player {} not found in any pod'.format(pname))
+                continue
+
+            player.points = player.points + 3
+
             pod.done = True
 
-            for i_p in pod.players:
-                i_p.played = i_p.played + ([p for p in pod.players if not p is i_p])
-                if i_p == player:
-                    player.points = player.points + 3
-                #print(i_p)
-
-            if self.concluded:
+            if self.done:
                 self.conclude()
 
     def draw(self, tokens):
-        pod_id = tokens[0]
-        raise NotImplementedError
+        for pname in tokens:
+            player, pod = self.find_player_pod(pname)
+
+            player.points = player.points + 1
+
+            pod.done = True
+
+
+
+        if self.done and not self.concluded:
+            self.conclude()
 
 def tokenize(stdin):
     tokens = shlex.split(stdin)
@@ -206,12 +259,13 @@ def player_stats(tokens=['-p', '-s', 'p'], players=players):
 
     parser.add_argument('-p', '--points', dest='p', action='store_true')
     parser.add_argument('-u', '--unique', dest='u', action='store_true')
+    parser.add_argument('-l', '--log', dest='l', action='store_true')
     parser.add_argument('-s', '--sort', dest='s', default='a')
-
 
     try:
         args, unknown = parser.parse_known_args(tokens)
     except:
+        args = None
         print('Invalid argumets')
 
     l = {
@@ -219,16 +273,18 @@ def player_stats(tokens=['-p', '-s', 'p'], players=players):
         'p': lambda x: (-x.points, x.name),
         'u': lambda x: (x.unique_opponents, x.name),
     }
+    if args:
+        for player in sorted(players, key=l[args.s]):
+            fields = list()
+            fields.append(player.name)
+            if args.u:
+                fields.append('unique: {}'.format(player.unique_opponents))
+            if args.p:
+                fields.append('pts: {}'.format(player.points))
+            if args.l:
+                fields.append('log: {}'.format('|'.join([p.name for p in player.played])))
 
-    for player in sorted(players, key=l[args.s]):
-        fields = list()
-        fields.append(player.name)
-        if args.u:
-            fields.append('unique: {}'.format(player.unique_opponents))
-        if args.p:
-            fields.append('pts: {}'.format(player.points))
-
-        print('\t{}'.format(' | '.join(fields)))
+            print('\t{}'.format(' | '.join(fields)))
 
 def make_pods(tokens=len(ROUNDS)):
     global ROUND
@@ -236,7 +292,13 @@ def make_pods(tokens=len(ROUNDS)):
         ROUND = Round(tokens)
         ROUND.make_pods()
     else:
-        print('Please report results of following pods:')
+        print(
+            '{}\n{}\n{}'.format(
+                30*'*',
+                'Please report results of following pods:',
+                30*'*',
+            )
+        )
         for pod in ROUND.pods:
             if not pod.done:
                 print(str(pod))
@@ -248,6 +310,17 @@ def report_win(tokens):
 def report_draw(tokens):
     if ROUND:
         ROUND.draw(tokens)
+
+def random_results(tokens=None):
+    for pod in [x for x in ROUND.pods if not x.done]:
+        players = pod.players
+        result = random.sample(pod.players, random.randint(1, pod.p_count))
+        if len(result) == 1:
+            print('won "{}"'.format(result[0].name))
+            report_win([result[0].name])
+        else:
+            print('draw', ' '.join(['"{}"'.format(p.name) for p in result]))
+            report_draw([p.name for p in result])
 
 def log():
     x = 30
@@ -281,7 +354,8 @@ options = {
     'draw': report_draw,
     'q': exit,
     'def': unknown,
-    'log': log
+    'log': log,
+    'random': random_results
 }
 
 if __name__ == "__main__":
