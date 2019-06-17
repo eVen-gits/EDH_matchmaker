@@ -2,15 +2,18 @@ import sys, argparse
 from copy import deepcopy
 import random
 import shlex
+import jellyfish
 
 POD_SIZES = [4, 3]
 MIN_POD_SIZE = min(POD_SIZES)
 
 players = list()
+dropped = list()
 
 ROUNDS = list()
-
 ROUND = None
+#TODO
+LOG = None
 
 class Player:
     def __init__(self, name):
@@ -160,7 +163,7 @@ class Round:
         print(swap_count, 'swaps in optimization stage.')
 
     @staticmethod
-    def get_pod_sizes(n):
+    def get_pod_sizes(n=None):
         if(isinstance(n, list)):
             n = n[0]
         for pod_size in POD_SIZES:
@@ -237,22 +240,59 @@ def tokenize(stdin):
         except:
             pass
     if len(tokens) > 1:
-        return tokens[0], tokens[1::]
-    return tokens[0], None
+        return tokens[0].lower(), tokens[1::]
+    return tokens[0].lower(), None
 
 def unknown(tokens):
     print('Uknown command: {} with arguments {}'.format(tokens[0], tokens[1::]))
 
-def add_player(names):
+def add_player(names=[]):
     if not isinstance(names, list):
         names =  [names]
     for name in names:
         if name in [p.name for p in players]:
-            print('\tPlayer {} already enlisted.'.format(token))
-            #continue
+            print('\tPlayer {} already enlisted.'.format(name))
+            continue
         p = Player(name)
         players.append(p)
         print('\tAdded player {}'.format(p.name))
+
+def get_player(name, helper=True):
+    for p in players:
+        if p.name == name:
+            return p
+    if not helper:
+        print('\tPlayer {} does not exist. Use full name.'.format(name))
+    if helper:
+        suggested = []
+        for p in players:
+            if jellyfish.damerau_levenshtein_distance(name, p.name) <= 4:
+                suggested.append(p)
+                continue
+            for word in p.name.split(' '):
+                if jellyfish.damerau_levenshtein_distance(name, word) <= 2:
+                    suggested.append(p)
+                    break
+        print('Optional alternatives:\n\t {}'.format('\n\t'.join([p.name for p in suggested])))
+    return None
+
+def remove_player(names=[]):
+    if ROUND:
+        if not ROUND.concluded:
+            print('ERROR: Can\'t drop player during an active round.\nComplete the round and remove player before creating new pods.')
+            return
+    if not isinstance(names, list):
+        names =  [names]
+    for name in names:
+        p = get_player(name)
+        if p is None:
+            return
+
+        if p.played:
+            dropped.append(p)
+        players.remove(p)
+
+        print('\tRemoved player {}'.format(p.name))
 
 def player_stats(tokens=['-p', '-s', 'p'], players=players):
     parser = argparse.ArgumentParser()
@@ -285,6 +325,19 @@ def player_stats(tokens=['-p', '-s', 'p'], players=players):
                 fields.append('log: {}'.format('|'.join([p.name for p in player.played])))
 
             print('\t{}'.format(' | '.join(fields)))
+        if dropped:
+            print('Dropped players:')
+            for player in sorted(dropped, key=l[args.s]):
+                fields = list()
+                fields.append(player.name)
+                if args.u:
+                    fields.append('unique: {}'.format(player.unique_opponents))
+                if args.p:
+                    fields.append('pts: {}'.format(player.points))
+                if args.l:
+                    fields.append('log: {}'.format('|'.join([p.name for p in player.played])))
+
+                print('\t{}'.format(' | '.join(fields)))
 
 def make_pods(tokens=len(ROUNDS)):
     global ROUND
@@ -303,17 +356,19 @@ def make_pods(tokens=len(ROUNDS)):
             if not pod.done:
                 print(str(pod))
 
-def report_win(tokens):
+def report_win(tokens=[]):
     if ROUND:
         ROUND.won(tokens)
 
-def report_draw(tokens):
+def report_draw(tokens=[]):
     if ROUND:
         ROUND.draw(tokens)
 
 def random_results(tokens=None):
+    if not ROUND:
+        print('ERROR: A round is not in progress.\nStart a new round with "pods" command.')
+        return
     for pod in [x for x in ROUND.pods if not x.done]:
-        players = pod.players
         result = random.sample(pod.players, random.randint(1, pod.p_count))
         if len(result) == 1:
             print('won "{}"'.format(result[0].name))
@@ -351,6 +406,7 @@ def rtfm(tokens=None):
 
 options = {
     'add': add_player,
+    'remove': remove_player,
     'list': player_stats,
     'pods': make_pods,
     'spods': Round.get_pod_sizes,
@@ -360,12 +416,13 @@ options = {
     'def': unknown,
     'log': log,
     'random': random_results,
-    'h': rtfm
+    'h': rtfm,
+    'help': rtfm,
 }
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('-p', '--project', dest='players', nargs='*')
+    parser.add_argument('-p', '--players', dest='players', nargs='*')
     parser.add_argument('-f', '--file', dest='file')
     parser.add_argument('-i', '--input', dest='input', nargs='*')
 
@@ -391,13 +448,10 @@ if __name__ == "__main__":
         else:
             cmd, tokens = tokenize(input('> '))
 
-
         if tokens:
             ret = options[cmd](tokens)
         else:
             ret = options[cmd]()
 
-
         if ret:
             print(ret)
-        #print('>')

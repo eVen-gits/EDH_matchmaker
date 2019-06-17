@@ -2,7 +2,8 @@
 
 ## Supported commands in REPL: ##
 
-* **add [player name]**; _adds a player to the pool of available players_
+* **add [player name]**; adds a player to the pool of available players
+* **remove [player name]**; removes player from the tournament
 * **list**; displays all player stats for all players. Supports formatting
 	* use "list -h" for more info
 * **pods**; prepares pods for the next round
@@ -11,5 +12,9 @@
 * **won [p1, p2, ...]**; reports a win for one or more players
 * **draw [p1, p2, ...]**; players that receive a point from a draw
 * **log**; prints the tournament log
-* **h**; prints help (this file)
+* **h, help**; prints help (this file)
 * **q**; quit
+
+## Important:
+
+Player names are splitted on space - if you want to use first and last name, use either single or double quotes (add "John Doe" or 'Jane Doe').
