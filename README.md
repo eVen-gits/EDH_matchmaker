@@ -18,3 +18,8 @@
 ## Important:
 
 Player names are splitted on space - if you want to use first and last name, use either single or double quotes (add "John Doe" or 'Jane Doe').
+
+## Installation:
+
+To install required packages, use pip.
+`pip3 install -r requirements.txt`
