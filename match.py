@@ -261,8 +261,7 @@ def get_player(name, helper=True):
     for p in players:
         if p.name == name:
             return p
-    if not helper:
-        print('\tPlayer {} does not exist. Use full name.'.format(name))
+    print('\tPlayer {} does not exist.'.format(name))
     if helper:
         suggested = []
         for p in players:
@@ -273,7 +272,19 @@ def get_player(name, helper=True):
                 if jellyfish.damerau_levenshtein_distance(name, word) <= 2:
                     suggested.append(p)
                     break
-        print('Optional alternatives:\n\t {}'.format('\n\t'.join([p.name for p in suggested])))
+        if len(suggested) == 1:
+            choice = input('Did you mean "{}"? (y/n)'.format(suggested[0].name))
+            while True:
+                if choice == 'y' or choice == 'Y':
+                    return suggested[0]
+                elif choice == 'n' or choice == 'N':
+                    return None
+                else:
+                    choice = input('Unknown option. Please retry.')
+        elif len(suggested) > 1:
+            print('Optional alternatives:')
+            for i, p in zip(range(len(suggested)), suggested):
+                print('\t{} : {}'.format(i, p.name))
     return None
 
 def remove_player(names=[]):
