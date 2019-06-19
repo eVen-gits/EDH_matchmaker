@@ -2,8 +2,8 @@
 
 ## Supported commands in REPL: ##
 
-* **add [player name]**; adds a player to the pool of available players
-* **remove [player name]**; removes player from the tournament
+* **add [p1, p2, ...]**; adds a player to the pool of available players
+* **remove [p1, p2, ...]**; removes player from the tournament
 * **list**; displays all player stats for all players. Supports formatting
 	* use "list -h" for more info
 * **pods**; prepares pods for the next round
