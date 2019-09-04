@@ -12,8 +12,9 @@ dropped = list()
 
 ROUNDS = list()
 ROUND = None
-#TODO
-LOG = None
+
+LAST = None
+OUTPUT_BUFFER = list()
 
 class Player:
     def __init__(self, name):
@@ -49,6 +50,8 @@ class Pod:
         self.cap = cap
         self.id = id
         self.done = False
+        self.won = None
+        self.draw = list()
 
     @property
     def p_count(self):
@@ -93,12 +96,22 @@ class Pod:
         player.played = player.played + ([p for p in self.players if not p is player])
 
     def __repr__(self):
-        return 'Pod {} of {} players ~ ({}):\n\t{}'.format(
+        return 'Pod {} with {} players and seats:\n\t{}'.format(
             self.id,
             self.p_count,
-            self.score,
+            #self.score,
             '\n\t'.join(
-                [p.name for p in self.players]
+                [
+                    '{}: [{}] {}\t'.format(
+                        i,
+                        ' ' if not self.done else
+                        'W' if p == self.won else
+                        'D' if p in self.draw else
+                        'L',
+                        p.name)
+                    for i, p in
+                    zip(range(1, self.p_count+1), self.players)
+                ]
             ))
 
 class Round:
@@ -124,8 +137,8 @@ class Round:
         for p in sorted(players, key=lambda x: (-len(set(x.played)), x.points), reverse=True):
             pod_scores = [p.evaluate_pod(pod) for pod in pods]
             index = pod_scores.index(max(pod_scores))
-            #print(pod_scores, index)
-            #print('Adding {} to pod {}'.format(p.name, index))
+            #OUTPUT_BUFFER.append(pod_scores, index)
+            #OUTPUT_BUFFER.append('Adding {} to pod {}'.format(p.name, index))
             pods[index].add_player(p)
 
         self.pods = pods
@@ -133,7 +146,8 @@ class Round:
         #self.optimize()
 
         for p in self.pods:
-            print(p)
+            OUTPUT_BUFFER.append(p)
+            OUTPUT_BUFFER.append('-'*80)
 
     #TODO: This doesn't work
     def optimize(self):
@@ -160,7 +174,7 @@ class Round:
                         break
                 if swap:
                     break
-        print(swap_count, 'swaps in optimization stage.')
+        OUTPUT_BUFFER.append(swap_count, 'swaps in optimization stage.')
 
     @staticmethod
     def get_pod_sizes(n=None):
@@ -186,7 +200,7 @@ class Round:
         ROUNDS.append(self)
         ROUND = None
         self.concluded = True
-        print('{}{}{}'.format(30*'*', '\nRound completed!\n', 30*'*',))
+        OUTPUT_BUFFER.append('{}{}{}'.format(30*'*', '\nRound completed!\n', 30*'*',))
 
     def find_player_pod(self, pname):
         pod = player = None
@@ -206,11 +220,12 @@ class Round:
             player, pod = self.find_player_pod(pname)
 
             if not player or not pod:
-                print('Player {} not found in any pod'.format(pname))
+                OUTPUT_BUFFER.append('Player {} not found in any pod'.format(pname))
                 continue
 
             player.points = player.points + 3
 
+            pod.won = player
             pod.done = True
 
             if self.done:
@@ -222,15 +237,17 @@ class Round:
 
             player.points = player.points + 1
 
+            pod.draw.append(player)
             pod.done = True
-
-
 
         if self.done and not self.concluded:
             self.conclude()
 
 def tokenize(stdin):
     tokens = shlex.split(stdin)
+    if not tokens:
+        return None, None
+
     if tokens[0].lower() not in options:
         tokens = ['def'] + tokens
 
@@ -244,24 +261,24 @@ def tokenize(stdin):
     return tokens[0].lower(), None
 
 def unknown(tokens):
-    print('Uknown command: {} with arguments {}'.format(tokens[0], tokens[1::]))
+    OUTPUT_BUFFER.append('Uknown command: {} with arguments {}'.format(tokens[0], tokens[1::]))
 
 def add_player(names=[]):
     if not isinstance(names, list):
         names =  [names]
     for name in names:
         if name in [p.name for p in players]:
-            print('\tPlayer {} already enlisted.'.format(name))
+            OUTPUT_BUFFER.append('\tPlayer {} already enlisted.'.format(name))
             continue
         p = Player(name)
         players.append(p)
-        print('\tAdded player {}'.format(p.name))
+        OUTPUT_BUFFER.append('\tAdded player {}'.format(p.name))
 
 def get_player(name, helper=True):
     for p in players:
         if p.name == name:
             return p
-    print('\tPlayer {} does not exist.'.format(name))
+    OUTPUT_BUFFER.append('\tPlayer {} does not exist.'.format(name))
     if helper:
         suggested = []
         for p in players:
@@ -282,20 +299,20 @@ def get_player(name, helper=True):
                 else:
                     choice = input('Unknown option. Please retry.')
         elif len(suggested) > 1:
-            print('Optional alternatives:')
+            OUTPUT_BUFFER.append('Optional alternatives:')
             for i, p in zip(range(len(suggested)), suggested):
-                print('\t{} : {}'.format(i, p.name))
+                OUTPUT_BUFFER.append('\t{} : {}'.format(i, p.name))
     return None
 
-def remove_player(names=[]):
+def remove_player(names=[], helper=True):
     if ROUND:
         if not ROUND.concluded:
-            print('ERROR: Can\'t drop player during an active round.\nComplete the round and remove player before creating new pods.')
+            OUTPUT_BUFFER.append('ERROR: Can\'t drop player during an active round.\nComplete the round and remove player before creating new pods.')
             return
     if not isinstance(names, list):
-        names =  [names]
+        names = [names]
     for name in names:
-        p = get_player(name)
+        p = get_player(name, helper=helper)
         if p is None:
             return
 
@@ -303,7 +320,7 @@ def remove_player(names=[]):
             dropped.append(p)
         players.remove(p)
 
-        print('\tRemoved player {}'.format(p.name))
+        OUTPUT_BUFFER.append('\tRemoved player {}'.format(p.name))
 
 def player_stats(tokens=['-p', '-s', 'p'], players=players):
     parser = argparse.ArgumentParser()
@@ -317,7 +334,7 @@ def player_stats(tokens=['-p', '-s', 'p'], players=players):
         args, unknown = parser.parse_known_args(tokens)
     except:
         args = None
-        print('Invalid argumets')
+        OUTPUT_BUFFER.append('Invalid argumets')
 
     l = {
         'a': lambda x: x.name,
@@ -335,9 +352,9 @@ def player_stats(tokens=['-p', '-s', 'p'], players=players):
             if args.l:
                 fields.append('log: {}'.format('|'.join([p.name for p in player.played])))
 
-            print('\t{}'.format(' | '.join(fields)))
+            OUTPUT_BUFFER.append('\t{}'.format(' | '.join(fields)))
         if dropped:
-            print('Dropped players:')
+            OUTPUT_BUFFER.append('Dropped players:')
             for player in sorted(dropped, key=l[args.s]):
                 fields = list()
                 fields.append(player.name)
@@ -348,7 +365,7 @@ def player_stats(tokens=['-p', '-s', 'p'], players=players):
                 if args.l:
                     fields.append('log: {}'.format('|'.join([p.name for p in player.played])))
 
-                print('\t{}'.format(' | '.join(fields)))
+                OUTPUT_BUFFER.append('\t{}'.format(' | '.join(fields)))
 
 def make_pods(tokens=len(ROUNDS)):
     global ROUND
@@ -356,7 +373,7 @@ def make_pods(tokens=len(ROUNDS)):
         ROUND = Round(tokens)
         ROUND.make_pods()
     else:
-        print(
+        OUTPUT_BUFFER.append(
             '{}\n{}\n{}'.format(
                 30*'*',
                 'Please report results of following pods:',
@@ -365,7 +382,7 @@ def make_pods(tokens=len(ROUNDS)):
         )
         for pod in ROUND.pods:
             if not pod.done:
-                print(str(pod))
+                OUTPUT_BUFFER.append(str(pod))
 
 def report_win(tokens=[]):
     if ROUND:
@@ -377,48 +394,56 @@ def report_draw(tokens=[]):
 
 def random_results(tokens=None):
     if not ROUND:
-        print('ERROR: A round is not in progress.\nStart a new round with "pods" command.')
+        OUTPUT_BUFFER.append('ERROR: A round is not in progress.\nStart a new round with "pods" command.')
         return
     for pod in [x for x in ROUND.pods if not x.done]:
         result = random.sample(pod.players, random.randint(1, pod.p_count))
         if len(result) == 1:
-            print('won "{}"'.format(result[0].name))
+            OUTPUT_BUFFER.append('won "{}"'.format(result[0].name))
             report_win([result[0].name])
         else:
-            print('draw', ' '.join(['"{}"'.format(p.name) for p in result]))
+            OUTPUT_BUFFER.append('draw {}'.format(' '.join(['"{}"'.format(p.name) for p in result])))
             report_draw([p.name for p in result])
 
 def log():
     x = 30
-    print('*'*x)
-    print('Tournament with {} attendants:'.format(len(players)))
+    OUTPUT_BUFFER.append('*'*x)
+    OUTPUT_BUFFER.append('Tournament with {} attendants:'.format(len(players)))
 
     for p in players:
-        print('\t{}'.format(p.name))
+        OUTPUT_BUFFER.append('\t{}'.format(p.name))
 
     for i in range(len(ROUNDS)):
         r = ROUNDS[i]
-        print('*'*x)
-        print('ROUND {}'.format(i + 1))
-        print('*'*x)
+        OUTPUT_BUFFER.append('*'*x)
+        OUTPUT_BUFFER.append('ROUND {}'.format(i + 1))
+        OUTPUT_BUFFER.append('*'*x)
 
         for pod in r.pods:
-            print(pod.__repr__())
+            OUTPUT_BUFFER.append(pod.__repr__())
 
-        print('\n Standings after round {}:'.format(i + 1))
+        OUTPUT_BUFFER.append('\n Standings after round {}:'.format(i + 1))
 
         player_stats(players=r.players)
 
-        print()
+        #OUTPUT_BUFFER.append()
+
+def print_output(tokens=[]):
+    global LAST
+
+    f = open('print.txt', 'w')
+    f.write('\n'.join([str(x) for x in LAST]))
+    f.close()
+
 
 def rtfm(tokens=None):
     with open('README.md', 'r') as fin:
-        print(fin.read())
+        OUTPUT_BUFFER.append(fin.read())
 
 options = {
     'add': add_player,
     'remove': remove_player,
-    'list': player_stats,
+    'stats': player_stats,
     'pods': make_pods,
     'spods': Round.get_pod_sizes,
     'won': report_win,
@@ -429,6 +454,7 @@ options = {
     'random': random_results,
     'h': rtfm,
     'help': rtfm,
+    'print': print_output
 }
 
 if __name__ == "__main__":
@@ -451,18 +477,20 @@ if __name__ == "__main__":
             add_player(p)
 
     while True:
+        if OUTPUT_BUFFER:
+            print('\n'.join([str(x) for x in OUTPUT_BUFFER]))
+            LAST = OUTPUT_BUFFER.copy()
+            OUTPUT_BUFFER.clear()
         ret = None
         if args.input:
             pre_in = args.input.pop(0)
-            print('>', pre_in)
+            OUTPUT_BUFFER.append('>', pre_in)
             cmd, tokens = tokenize(pre_in)
         else:
             cmd, tokens = tokenize(input('> '))
 
-        if tokens:
-            ret = options[cmd](tokens)
-        else:
-            ret = options[cmd]()
-
-        if ret:
-            print(ret)
+        if cmd:
+            if tokens:
+                ret = options[cmd](tokens)
+            else:
+                ret = options[cmd]()
