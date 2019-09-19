@@ -539,7 +539,7 @@ options = {
     'showpods': show_pods,
     'spods': Round.get_pod_sizes,
     'stats': player_stats,
-    'won': report_win,
+    'win': report_win,
 }
 
 if __name__ == "__main__":
