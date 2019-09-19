@@ -16,11 +16,28 @@ ROUND = None
 LAST = None
 OUTPUT_BUFFER = list()
 
+class ID:
+    lastID = 0
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def next():
+        ID.lastID += 1
+        return ID.lastID
+
+
 class Player:
     def __init__(self, name):
-        self.name = name
+        self._name = name
         self.points = 0
         self.played = list()
+        self.ID = ID.next()
+        pass
+
+    @property
+    def name(self):
+        return '({}){}'.format(self.ID, self._name)
 
     @property
     def not_played(self):
@@ -45,20 +62,21 @@ class Player:
         return ret
 
 class Pod:
-    def __init__(self, cap, id):
+    def __init__(self, id, cap=0):
         self.players = list()
         self.cap = cap
         self.id = id
         self.done = False
         self.won = None
         self.draw = list()
+        self.pods = None
 
     @property
     def p_count(self):
         return len(self.players)
 
     def add_player(self, player: Player):
-        if self.p_count >= self.cap:
+        if self.p_count >= self.cap and self.cap:
             return False
         self.players.append(player)
         if self.p_count == self.cap:
@@ -120,6 +138,7 @@ class Round:
         self.pods = None
         self.players = None
         self.concluded = False
+        self.tiebreaker = False
 
     @property
     def done(self):
@@ -133,7 +152,7 @@ class Round:
         pod_sizes = Round.get_pod_sizes(n_plyr)
         n_pods = len(pod_sizes)
 
-        pods = [Pod(size, i) for size, i in zip(pod_sizes, range(n_pods))]
+        pods = [Pod(i, size) for size, i in zip(pod_sizes, range(n_pods))]
         for p in sorted(players, key=lambda x: (-len(set(x.played)), x.points), reverse=True):
             pod_scores = [p.evaluate_pod(pod) for pod in pods]
             index = pod_scores.index(max(pod_scores))
@@ -143,8 +162,9 @@ class Round:
 
         self.pods = pods
 
-        #self.optimize()
+        self.print_pods()
 
+    def print_pods(self):
         for p in self.pods:
             OUTPUT_BUFFER.append(p)
             OUTPUT_BUFFER.append('-'*80)
@@ -198,9 +218,11 @@ class Round:
 
         self.players = deepcopy(players)
         ROUNDS.append(self)
-        ROUND = None
         self.concluded = True
         OUTPUT_BUFFER.append('{}{}{}'.format(30*'*', '\nRound completed!\n', 30*'*',))
+
+        #global ROUND
+        #ROUND = Round(len(ROUNDS))
 
     def find_player_pod(self, pname):
         pod = player = None
@@ -248,7 +270,7 @@ def tokenize(stdin):
     if not tokens:
         return None, None
 
-    if tokens[0].lower() not in options:
+    if tokens[0].lower() not in options or tokens[0] == 'def':
         tokens = ['def'] + tokens
 
     for i in range(1, len(tokens)):
@@ -274,34 +296,48 @@ def add_player(names=[]):
         players.append(p)
         OUTPUT_BUFFER.append('\tAdded player {}'.format(p.name))
 
-def get_player(name, helper=True):
+def get_player(search, helper=True):
     for p in players:
-        if p.name == name:
+        if p._name == search:
             return p
-    OUTPUT_BUFFER.append('\tPlayer {} does not exist.'.format(name))
+        try:
+            pid = int(search)
+            if p.id == int(search):
+                return p
+        except Exception as e:
+            continue
+            #print(str(e))
     if helper:
         suggested = []
         for p in players:
-            if jellyfish.damerau_levenshtein_distance(name, p.name) <= 4:
+            if jellyfish.damerau_levenshtein_distance(search, p._name) <= 4:
                 suggested.append(p)
                 continue
-            for word in p.name.split(' '):
-                if jellyfish.damerau_levenshtein_distance(name, word) <= 2:
+            for word in p._name.split(' '):
+                if jellyfish.damerau_levenshtein_distance(search, word) <= 2:
                     suggested.append(p)
                     break
         if len(suggested) == 1:
-            choice = input('Did you mean "{}"? (y/n)'.format(suggested[0].name))
             while True:
+                choice = input('Did you mean "{}" with "{}"? (y/n)'.format(suggested[0].name, search))
                 if choice == 'y' or choice == 'Y':
                     return suggested[0]
                 elif choice == 'n' or choice == 'N':
                     return None
                 else:
-                    choice = input('Unknown option. Please retry.')
+                    print('Unknown option. Please retry.')
         elif len(suggested) > 1:
-            OUTPUT_BUFFER.append('Optional alternatives:')
+            print('Optional alternatives for "{}":'.format(search))
             for i, p in zip(range(len(suggested)), suggested):
-                OUTPUT_BUFFER.append('\t{} : {}'.format(i, p.name))
+                print('\t{} : {}'.format(i, p.name))
+            while True:
+                try:
+                    choice = int(input("Select number:"))
+                    return suggested[choice]
+                except Exception as e:
+                    print(str(e))
+
+    OUTPUT_BUFFER.append('\tPlayer {} does not exist and no suggestions found.'.format(search))
     return None
 
 def remove_player(names=[], helper=True):
@@ -312,7 +348,7 @@ def remove_player(names=[], helper=True):
     if not isinstance(names, list):
         names = [names]
     for name in names:
-        p = get_player(name, helper=helper)
+        p = get_player(search, helper=helper)
         if p is None:
             return
 
@@ -367,10 +403,38 @@ def player_stats(tokens=['-p', '-s', 'p'], players=players):
 
                 OUTPUT_BUFFER.append('\t{}'.format(' | '.join(fields)))
 
-def make_pods(tokens=len(ROUNDS)):
+def new_round(tokens=[]):
     global ROUND
     if not ROUND or ROUND.concluded:
-        ROUND = Round(tokens)
+        ROUND = Round(len(ROUNDS))
+        return True
+    else:
+        if ROUND.pods:
+            OUTPUT_BUFFER.append(
+                '{}\n{}\n{}'.format(
+                    30*'*',
+                    'Please report results of following pods:',
+                    30*'*',
+                )
+            )
+            for pod in ROUND.pods:
+                if not pod.done:
+                    OUTPUT_BUFFER.append(str(pod))
+        else:
+            OUTPUT_BUFFER.append(
+                'Round has no pods - add some or cancel round.'
+            )
+        return False
+
+def reset_pods(tokens=[]):
+    global ROUND
+    if ROUND:
+        ROUND.pods = None
+
+def make_pods(tokens=[]):
+    if ROUND is None or ROUND.concluded:
+        new_round(len(ROUNDS))
+    if ROUND.pods is None:
         ROUND.make_pods()
     else:
         OUTPUT_BUFFER.append(
@@ -384,6 +448,18 @@ def make_pods(tokens=len(ROUNDS)):
             if not pod.done:
                 OUTPUT_BUFFER.append(str(pod))
 
+def manual_pod(tokens=[]):
+    if ROUND is None or ROUND.concluded:
+        new_round(len(ROUNDS))
+    if not ROUND.pods:
+        ROUND.pods=[]
+    pod = Pod(len(ROUND.pods))
+
+    for pid in tokens:
+        p = get_player(pid, helper=True)
+        pod.add_player(p)
+    ROUND.pods.append(pod)
+
 def report_win(tokens=[]):
     if ROUND:
         ROUND.won(tokens)
@@ -396,14 +472,15 @@ def random_results(tokens=None):
     if not ROUND:
         OUTPUT_BUFFER.append('ERROR: A round is not in progress.\nStart a new round with "pods" command.')
         return
-    for pod in [x for x in ROUND.pods if not x.done]:
-        result = random.sample(pod.players, random.randint(1, pod.p_count))
-        if len(result) == 1:
-            OUTPUT_BUFFER.append('won "{}"'.format(result[0].name))
-            report_win([result[0].name])
-        else:
-            OUTPUT_BUFFER.append('draw {}'.format(' '.join(['"{}"'.format(p.name) for p in result])))
-            report_draw([p.name for p in result])
+    if ROUND.pods is not None:
+        for pod in [x for x in ROUND.pods if not x.done]:
+            result = random.sample(pod.players, random.randint(1, pod.p_count))
+            if len(result) == 1:
+                OUTPUT_BUFFER.append('won "{}"'.format(result[0].name))
+                report_win([result[0].name])
+            else:
+                OUTPUT_BUFFER.append('draw {}'.format(' '.join(['"{}"'.format(p.name) for p in result])))
+                report_draw([p.name for p in result])
 
 def log():
     x = 30
@@ -435,26 +512,34 @@ def print_output(tokens=[]):
     f.write('\n'.join([str(x) for x in LAST]))
     f.close()
 
-
 def rtfm(tokens=None):
     with open('README.md', 'r') as fin:
         OUTPUT_BUFFER.append(fin.read())
 
+def show_pods(tokens=[]):
+    if ROUND and ROUND.pods:
+        ROUND.print_pods()
+    else:
+        OUTPUT_BUFFER.append('No pods currently created.')
+
 options = {
     'add': add_player,
-    'remove': remove_player,
-    'stats': player_stats,
-    'pods': make_pods,
-    'spods': Round.get_pod_sizes,
-    'won': report_win,
-    'draw': report_draw,
-    'q': quit,
     'def': unknown,
-    'log': log,
-    'random': random_results,
+    'draw': report_draw,
     'h': rtfm,
     'help': rtfm,
-    'print': print_output
+    'log': log,
+    'pods': make_pods,
+    'pod': manual_pod,
+    'print': print_output,
+    'q': quit,
+    'random': random_results,
+    'remove': remove_player,
+    'resetpods': reset_pods,
+    'showpods': show_pods,
+    'spods': Round.get_pod_sizes,
+    'stats': player_stats,
+    'won': report_win,
 }
 
 if __name__ == "__main__":
