@@ -26,18 +26,16 @@ class ID:
         ID.lastID += 1
         return ID.lastID
 
-
 class Player:
     def __init__(self, name):
-        self._name = name
+        self.name = name
         self.points = 0
         self.played = list()
         self.ID = ID.next()
-        pass
 
-    @property
-    def name(self):
-        return '({}){}'.format(self.ID, self._name)
+    #@property
+    #def name(self):
+    #    return '({}){}'.format(self.ID, self.name)
 
     @property
     def not_played(self):
@@ -297,23 +295,24 @@ def add_player(names=[]):
         OUTPUT_BUFFER.append('\tAdded player {}'.format(p.name))
 
 def get_player(search, helper=True):
+    try:
+        pid = int(search)
+    except Exception as e:
+        pid = None
     for p in players:
-        if p._name == search:
+        if p.name == search:
             return p
-        try:
-            pid = int(search)
-            if p.id == int(search):
+
+        if p.ID == pid:
                 return p
-        except Exception as e:
-            continue
-            #print(str(e))
-    if helper:
+
+    if helper and pid is None:
         suggested = []
         for p in players:
-            if jellyfish.damerau_levenshtein_distance(search, p._name) <= 4:
+            if jellyfish.damerau_levenshtein_distance(search, p.name) <= 4:
                 suggested.append(p)
                 continue
-            for word in p._name.split(' '):
+            for word in p.name.split(' '):
                 if jellyfish.damerau_levenshtein_distance(search, word) <= 2:
                     suggested.append(p)
                     break
@@ -348,7 +347,7 @@ def remove_player(names=[], helper=True):
     if not isinstance(names, list):
         names = [names]
     for name in names:
-        p = get_player(search, helper=helper)
+        p = get_player(name, helper=helper)
         if p is None:
             return
 
