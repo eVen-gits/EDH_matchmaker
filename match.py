@@ -32,10 +32,8 @@ class Player:
         self.points = 0
         self.played = list()
         self.ID = ID.next()
-
-    #@property
-    #def name(self):
-    #    return '({}){}'.format(self.ID, self.name)
+        self.games_played = 0
+        self.games_won = 0
 
     @property
     def not_played(self):
@@ -44,6 +42,19 @@ class Player:
     @property
     def unique_opponents(self):
         return len(set(self.played))
+
+    @property
+    def winrate(self):
+        if self.games_played == 0:
+            return 0
+        return self.games_won/self.games_played
+
+    @property
+    def opponent_winrate(self):
+        if not self.played:
+            return 0
+        oppwr = [opp.winrate for opp in self.played]
+        return sum(oppwr)/len(oppwr)
 
     def evaluate_pod(self, pod):
         score = 0
@@ -108,8 +119,11 @@ class Pod:
         copy.add_player(player)
         return copy.score - self.score
 
-    def update_player_opponent_history(self, player):
+    def update_player_history(self, player):
         player.played = player.played + ([p for p in self.players if not p is player])
+        player.games_played += 1
+        if player == self.won:
+            player.games_won += 1
 
     def __repr__(self):
         return 'Pod {} with {} players and seats:\n\t{}'.format(
@@ -212,7 +226,7 @@ class Round:
     def conclude(self):
         for pod in self.pods:
             for p in pod.players:
-                pod.update_player_opponent_history(p)
+                pod.update_player_history(p)
 
         self.players = deepcopy(players)
         ROUNDS.append(self)
@@ -363,7 +377,8 @@ def player_stats(tokens=['-p', '-s', 'p'], players=players):
     parser.add_argument('-p', '--points', dest='p', action='store_true')
     parser.add_argument('-u', '--unique', dest='u', action='store_true')
     parser.add_argument('-l', '--log', dest='l', action='store_true')
-    parser.add_argument('-s', '--sort', dest='s', default='a')
+    parser.add_argument('-t', '--tiebreakers', dest='t', action='store_true')
+    parser.add_argument('-s', '--sort', dest='s', default='p')
 
     try:
         args, unknown = parser.parse_known_args(tokens)
@@ -372,8 +387,8 @@ def player_stats(tokens=['-p', '-s', 'p'], players=players):
         OUTPUT_BUFFER.append('Invalid argumets')
 
     l = {
-        'a': lambda x: x.name,
-        'p': lambda x: (-x.points, x.name),
+        'n': lambda x: x.name,
+        'p': lambda x: (-x.points, -x.opponent_winrate, x.name),
         'u': lambda x: (-x.unique_opponents, x.name),
     }
     if args:
@@ -384,6 +399,8 @@ def player_stats(tokens=['-p', '-s', 'p'], players=players):
                 fields.append('unique: {}'.format(player.unique_opponents))
             if args.p:
                 fields.append('pts: {}'.format(player.points))
+            if args.t:
+                fields.append('tieb. {:.2f}'.format(player.opponent_winrate))
             if args.l:
                 fields.append('log: {}'.format('|'.join([p.name for p in player.played])))
 
@@ -473,7 +490,9 @@ def random_results(tokens=None):
         return
     if ROUND.pods is not None:
         for pod in [x for x in ROUND.pods if not x.done]:
-            result = random.sample(pod.players, random.randint(1, pod.p_count))
+            result = random.sample(pod.players, 1)
+            #Selects one. If you want draws too, use
+            #result = random.sample(pod.players, random.randint(1, pod.p_count))
             if len(result) == 1:
                 OUTPUT_BUFFER.append('won "{}"'.format(result[0].name))
                 report_win([result[0].name])
