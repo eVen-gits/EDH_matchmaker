@@ -16,6 +16,9 @@ ROUND = None
 LAST = None
 OUTPUT_BUFFER = list()
 
+RANKING = lambda x: (-x.points, -x.opponent_winrate, -x.unique_opponents)
+MATCHING = lambda x: (-x.unique_opponents, x.points, -x.opponent_winrate)
+
 class ID:
     lastID = 0
     def __init__(self):
@@ -64,11 +67,44 @@ class Player:
             score = score - self.played.count(player) ** 2
         return score
 
-    def __repr__(self, detailed=False):
-        ret = '{} | played: {} | pts: {}'.format(self.name, len(set(self.played)), self.points)
-        if detailed:
-            ret = ret + '\n\t' + '|'.join([p.name.split(' ')[0] for p in self.played])
-        return ret
+    def __repr__(self, tokens=['-i', '-p']):
+        #ret = '{} | played: {} | pts: {}'.format(self.name, len(set(self.played)), self.points)
+        parser_player = subparsers.add_parser('player', help='player help')
+
+        parser_player.add_argument('-i', '--id',           dest='id', action='store_true')
+        parser_player.add_argument('-w', '--win',          dest='w', action='store_true')
+        parser_player.add_argument('-o', '--opponentwin',   dest='ow', action='store_true')
+        parser_player.add_argument('-p', '--points',       dest='p', action='store_true')
+        parser_player.add_argument('-r', '--winrate',      dest='wr', action='store_true')
+        parser_player.add_argument('-u', '--unique',       dest='u', action='store_true')
+        #parser.add_argument('-n', '--notplayed',    dest='np', action='store_true')
+
+        try:
+            args, unknown = parser_player.parse_known_args(tokens)
+        except:
+            #args = None
+            #OUTPUT_BUFFER.append('Invalid argumets')
+            pass
+
+        fields = list()
+
+        if args.id:
+            fields.append('({}){}'.format(self.ID, self.name))
+        else:
+            fields.append(self.name)
+        if args.p:
+            fields.append('pts: {}'.format(self.points))
+        if args.w:
+            fields.append('w: {}'.format(self.games_won))
+        if args.ow:
+            fields.append('o.wr.: {:.2f}'.format(self.opponent_winrate))
+        if args.u:
+            fields.append('uniq: {}'.format(self.unique_opponents))
+        #if args.np:
+        #    fields.append(''.format())
+        #OUTPUT_BUFFER.append('\t{}'.format(' | '.join(fields)))
+
+        return ' | '.join(fields)
 
 class Pod:
     def __init__(self, id, cap=0):
@@ -138,7 +174,7 @@ class Pod:
                         'W' if p == self.won else
                         'D' if p in self.draw else
                         'L',
-                        p.name)
+                        p.__repr__(['-w']))
                     for i, p in
                     zip(range(1, self.p_count+1), self.players)
                 ]
@@ -147,7 +183,7 @@ class Pod:
 class Round:
     def __init__(self, seq):
         self.seq = seq
-        self.pods = None
+        self.pods = []
         self.players = None
         self.concluded = False
         self.tiebreaker = False
@@ -159,20 +195,30 @@ class Round:
                 return False
         return True
 
+    def seated(self):
+        s = []
+        if self.pods:
+            for pod in self.pods:
+                s += pod.players
+
+        return s
+
     def make_pods(self):
-        n_plyr = len(players)
+        seated = set(self.seated())
+        remaining = list(set(players) - seated)
+
+        n_plyr = len(remaining)
         pod_sizes = Round.get_pod_sizes(n_plyr)
         n_pods = len(pod_sizes)
 
         pods = [Pod(i, size) for size, i in zip(pod_sizes, range(n_pods))]
-        for p in sorted(players, key=lambda x: (-len(set(x.played)), x.points), reverse=True):
+        random.shuffle(remaining)
+        for p in sorted(remaining, key=MATCHING, reverse=True):
             pod_scores = [p.evaluate_pod(pod) for pod in pods]
             index = pod_scores.index(max(pod_scores))
-            #OUTPUT_BUFFER.append(pod_scores, index)
-            #OUTPUT_BUFFER.append('Adding {} to pod {}'.format(p.name, index))
             pods[index].add_player(p)
 
-        self.pods = pods
+        self.pods += pods
 
         self.print_pods()
 
@@ -277,6 +323,9 @@ class Round:
         if self.done and not self.concluded:
             self.conclude()
 
+    def ready(self):
+        return sum([pod.p_count for pod in self.pods]) == len(players)
+
 def tokenize(stdin):
     tokens = shlex.split(stdin)
     if not tokens:
@@ -371,54 +420,43 @@ def remove_player(names=[], helper=True):
 
         OUTPUT_BUFFER.append('\tRemoved player {}'.format(p.name))
 
-def player_stats(tokens=['-p', '-s', 'p'], players=players):
-    parser = argparse.ArgumentParser()
+def player_stats(tokens=['-i', '-p'], players=players):
+    #parser.add_argument('-p', '--points', dest='p', action='store_true')
+    #parser.add_argument('-u', '--unique', dest='u', action='store_true')
+    #parser.add_argument('-l', '--log', dest='l', action='store_true')
+    #parser.add_argument('-t', '--tiebreakers', dest='t', action='store_true')
+    parser_stats = subparsers.add_parser('stats', help='stats help')
+    parser_stats.add_argument('-s', '--sort', dest='s', default='s')
 
-    parser.add_argument('-p', '--points', dest='p', action='store_true')
-    parser.add_argument('-u', '--unique', dest='u', action='store_true')
-    parser.add_argument('-l', '--log', dest='l', action='store_true')
-    parser.add_argument('-t', '--tiebreakers', dest='t', action='store_true')
-    parser.add_argument('-s', '--sort', dest='s', default='p')
-
+    sargs = None
+    unknown = None
     try:
-        args, unknown = parser.parse_known_args(tokens)
+        sargs, unknown = parser_stats.parse_known_args(tokens)
     except:
-        args = None
-        OUTPUT_BUFFER.append('Invalid argumets')
+        pass
+        #args = None
+        #OUTPUT_BUFFER.append('Invalid argumets')
 
     l = {
         'n': lambda x: x.name,
-        'p': lambda x: (-x.points, -x.opponent_winrate, x.name),
+        'i': lambda x: x.ID,
+        's': RANKING, #sort by standing
         'u': lambda x: (-x.unique_opponents, x.name),
     }
-    if args:
-        for player in sorted(players, key=l[args.s]):
-            fields = list()
-            fields.append(player.name)
-            if args.u:
-                fields.append('unique: {}'.format(player.unique_opponents))
-            if args.p:
-                fields.append('pts: {}'.format(player.points))
-            if args.t:
-                fields.append('tieb. {:.2f}'.format(player.opponent_winrate))
-            if args.l:
-                fields.append('log: {}'.format('|'.join([p.name for p in player.played])))
-
-            OUTPUT_BUFFER.append('\t{}'.format(' | '.join(fields)))
+    if sargs:
+        for player in sorted(players, key=l[sargs.s]):
+            if unknown:
+                OUTPUT_BUFFER.append('\t{}'.format(player.__repr__(unknown)))
+            else:
+                OUTPUT_BUFFER.append('\t{}'.format(player.__repr__()))
+        #TODO: Dropped players somewhat broken anyway
         if dropped:
             OUTPUT_BUFFER.append('Dropped players:')
-            for player in sorted(dropped, key=l[args.s]):
-                fields = list()
-                fields.append(player.name)
-                if args.u:
-                    fields.append('unique: {}'.format(player.unique_opponents))
-                if args.p:
-                    fields.append('pts: {}'.format(player.points))
-                if args.l:
-                    fields.append('log: {}'.format('|'.join([p.name for p in player.played])))
-
-                OUTPUT_BUFFER.append('\t{}'.format(' | '.join(fields)))
-
+            for player in sorted(dropped, key=l[sargs.s]):
+                if unknown:
+                    OUTPUT_BUFFER.append('\t{}'.format(player.__repr__(unknown)))
+                else:
+                    OUTPUT_BUFFER.append('\t{}'.format(player.__repr__()))
 def new_round(tokens=[]):
     global ROUND
     if not ROUND or ROUND.concluded:
@@ -445,12 +483,12 @@ def new_round(tokens=[]):
 def reset_pods(tokens=[]):
     global ROUND
     if ROUND:
-        ROUND.pods = None
+        ROUND.pods = []
 
 def make_pods(tokens=[]):
     if ROUND is None or ROUND.concluded:
         new_round(len(ROUNDS))
-    if ROUND.pods is None:
+    if not ROUND.ready():
         ROUND.make_pods()
     else:
         OUTPUT_BUFFER.append(
@@ -562,9 +600,12 @@ options = {
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+
     parser.add_argument('-p', '--players', dest='players', nargs='*')
     parser.add_argument('-f', '--file', dest='file')
     parser.add_argument('-i', '--input', dest='input', nargs='*')
+
+    subparsers = parser.add_subparsers()
 
     args, unknown = parser.parse_known_args()
 
