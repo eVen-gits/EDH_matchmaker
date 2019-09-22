@@ -239,14 +239,16 @@ class Round:
         for pname in tokens:
             player, pod = self.find_player_pod(pname)
 
+
             if not player or not pod:
                 OUTPUT_BUFFER.append('Player {} not found in any pod'.format(pname))
                 continue
 
-            player.points = player.points + 3
+            if not pod.done:
+                player.points = player.points + 3
 
-            pod.won = player
-            pod.done = True
+                pod.won = player
+                pod.done = True
 
             if self.done:
                 self.conclude()
@@ -568,7 +570,7 @@ if __name__ == "__main__":
         ret = None
         if args.input:
             pre_in = args.input.pop(0)
-            OUTPUT_BUFFER.append('>', pre_in)
+            OUTPUT_BUFFER.append('> ' + pre_in)
             cmd, tokens = tokenize(pre_in)
         else:
             cmd, tokens = tokenize(input('> '))
