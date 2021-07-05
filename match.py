@@ -355,9 +355,11 @@ def add_player(names=[]):
         if name in [p.name for p in players]:
             OUTPUT_BUFFER.append('\tPlayer {} already enlisted.'.format(name))
             continue
-        p = Player(name)
-        players.append(p)
-        OUTPUT_BUFFER.append('\tAdded player {}'.format(p.name))
+        if name:
+            p = Player(name)
+            players.append(p)
+            OUTPUT_BUFFER.append('\tAdded player {}'.format(p.name))
+            return p
 
 def get_player(search, helper=True):
     try:
@@ -422,6 +424,21 @@ def remove_player(names=[], helper=True):
 
         OUTPUT_BUFFER.append('\tRemoved player {}'.format(p.name))
 
+def rename_player(name, new_name, helper=True):
+    p = get_player(name, helper=helper)
+    if p is None:
+        OUTPUT_BUFFER.append('\tPlayer {} doesnt exist.'.format(p.name))
+        return False
+
+    if new_name in [p.name for p in players]:
+        OUTPUT_BUFFER.append('\tPlayer {} already exists.'.format(new_name))
+        return False
+
+    p.name = new_name
+    OUTPUT_BUFFER.append('\tRenamed player {} -> {}'.format(name, new_name))
+
+    return True
+
 def player_stats(tokens=['-i', '-p'], players=players):
     #parser.add_argument('-p', '--points', dest='p', action='store_true')
     #parser.add_argument('-u', '--unique', dest='u', action='store_true')
@@ -459,6 +476,7 @@ def player_stats(tokens=['-i', '-p'], players=players):
                     OUTPUT_BUFFER.append('\t{}'.format(player.__repr__(unknown)))
                 else:
                     OUTPUT_BUFFER.append('\t{}'.format(player.__repr__()))
+
 def new_round(tokens=[]):
     global ROUND
     if not ROUND or ROUND.concluded:

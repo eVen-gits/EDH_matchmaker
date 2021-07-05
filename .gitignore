@@ -1,3 +1,6 @@
+__pycache__
+.qt_for_python
+.vscode
 .vscode/*
 print.txt
 players.txt
