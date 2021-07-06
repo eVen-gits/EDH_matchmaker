@@ -13,7 +13,19 @@ from PyQt6 import uic
 
 import match as core
 
+def with_status(func_to_decorate):
+    def wrapper(*original_args, **original_kwargs):
+        ret = func_to_decorate(*original_args, **original_kwargs)
+        return ret
+    #if core.OUTPUT_BUFFER:
+    #    self.ui.statusbar.setText('TEST')#('\n'.join([str(x) for x in OUTPUT_BUFFER]))
+        #LAST = OUTPUT_BUFFER.copy()
+        #OUTPUT_BUFFER.clear()
+    return wrapper
+
 class MainWindow(QMainWindow):
+
+
     def __init__(self, core):
         self.file_name = None
 
@@ -36,18 +48,20 @@ class MainWindow(QMainWindow):
         self.ui.lv_players.customContextMenuRequested.connect(
             self.lv_players_rightclick_menu)
 
+        self.ui.pb_pods.clicked.connect(self.create_pods)
+
     def lv_players_rightclick_menu(self, position):
         #Popup menu
         pop_menu = QMenu()
-        delete_player_action = QAction('Remove player',self)
-        rename_player_action = QAction('Rename player', self)
+        delete_player_action = QAction('Remove player', self)
+        #rename_player_action = QAction('Rename player', self)
         #Check if it is on the item when you right-click, if it is not, delete and modify will not be displayed.
-        pop_menu.addAction(delete_player_action)
         if self.ui.lv_players.itemAt(position):
-            pop_menu.addAction(rename_player_action)
+            pop_menu.addAction(delete_player_action)
+        #    pop_menu.addAction(rename_player_action)
 
-        rename_player_action.triggered.connect(self.lva_rename_player)
         delete_player_action.triggered.connect(self.lva_remove_player)
+        #rename_player_action.triggered.connect(self.lva_rename_player)
         pop_menu.exec(self.ui.lv_players.mapToGlobal(position))
 
     #Delete group
@@ -60,8 +74,9 @@ class MainWindow(QMainWindow):
         self.remove_player(player.name)
         self.ui.lv_players.takeItem(self.ui.lv_players.currentRow())
 
-    #Renaming group
+    #Renaming player
     #TODO
+    '''
     def lva_rename_player(self):
         curRow = self.ui.lv_players.currentRow()
         item = self.ui.lv_players.item(curRow)
@@ -74,7 +89,8 @@ class MainWindow(QMainWindow):
 
 
         self.ui.lv_players.itemChanged.connect(lambda *x: try_rename_player(x))
-
+    '''
+    @with_status
     def add_player(self, player_name):
         #player_name = self.ui.le_player_name.text()
         player = core.add_player(player_name)
@@ -85,6 +101,9 @@ class MainWindow(QMainWindow):
 
     def remove_player(self, player_name):
         core.remove_player(player_name)
+
+    def create_pods(self):
+        self.core.make_pods()
 
     def confirm(self, message, title=''):
         reply = QMessageBox()
