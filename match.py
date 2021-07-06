@@ -618,14 +618,15 @@ options = {
     'win': report_win,
 }
 
+parser = argparse.ArgumentParser()
+
+parser.add_argument('-p', '--players', dest='players', nargs='*')
+parser.add_argument('-f', '--file', dest='file')
+parser.add_argument('-i', '--input', dest='input', nargs='*')
+
+subparsers = parser.add_subparsers()
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument('-p', '--players', dest='players', nargs='*')
-    parser.add_argument('-f', '--file', dest='file')
-    parser.add_argument('-i', '--input', dest='input', nargs='*')
-
-    subparsers = parser.add_subparsers()
 
     args, unknown = parser.parse_known_args()
 

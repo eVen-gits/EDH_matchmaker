@@ -14,18 +14,19 @@ from PyQt6 import uic
 import match as core
 
 def with_status(func_to_decorate):
-    def wrapper(*original_args, **original_kwargs):
-        ret = func_to_decorate(*original_args, **original_kwargs)
+    def wrapper(self, *original_args, **original_kwargs):
+        ret = func_to_decorate(self, *original_args, **original_kwargs)
+        if core.OUTPUT_BUFFER:
+            for msg in core.OUTPUT_BUFFER:
+                self.ui.lw_status.addItem(str(msg))
+            #TODO: Scroll
+            #self.ui.lw_status.scroll
+            core.LAST = core.OUTPUT_BUFFER.copy()
+            core.OUTPUT_BUFFER.clear()
         return ret
-    #if core.OUTPUT_BUFFER:
-    #    self.ui.statusbar.setText('TEST')#('\n'.join([str(x) for x in OUTPUT_BUFFER]))
-        #LAST = OUTPUT_BUFFER.copy()
-        #OUTPUT_BUFFER.clear()
     return wrapper
 
 class MainWindow(QMainWindow):
-
-
     def __init__(self, core):
         self.file_name = None
 
@@ -36,7 +37,7 @@ class MainWindow(QMainWindow):
         self.ui = uic.loadUi('./ui/MainWindow.ui')
         self.setCentralWidget(self.ui)
         #self.changeTitle()
-        self.resize(800, 600)
+        self.resize(900, 750)
 
         self.ui.pb_add_player.clicked.connect(
             lambda: self.add_player(self.ui.le_player_name.text()))
@@ -48,7 +49,10 @@ class MainWindow(QMainWindow):
         self.ui.lv_players.customContextMenuRequested.connect(
             self.lv_players_rightclick_menu)
 
-        self.ui.pb_pods.clicked.connect(self.create_pods)
+        self.ui.pb_pods.clicked.connect(lambda: self.create_pods())
+
+        self.ui.DEBUG1.clicked.connect(self.update_player_list)
+        self.ui.DEBUG2.clicked.connect(self.random_results)
 
     def lv_players_rightclick_menu(self, position):
         #Popup menu
@@ -64,7 +68,6 @@ class MainWindow(QMainWindow):
         #rename_player_action.triggered.connect(self.lva_rename_player)
         pop_menu.exec(self.ui.lv_players.mapToGlobal(position))
 
-    #Delete group
     def lva_remove_player(self):
         player = self.ui.lv_players.currentItem().data(Qt.ItemDataRole.UserRole)
         self.confirm(
@@ -90,20 +93,24 @@ class MainWindow(QMainWindow):
 
         self.ui.lv_players.itemChanged.connect(lambda *x: try_rename_player(x))
     '''
+
     @with_status
     def add_player(self, player_name):
         #player_name = self.ui.le_player_name.text()
         player = core.add_player(player_name)
         if player:
-            list_item = QListWidgetItem(player.name)
+            self.ui.le_player_name.clear()
+            list_item = QListWidgetItem(str(player))
             list_item.setData(Qt.ItemDataRole.UserRole, player)
             self.ui.lv_players.addItem(list_item)
 
+    @with_status
     def remove_player(self, player_name):
         core.remove_player(player_name)
 
+    @with_status
     def create_pods(self):
-        self.core.make_pods()
+        core.make_pods()
 
     def confirm(self, message, title=''):
         reply = QMessageBox()
@@ -117,6 +124,15 @@ class MainWindow(QMainWindow):
         x = reply.exec()
 
         return x == QMessageBox.StandardButton.Ok
+
+    def update_player_list(self):
+        for row in range(self.ui.lv_players.count()):
+            item = self.ui.lv_players.item(row)
+            data = item.data(Qt.ItemDataRole.UserRole)
+            item.setText(str(data))
+
+    def random_results(self):
+        core.random_results()
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
