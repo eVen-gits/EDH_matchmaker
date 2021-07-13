@@ -209,6 +209,9 @@ class Round:
 
         n_plyr = len(remaining)
         pod_sizes = Round.get_pod_sizes(n_plyr)
+        if pod_sizes is None:
+            OUTPUT_BUFFER.append('Can not make pods.')
+            return None
         n_pods = len(pod_sizes)
 
         pods = [Pod(i, size) for size, i in zip(pod_sizes, range(n_pods))]

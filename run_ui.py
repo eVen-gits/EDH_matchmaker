@@ -4,6 +4,8 @@ import sys
 #jsonpickle.set_encoder_options('simplejson', indent=4)
 import io
 import os
+from enum import Enum
+import argparse
 
 from PyQt6.QtGui import *
 from PyQt6.QtCore import *
@@ -12,6 +14,7 @@ from PyQt6.QtWidgets import QListWidgetItem
 from PyQt6 import uic
 
 import match as core
+
 
 def with_status(func_to_decorate):
     def wrapper(self, *original_args, **original_kwargs):
@@ -25,6 +28,60 @@ def with_status(func_to_decorate):
             core.OUTPUT_BUFFER.clear()
         return ret
     return wrapper
+
+class SORT_METHOD(Enum):
+    ID=0
+    NAME=1
+    PTS=2
+
+class PlayerListItem(QListWidgetItem):
+    SORT_METHOD = SORT_METHOD.ID
+    INVERSE_SORT = False
+
+    def __init__(self, player):
+        self.player = player
+        QListWidgetItem.__init__(self, str(player), parent=None)
+
+    #@classmethod
+    #def sort_method_str(cls):
+    #    return '{} {}'.format(
+    #        cls.SORT_METHOD.name,
+    #        'ASC' if cls.INVERSE_SORT else 'DESC'
+    #    )
+
+    def __ge__ (self, other):
+        if self.SORT_METHOD == SORT_METHOD.ID:
+            b = self.player.id >= other.player.id
+        elif self.SORT_METHOD == SORT_METHOD.NAME:
+            b =  self.player.name >= other.player.name
+        elif self.SORT_METHOD == SORT_METHOD.PTS:
+            b =  self.player.points < other.player.points
+        return b if not self.INVERSE_SORT else not b
+
+    def __lt__ (self, other):
+        if self.SORT_METHOD == SORT_METHOD.ID:
+            b =  self.player.ID < other.player.ID
+        elif self.SORT_METHOD == SORT_METHOD.NAME:
+            b =  self.player.name < other.player.name
+        elif self.SORT_METHOD == SORT_METHOD.PTS:
+            b =  self.player.points >= other.player.points
+        return b if not self.INVERSE_SORT else not b
+
+    @classmethod
+    def toggle_sort(cls):
+        if not cls.INVERSE_SORT:
+            cls.INVERSE_SORT = True
+
+        elif cls.SORT_METHOD == SORT_METHOD.ID:
+            cls.SORT_METHOD = SORT_METHOD.NAME
+            cls.INVERSE_SORT = False
+        elif cls.SORT_METHOD == SORT_METHOD.NAME:
+            cls.SORT_METHOD = SORT_METHOD.PTS
+            cls.INVERSE_SORT = False
+        elif cls.SORT_METHOD == SORT_METHOD.PTS:
+            cls.SORT_METHOD = SORT_METHOD.ID
+            cls.INVERSE_SORT = False
+        #print(cls.sort_method_str())
 
 class MainWindow(QMainWindow):
     def __init__(self, core):
@@ -52,7 +109,13 @@ class MainWindow(QMainWindow):
         self.ui.pb_pods.clicked.connect(lambda: self.create_pods())
 
         self.ui.DEBUG1.clicked.connect(self.update_player_list)
+        self.ui.DEBUG1.setText('update_player_list')
+
         self.ui.DEBUG2.clicked.connect(self.random_results)
+        self.ui.DEBUG2.setText('random_results')
+
+        self.ui.DEBUG3.clicked.connect(self.toggle_player_list_sorting)
+        self.ui.DEBUG3.setText('toggle_player_list_sorting')
 
     def lv_players_rightclick_menu(self, position):
         #Popup menu
@@ -100,7 +163,7 @@ class MainWindow(QMainWindow):
         player = core.add_player(player_name)
         if player:
             self.ui.le_player_name.clear()
-            list_item = QListWidgetItem(str(player))
+            list_item = PlayerListItem(player)
             list_item.setData(Qt.ItemDataRole.UserRole, player)
             self.ui.lv_players.addItem(list_item)
 
@@ -125,16 +188,35 @@ class MainWindow(QMainWindow):
 
         return x == QMessageBox.StandardButton.Ok
 
+    def toggle_player_list_sorting(self):
+        PlayerListItem.toggle_sort()
+        self.update_player_list()
+
     def update_player_list(self):
         for row in range(self.ui.lv_players.count()):
             item = self.ui.lv_players.item(row)
             data = item.data(Qt.ItemDataRole.UserRole)
             item.setText(str(data))
+        self.ui.lv_players.sortItems()
 
     def random_results(self):
         core.random_results()
 
 if __name__ == '__main__':
+    #TODO: args thing
+    '''
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('-p', '--players', dest='players', nargs='*')
+    parser.add_argument('-f', '--file', dest='file')
+    parser.add_argument('-i', '--input', dest='input', nargs='*')
+    args, unknown = parser.parse_known_args()
+
+    if args.players:
+        for p in args.players:
+            core.add_player(p)
+    '''
+
     app = QApplication(sys.argv)
 
     window = MainWindow(None)
