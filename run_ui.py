@@ -13,21 +13,24 @@ from PyQt6.QtWidgets import * #QMainWindow, QDialog, QGraphicsScene, QListWidget
 from PyQt6.QtWidgets import QListWidgetItem
 from PyQt6 import uic
 
-import match as core
+from core import ID, TournamentAction, Tournament, Player, Pod, Round, Log
 
+class UILog:
+    backlog = 0
 
-def with_status(func_to_decorate):
-    def wrapper(self, *original_args, **original_kwargs):
-        ret = func_to_decorate(self, *original_args, **original_kwargs)
-        if core.OUTPUT_BUFFER:
-            for msg in core.OUTPUT_BUFFER:
-                self.ui.lw_status.addItem(str(msg))
-            #TODO: Scroll
-            #self.ui.lw_status.scroll
-            core.LAST = core.OUTPUT_BUFFER.copy()
-            core.OUTPUT_BUFFER.clear()
-        return ret
-    return wrapper
+    @classmethod
+    def with_status(cls, func_to_decorate):
+        def wrapper(self, *original_args, **original_kwargs):
+            ret = func_to_decorate(self, *original_args, **original_kwargs)
+            if cls.backlog < len(Log.output):
+                for i in range(cls.backlog, len(Log.output)):
+                    self.ui.lw_status.addItem(str(Log.output[i]))
+                cls.backlog = len(Log.output)
+                #TODO: Scroll
+                #self.ui.lw_status.scroll
+            #Log.log()
+            return ret
+        return wrapper
 
 class SORT_METHOD(Enum):
     ID=0
@@ -88,7 +91,7 @@ class MainWindow(QMainWindow):
         self.file_name = None
 
         QMainWindow.__init__(self)
-        self.core = core
+        self.core = Tournament()
 
         #Window code
         self.ui = uic.loadUi('./ui/MainWindow.ui')
@@ -107,6 +110,7 @@ class MainWindow(QMainWindow):
             self.lv_players_rightclick_menu)
 
         self.ui.pb_pods.clicked.connect(lambda: self.create_pods())
+
 
         self.ui.DEBUG1.clicked.connect(self.update_player_list)
         self.ui.DEBUG1.setText('update_player_list')
@@ -137,7 +141,7 @@ class MainWindow(QMainWindow):
             'Remove {}?'.format(player.name),
             'Confirm player removal'
         )
-        self.remove_player(player.name)
+        self.remove_player(player)
         self.ui.lv_players.takeItem(self.ui.lv_players.currentRow())
 
     #Renaming player
@@ -151,29 +155,30 @@ class MainWindow(QMainWindow):
 
         def try_rename_player(*nargs):
             player = self.ui.lv_players.currentItem().data(Qt.ItemDataRole.UserRole)
-            core.rename_player(player.name, new_name)
+            self.core.rename_player(player.name, new_name)
 
 
         self.ui.lv_players.itemChanged.connect(lambda *x: try_rename_player(x))
     '''
 
-    @with_status
+    @UILog.with_status
     def add_player(self, player_name):
         #player_name = self.ui.le_player_name.text()
-        player = core.add_player(player_name)
-        if player:
+        players = self.core.add_player(player_name)
+        if len(players) == 1:
+            player = players[0]
             self.ui.le_player_name.clear()
             list_item = PlayerListItem(player)
             list_item.setData(Qt.ItemDataRole.UserRole, player)
             self.ui.lv_players.addItem(list_item)
 
-    @with_status
+    @UILog.with_status
     def remove_player(self, player_name):
-        core.remove_player(player_name)
+        self.core.remove_player(player_name)
 
-    @with_status
+    @UILog.with_status
     def create_pods(self):
-        core.make_pods()
+        self.core.make_pods()
 
     def confirm(self, message, title=''):
         reply = QMessageBox()
@@ -200,7 +205,15 @@ class MainWindow(QMainWindow):
         self.ui.lv_players.sortItems()
 
     def random_results(self):
-        core.random_results()
+        self.core.random_results()
+
+parser = argparse.ArgumentParser()
+
+parser.add_argument('-p', '--players', dest='players', nargs='*')
+parser.add_argument('-f', '--file', dest='file')
+parser.add_argument('-i', '--input', dest='input', nargs='*')
+
+subparsers = parser.add_subparsers()
 
 if __name__ == '__main__':
     #TODO: args thing
@@ -214,7 +227,7 @@ if __name__ == '__main__':
 
     if args.players:
         for p in args.players:
-            core.add_player(p)
+            self.core.add_player(p)
     '''
 
     app = QApplication(sys.argv)

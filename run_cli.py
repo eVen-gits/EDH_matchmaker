@@ -352,6 +352,7 @@ def unknown(tokens):
     OUTPUT_BUFFER.append('Uknown command: {} with arguments {}'.format(tokens[0], tokens[1::]))
 
 def add_player(names=[]):
+    added_players = []
     if not isinstance(names, list):
         names =  [names]
     for name in names:
@@ -362,7 +363,8 @@ def add_player(names=[]):
             p = Player(name)
             players.append(p)
             OUTPUT_BUFFER.append('\tAdded player {}'.format(p.name))
-            return p
+            added_players.append(p)
+    return added_players
 
 def get_player(search, helper=True):
     try:
