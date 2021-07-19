@@ -1,19 +1,20 @@
-import sys
+import argparse
 #import jsonpickle
 #jsonpickle.set_encoder_options('json', indent=4)
 #jsonpickle.set_encoder_options('simplejson', indent=4)
 import io
 import os
+import sys
 from enum import Enum
-import argparse
 
-from PyQt6.QtGui import *
-from PyQt6.QtCore import *
-from PyQt6.QtWidgets import * #QMainWindow, QDialog, QGraphicsScene, QListWidget, QListWidgetItem, QApplication, QSizePolicy
-from PyQt6.QtWidgets import QListWidgetItem
+import names
 from PyQt6 import uic
+from PyQt6.QtCore import *
+from PyQt6.QtGui import *
+from PyQt6.QtWidgets import *  # QMainWindow, QDialog, QGraphicsScene, QListWidget, QListWidgetItem, QApplication, QSizePolicy
+from PyQt6.QtWidgets import QListWidgetItem
 
-from core import ID, TournamentAction, Tournament, Player, Pod, Round, Log
+from core import ID, Log, Player, Pod, Round, Tournament, TournamentAction
 
 class UILog:
     backlog = 0
@@ -27,7 +28,8 @@ class UILog:
                     self.ui.lw_status.addItem(str(Log.output[i]))
                 cls.backlog = len(Log.output)
                 #TODO: Scroll
-                #self.ui.lw_status.scroll
+                self.ui.lw_status.scrollToBottom()
+                self.ui.lw_status.setCurrentRow(self.ui.lw_status.count()-1)
             #Log.log()
             return ret
         return wrapper
@@ -41,7 +43,7 @@ class PlayerListItem(QListWidgetItem):
     SORT_METHOD = SORT_METHOD.ID
     INVERSE_SORT = False
 
-    def __init__(self, player):
+    def __init__(self, player:Player):
         self.player = player
         QListWidgetItem.__init__(self, str(player), parent=None)
 
@@ -67,15 +69,17 @@ class PlayerListItem(QListWidgetItem):
         elif self.SORT_METHOD == SORT_METHOD.NAME:
             b =  self.player.name < other.player.name
         elif self.SORT_METHOD == SORT_METHOD.PTS:
-            b =  self.player.points >= other.player.points
-        return b if not self.INVERSE_SORT else not b
+            b =  self.player.points < other.player.points
+        if self.INVERSE_SORT:
+            return not b
+        return b
 
     @classmethod
     def toggle_sort(cls):
         if not cls.INVERSE_SORT:
             cls.INVERSE_SORT = True
 
-        elif cls.SORT_METHOD == SORT_METHOD.ID:
+        if cls.SORT_METHOD == SORT_METHOD.ID:
             cls.SORT_METHOD = SORT_METHOD.NAME
             cls.INVERSE_SORT = False
         elif cls.SORT_METHOD == SORT_METHOD.NAME:
@@ -84,14 +88,17 @@ class PlayerListItem(QListWidgetItem):
         elif cls.SORT_METHOD == SORT_METHOD.PTS:
             cls.SORT_METHOD = SORT_METHOD.ID
             cls.INVERSE_SORT = False
-        #print(cls.sort_method_str())
+
+    #overwrite
+    def text(self, tokens=['-i', '-p']):
+        return self.player.__repr__(tokens)
 
 class MainWindow(QMainWindow):
-    def __init__(self, core):
+    def __init__(self, core=None):
         self.file_name = None
 
         QMainWindow.__init__(self)
-        self.core = Tournament()
+        self.core = core if core else Tournament()
 
         #Window code
         self.ui = uic.loadUi('./ui/MainWindow.ui')
@@ -104,22 +111,37 @@ class MainWindow(QMainWindow):
         self.ui.le_player_name.returnPressed.connect(
             lambda: self.add_player(self.ui.le_player_name.text()))
 
-        self.ui.lv_players.setContextMenuPolicy(
-            Qt.ContextMenuPolicy.CustomContextMenu)
         self.ui.lv_players.customContextMenuRequested.connect(
             self.lv_players_rightclick_menu)
 
         self.ui.pb_pods.clicked.connect(lambda: self.create_pods())
 
-
-        self.ui.DEBUG1.clicked.connect(self.update_player_list)
-        self.ui.DEBUG1.setText('update_player_list')
+        self.ui.DEBUG1.clicked.connect(self.restore_ui)
+        self.ui.DEBUG1.setText('restore_ui')
 
         self.ui.DEBUG2.clicked.connect(self.random_results)
         self.ui.DEBUG2.setText('random_results')
 
         self.ui.DEBUG3.clicked.connect(self.toggle_player_list_sorting)
         self.ui.DEBUG3.setText('toggle_player_list_sorting')
+
+        self.restore_ui()
+
+    def restore_ui(self):
+        self.ui.lv_players.clear()
+
+        #clear pods
+        layout = self.ui.saw_content.layout()
+        for i in reversed(range(layout.count())):
+            widget = layout.itemAt(i).widget()
+            if widget:
+                widget.setParent(None)
+
+        #clear players
+        for p in self.core.players:
+            list_item = PlayerListItem(p)
+            list_item.setData(Qt.ItemDataRole.UserRole, p)
+            self.ui.lv_players.addItem(list_item)
 
     def lv_players_rightclick_menu(self, position):
         #Popup menu
@@ -179,6 +201,17 @@ class MainWindow(QMainWindow):
     @UILog.with_status
     def create_pods(self):
         self.core.make_pods()
+        layout = self.ui.saw_content.layout()
+        self.ui_clear_pods()
+        for pod in self.core.round.pods:
+            layout.addWidget(PodWidget(self, pod))
+
+    def ui_clear_pods(self):
+        layout = self.ui.saw_content.layout()
+        for i in reversed(range(layout.count())):
+            widget = layout.itemAt(i).widget()
+            if widget:
+                widget.setParent(None)
 
     def confirm(self, message, title=''):
         reply = QMessageBox()
@@ -207,32 +240,106 @@ class MainWindow(QMainWindow):
     def random_results(self):
         self.core.random_results()
 
-parser = argparse.ArgumentParser()
+    @UILog.with_status
+    def report_win(self, player):
+        Log.log('Reporting player {} won this round.'.format(player.name))
+        self.core.report_win(player)
 
-parser.add_argument('-p', '--players', dest='players', nargs='*')
-parser.add_argument('-f', '--file', dest='file')
-parser.add_argument('-i', '--input', dest='input', nargs='*')
+    @UILog.with_status
+    def report_draw(self, players):
+        Log.log('Reporting draw for players: {}.'.format(
+            ', '.join([p.name for p in players])
+        ))
+        self.core.report_draw(players)
 
-subparsers = parser.add_subparsers()
+class PodWidget(QWidget):
+    def __init__(self, app, pod:Pod, parent=None):
+        QWidget.__init__(self, parent=parent)
+        self.app = app
+        self.pod = pod
+        self.ui = uic.loadUi('./ui/PodWidget.ui', self)
+        self.refresh_ui()
+
+        self.ui.lw_players.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        my_object = QObject()
+        self.ui.lw_players.customContextMenuRequested.connect(
+                self.rightclick_menu
+        )
+
+    def refresh_ui(self):
+        self.ui.lbl_pod_id.setText(
+            'Pod {} - {} players'.format(
+                self.pod.id,
+                len(self.pod.players)
+            )
+        )
+        self.lw_players.clear()
+        for p in self.pod.players:
+            list_item = QListWidgetItem(str(p))
+            list_item.setData(Qt.ItemDataRole.UserRole, p)
+            self.lw_players.addItem(list_item)
+
+        self.lw_players.setFixedHeight(
+            self.lw_players.sizeHintForRow(0) * self.lw_players.count() + 2 * self.lw_players.frameWidth()
+        )
+
+    def rightclick_menu(self, position):
+        #Popup menu
+        pop_menu = QMenu()
+        report_win = QAction('Report win', self)
+        report_draw = QAction('Report draw', self)
+        #Check if it is on the item when you right-click, if it is not, delete and modify will not be displayed.
+        if self.ui.lw_players.itemAt(position):
+            if len(self.lw_players.selectedItems()) < 2:
+                pop_menu.addAction(report_win)
+            pop_menu.addAction(report_draw)
+
+        report_win.triggered.connect(self.report_win)
+        report_draw.triggered.connect(self.report_draw)
+        #rename_player_action.triggered.connect(self.lva_rename_player)
+        pop_menu.exec(self.ui.lw_players.mapToGlobal(position))
+
+    def report_win(self, *nargs, **kwargs):
+        player = self.lw_players.currentItem().data(Qt.ItemDataRole.UserRole)
+        ok = self.app.confirm('Report player {} won?'.format(player.name), 'Confirm result')
+        if ok:
+            self.app.report_win(player)
+            self.deleteLater()
+
+    def report_draw(self):
+        players = [
+            item.data(Qt.ItemDataRole.UserRole)
+            for item
+            in self.lw_players.selectedItems()
+        ]
+        ok = self.app.confirm(
+            'Report draw for players:\n\n{}'.format(
+                '\n'.join([p.name for p in players])
+            ),
+            'Confirm result'
+        )
+        if ok:
+            self.app.report_draw(players)
+            self.deleteLater()
 
 if __name__ == '__main__':
-    #TODO: args thing
-    '''
     parser = argparse.ArgumentParser()
 
     parser.add_argument('-p', '--players', dest='players', nargs='*')
     parser.add_argument('-f', '--file', dest='file')
     parser.add_argument('-i', '--input', dest='input', nargs='*')
-    args, unknown = parser.parse_known_args()
 
-    if args.players:
-        for p in args.players:
-            self.core.add_player(p)
-    '''
+    subparsers = parser.add_subparsers()
 
     app = QApplication(sys.argv)
 
-    window = MainWindow(None)
+    core = Tournament()
+    core.add_player([
+        names.get_full_name()
+        for i in range(11)
+    ])
+
+    window = MainWindow(core)
     window.show()
 
     app.exec()

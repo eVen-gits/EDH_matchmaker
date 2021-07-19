@@ -72,7 +72,7 @@ class TournamentAction:
     '''Serializable action that will be stored in tournament log and can be restored
     '''
     ACTIONS = []
-    LOGF = 'logs/tournament_log.log'
+    LOGF = 'logs/default.log'
 
     def __init__(self, before, ret, after, func_name, *nargs, **kwargs):
         self.before = before
@@ -97,13 +97,18 @@ class TournamentAction:
         return wrapper
 
     @classmethod
+    def set_log_dir(cls, logdir):
+        cls.LOGF = logdir
+
+    @classmethod
     def store(cls):
         with open(cls.LOGF, 'wb') as f:
             pickle.dump(cls.ACTIONS, f)
 
     @classmethod
-    def load(cls):
-        if os.path.exists(cls.LOGF):
+    def load(cls, logdir):
+        if os.path.exists(logdir):
+            cls.LOGF = logdir
             with open(cls.LOGF, 'rb') as f:
                 cls.ACTIONS = pickle.load(f)
             return True
@@ -180,16 +185,15 @@ class Tournament:
         if not self.round.ready():
             self.round.make_pods()
         else:
-            Log.log(
-                '{}\n{}\n{}'.format(
-                    30*'*',
-                    'Please report results of following pods:',
-                    30*'*',
-                ), level=Log.Level.WARNING
-            )
-            for pod in self.round.pods:
-                if not pod.done:
-                    Log.log(str(pod))
+            Log.log(30*'*', level=Log.Level.WARNING)
+            Log.log('Please report results of following pods: {}'.format(
+                ', '.join([
+                    str(pod.id)
+                    for pod in self.round.pods
+                    if not pod.done
+                ])
+            ), level=Log.Level.WARNING)
+            Log.log(30*'*', level=Log.Level.WARNING)
 
     @TournamentAction.action
     def new_round(self):
@@ -322,7 +326,7 @@ class Player:
 
     def __repr__(self, tokens=['-i', '-p']):
         #ret = '{} | played: {} | pts: {}'.format(self.name, len(set(self.played)), self.points)
-        parser_player = subparsers.add_parser('player', help='player help')
+        parser_player = argparse.ArgumentParser()
 
         parser_player.add_argument('-i', '--id',           dest='id', action='store_true')
         parser_player.add_argument('-w', '--win',          dest='w', action='store_true')
@@ -342,7 +346,7 @@ class Player:
         fields = list()
 
         if args.id:
-            fields.append('({}){}'.format(self.ID, self.name))
+            fields.append('[{}] {}'.format(self.ID, self.name))
         else:
             fields.append(self.name)
         if args.p:
@@ -423,7 +427,7 @@ class Pod:
                 [
                     '{}: [{}] {}\t'.format(
                         i,
-                        ' ' if not self.done else
+                        '  ' if not self.done else
                         'W' if p == self.won else
                         'D' if p in self.draw else
                         'L',
@@ -597,7 +601,7 @@ if __name__ == "__main__":
     else:
         tour.add_player([
             names.get_full_name()
-            for i in range(20)
+            for i in range(17)
         ])
         for i in range(5):
             tour.make_pods()
