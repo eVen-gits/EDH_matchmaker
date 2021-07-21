@@ -119,29 +119,31 @@ class MainWindow(QMainWindow):
         self.ui.DEBUG1.clicked.connect(self.restore_ui)
         self.ui.DEBUG1.setText('restore_ui')
 
-        self.ui.DEBUG2.clicked.connect(self.random_results)
+        self.ui.DEBUG2.clicked.connect(lambda x: self.random_results())
         self.ui.DEBUG2.setText('random_results')
 
-        self.ui.DEBUG3.clicked.connect(self.toggle_player_list_sorting)
+        self.ui.DEBUG3.clicked.connect(self.ui_toggle_player_list_sorting)
         self.ui.DEBUG3.setText('toggle_player_list_sorting')
+
+        self.ui.actionLoad_state.triggered.connect(self.load_state)
 
         self.restore_ui()
 
+    def load_state(self):
+        state = LogLoaderDialog.show_dialog(self)
+        if state:
+            self.core = state
+        self.restore_ui()
+
     def restore_ui(self):
-        self.ui.lv_players.clear()
 
         #clear pods
-        layout = self.ui.saw_content.layout()
-        for i in reversed(range(layout.count())):
-            widget = layout.itemAt(i).widget()
-            if widget:
-                widget.setParent(None)
+        self.ui_clear_pods()
+        self.ui_create_pods()
 
         #clear players
-        for p in self.core.players:
-            list_item = PlayerListItem(p)
-            list_item.setData(Qt.ItemDataRole.UserRole, p)
-            self.ui.lv_players.addItem(list_item)
+        self.ui.lv_players.clear()
+        self.ui_create_player_list()
 
     def lv_players_rightclick_menu(self, position):
         #Popup menu
@@ -159,10 +161,11 @@ class MainWindow(QMainWindow):
 
     def lva_remove_player(self):
         player = self.ui.lv_players.currentItem().data(Qt.ItemDataRole.UserRole)
-        self.confirm(
+        ok = self.confirm(
             'Remove {}?'.format(player.name),
             'Confirm player removal'
         )
+        #if ok:
         self.remove_player(player)
         self.ui.lv_players.takeItem(self.ui.lv_players.currentRow())
 
@@ -193,6 +196,7 @@ class MainWindow(QMainWindow):
             list_item = PlayerListItem(player)
             list_item.setData(Qt.ItemDataRole.UserRole, player)
             self.ui.lv_players.addItem(list_item)
+        self.ui_update_player_list()
 
     @UILog.with_status
     def remove_player(self, player_name):
@@ -201,10 +205,14 @@ class MainWindow(QMainWindow):
     @UILog.with_status
     def create_pods(self):
         self.core.make_pods()
-        layout = self.ui.saw_content.layout()
         self.ui_clear_pods()
-        for pod in self.core.round.pods:
-            layout.addWidget(PodWidget(self, pod))
+        self.ui_create_pods()
+
+    def ui_create_pods(self):
+        layout = self.ui.saw_content.layout()
+        if self.core.round:
+            for pod in self.core.round.pods:
+                layout.addWidget(PodWidget(self, pod))
 
     def ui_clear_pods(self):
         layout = self.ui.saw_content.layout()
@@ -226,19 +234,28 @@ class MainWindow(QMainWindow):
 
         return x == QMessageBox.StandardButton.Ok
 
-    def toggle_player_list_sorting(self):
+    def ui_toggle_player_list_sorting(self):
         PlayerListItem.toggle_sort()
-        self.update_player_list()
+        self.ui_update_player_list()
 
-    def update_player_list(self):
+    def ui_update_player_list(self):
         for row in range(self.ui.lv_players.count()):
             item = self.ui.lv_players.item(row)
             data = item.data(Qt.ItemDataRole.UserRole)
             item.setText(str(data))
         self.ui.lv_players.sortItems()
 
+    def ui_create_player_list(self):
+        for p in self.core.players:
+            list_item = PlayerListItem(p)
+            list_item.setData(Qt.ItemDataRole.UserRole, p)
+            self.ui.lv_players.addItem(list_item)
+        self.ui.lv_players.sortItems()
+
+    @UILog.with_status
     def random_results(self):
         self.core.random_results()
+        self.restore_ui()
 
     @UILog.with_status
     def report_win(self, player):
@@ -290,9 +307,10 @@ class PodWidget(QWidget):
         report_draw = QAction('Report draw', self)
         #Check if it is on the item when you right-click, if it is not, delete and modify will not be displayed.
         if self.ui.lw_players.itemAt(position):
-            if len(self.lw_players.selectedItems()) < 2:
+            if len(self.lw_players.selectedItems()) == 1:
                 pop_menu.addAction(report_win)
-            pop_menu.addAction(report_draw)
+            else:
+                pop_menu.addAction(report_draw)
 
         report_win.triggered.connect(self.report_win)
         report_draw.triggered.connect(self.report_draw)
@@ -322,6 +340,53 @@ class PodWidget(QWidget):
             self.app.report_draw(players)
             self.deleteLater()
 
+class LogLoaderDialog(QDialog):
+    def __init__(self, app, parent=None):
+        QDialog.__init__(self, parent)
+        self.app = app
+
+        self.ui = uic.loadUi('./ui/LogLoader.ui', self)
+        self.restore_ui()
+
+        self.pb_load_before.clicked.connect(lambda: self.load(True))
+        self.pb_load_after.clicked.connect(lambda: self.load(False))
+        self.pb_cancel.clicked.connect(lambda: self.done(1))
+
+        self.action = None
+
+    def restore_ui(self):
+        self.lw_actions.clear()
+        for action in TournamentAction.ACTIONS:
+            item = QListWidgetItem('[{}] {}({}{})'.format(
+                action.time.strftime('%H:%M'),
+                action.func_name,
+                ', '.join([str(arg) for arg in action.nargs]),
+                ', '.join(['{}={}'.format(
+                    key, val
+                ) for key, val
+                in action.kwargs.items()
+                ])
+            ))
+            item.setData(Qt.ItemDataRole.UserRole, action)
+            self.lw_actions.addItem(item)
+
+    def load(self, before):
+        action = self.lw_actions.currentItem().data(Qt.ItemDataRole.UserRole)
+        if before:
+            self.action = action.before
+        else:
+            self.action = action.after
+        self.done(0)
+
+    @staticmethod
+    def show_dialog(app, parent=None):
+        dlg = LogLoaderDialog(app, parent)
+        dlg.show()
+        result = dlg.exec()
+        if result == 0:
+            return dlg.action
+        return None
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
@@ -336,7 +401,7 @@ if __name__ == '__main__':
     core = Tournament()
     core.add_player([
         names.get_full_name()
-        for i in range(11)
+        for i in range(7)
     ])
 
     window = MainWindow(core)

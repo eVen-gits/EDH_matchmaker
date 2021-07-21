@@ -8,6 +8,7 @@ import pickle
 import os
 import inspect
 import names
+from datetime import datetime
 
 class Log:
     class Level(Enum):
@@ -82,6 +83,7 @@ class TournamentAction:
         self.nargs = nargs
         self.kwargs = kwargs
         self.ret = ret
+        self.time = datetime.now()
 
     @classmethod
     def action(cls, func):
@@ -106,7 +108,7 @@ class TournamentAction:
             pickle.dump(cls.ACTIONS, f)
 
     @classmethod
-    def load(cls, logdir):
+    def load(cls, logdir='logs/default.log'):
         if os.path.exists(logdir):
             cls.LOGF = logdir
             with open(cls.LOGF, 'rb') as f:
@@ -539,6 +541,7 @@ class Round:
         self.tour.rounds.append(self)
         self.concluded = True
         Log.log('{}{}{}'.format(30*'*', '\nRound completed!\n', 30*'*',), Log.Level.INFO)
+        self.tour.round = None
 
     def find_player_pod(self, player):
         for i_pod in self.pods:
@@ -596,14 +599,14 @@ if __name__ == "__main__":
                     p.points
                 ))
             print()
-        #    print(action.func_name)
+        print()
 
     else:
         tour.add_player([
             names.get_full_name()
-            for i in range(17)
+            for i in range(11)
         ])
-        for i in range(5):
+        for i in range(2):
             tour.make_pods()
             tour.random_results()
             #tour.remove_player(tour.players[0])
