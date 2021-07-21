@@ -10,6 +10,15 @@ import inspect
 import names
 from datetime import datetime
 
+class SORT_METHOD(Enum):
+    ID=0
+    NAME=1
+    RANK=2
+
+class SORT_ORDER(Enum):
+    ASCENDING=0
+    DESCENDING=1
+
 class Log:
     class Level(Enum):
         NONE = 0
@@ -288,6 +297,9 @@ class Tournament:
         return min(cls.POD_SIZES)
 
 class Player:
+    SORT_METHOD = SORT_METHOD.ID
+    SORT_ORDER = SORT_ORDER.ASCENDING
+
     def __init__(self, name, tour: Tournament):
         self.tour = tour
         self.name = name
@@ -325,6 +337,38 @@ class Player:
         for player in pod.players:
             score = score - self.played.count(player) ** 2
         return score
+
+    def __gt__ (self, other):
+        if self.SORT_METHOD == SORT_METHOD.ID:
+            b = self.id > other.id
+        elif self.SORT_METHOD == SORT_METHOD.NAME:
+            b =  self.name > other.name
+        elif self.SORT_METHOD == SORT_METHOD.RANK:
+            if self.points != other.points:
+                b = self.points > other.points
+            elif self.opponent_winrate != other.opponent_winrate:
+                b = self.opponent_winrate > other.opponent_winrate
+            elif self.unique_opponents != other.unique_opponents:
+                b = self.unique_opponents > other.unique_opponents
+            else:
+                return False
+        return b
+
+    def __lt__ (self, other):
+        if self.SORT_METHOD == SORT_METHOD.ID:
+            b =  self.ID < other.ID
+        elif self.SORT_METHOD == SORT_METHOD.NAME:
+            b =  self.name < other.name
+        elif self.SORT_METHOD == SORT_METHOD.RANK:
+            if self.points != other.points:
+                b = self.points < other.points
+            elif self.opponent_winrate != other.opponent_winrate:
+                b = self.opponent_winrate < other.opponent_winrate
+            elif self.unique_opponents != other.unique_opponents:
+                b = self.unique_opponents < other.unique_opponents
+            else:
+                return False
+        return b
 
     def __repr__(self, tokens=['-i', '-p']):
         #ret = '{} | played: {} | pts: {}'.format(self.name, len(set(self.played)), self.points)

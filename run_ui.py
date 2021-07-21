@@ -14,7 +14,7 @@ from PyQt6.QtGui import *
 from PyQt6.QtWidgets import *  # QMainWindow, QDialog, QGraphicsScene, QListWidget, QListWidgetItem, QApplication, QSizePolicy
 from PyQt6.QtWidgets import QListWidgetItem
 
-from core import ID, Log, Player, Pod, Round, Tournament, TournamentAction
+from core import ID, Log, Player, Pod, Round, Tournament, TournamentAction, SORT_ORDER, SORT_METHOD
 
 class UILog:
     backlog = 0
@@ -34,60 +34,39 @@ class UILog:
             return ret
         return wrapper
 
-class SORT_METHOD(Enum):
-    ID=0
-    NAME=1
-    PTS=2
-
 class PlayerListItem(QListWidgetItem):
-    SORT_METHOD = SORT_METHOD.ID
-    INVERSE_SORT = False
-
     def __init__(self, player:Player):
-        self.player = player
         QListWidgetItem.__init__(self, str(player), parent=None)
+        self.player = player
 
-    #@classmethod
-    #def sort_method_str(cls):
-    #    return '{} {}'.format(
-    #        cls.SORT_METHOD.name,
-    #        'ASC' if cls.INVERSE_SORT else 'DESC'
-    #    )
+    def __lt__(self, other):
+        if isinstance(other, PlayerListItem):
+            return self.player.__lt__(other.player)
+        return False
 
-    def __ge__ (self, other):
-        if self.SORT_METHOD == SORT_METHOD.ID:
-            b = self.player.id >= other.player.id
-        elif self.SORT_METHOD == SORT_METHOD.NAME:
-            b =  self.player.name >= other.player.name
-        elif self.SORT_METHOD == SORT_METHOD.PTS:
-            b =  self.player.points < other.player.points
-        return b if not self.INVERSE_SORT else not b
+    def __gt__(self, other):
+        return self.player.__gt__(other.player)
 
-    def __lt__ (self, other):
-        if self.SORT_METHOD == SORT_METHOD.ID:
-            b =  self.player.ID < other.player.ID
-        elif self.SORT_METHOD == SORT_METHOD.NAME:
-            b =  self.player.name < other.player.name
-        elif self.SORT_METHOD == SORT_METHOD.PTS:
-            b =  self.player.points < other.player.points
-        if self.INVERSE_SORT:
-            return not b
-        return b
+    @staticmethod
+    def toggle_sort():
+        if Player.SORT_ORDER == SORT_ORDER.ASCENDING:
+            Player.SORT_ORDER = SORT_ORDER.DESCENDING
+        elif Player.SORT_METHOD == SORT_METHOD.ID:
+            Player.SORT_METHOD = SORT_METHOD.NAME
+            Player.SORT_ORDER = SORT_ORDER.ASCENDING
+        elif Player.SORT_METHOD == SORT_METHOD.NAME:
+            Player.SORT_METHOD = SORT_METHOD.RANK
+            Player.SORT_ORDER = SORT_ORDER.ASCENDING
+        elif Player.SORT_METHOD == SORT_METHOD.RANK:
+            Player.SORT_METHOD = SORT_METHOD.ID
+            Player.SORT_ORDER = SORT_ORDER.ASCENDING
+        print(Player.SORT_METHOD.name, Player.SORT_ORDER.name)
 
-    @classmethod
-    def toggle_sort(cls):
-        if not cls.INVERSE_SORT:
-            cls.INVERSE_SORT = True
-
-        if cls.SORT_METHOD == SORT_METHOD.ID:
-            cls.SORT_METHOD = SORT_METHOD.NAME
-            cls.INVERSE_SORT = False
-        elif cls.SORT_METHOD == SORT_METHOD.NAME:
-            cls.SORT_METHOD = SORT_METHOD.PTS
-            cls.INVERSE_SORT = False
-        elif cls.SORT_METHOD == SORT_METHOD.PTS:
-            cls.SORT_METHOD = SORT_METHOD.ID
-            cls.INVERSE_SORT = False
+    @staticmethod
+    def SORT_ORDER():
+        if Player.SORT_ORDER == SORT_ORDER.ASCENDING:
+            return Qt.SortOrder.AscendingOrder
+        return Qt.SortOrder.DescendingOrder
 
     #overwrite
     def text(self, tokens=['-i', '-p']):
@@ -105,6 +84,9 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.ui)
         #self.changeTitle()
         self.resize(900, 750)
+
+        self.init_sort_dropdown()
+        self.ui.cb_sort.currentIndexChanged.connect(self.cb_sort_set)
 
         self.ui.pb_add_player.clicked.connect(
             lambda: self.add_player(self.ui.le_player_name.text()))
@@ -128,6 +110,22 @@ class MainWindow(QMainWindow):
         self.ui.actionLoad_state.triggered.connect(self.load_state)
 
         self.restore_ui()
+
+    def init_sort_dropdown(self):
+        values = [
+            (SORT_METHOD.ID, SORT_ORDER.ASCENDING),
+            (SORT_METHOD.ID, SORT_ORDER.DESCENDING),
+            (SORT_METHOD.NAME, SORT_ORDER.ASCENDING),
+            (SORT_METHOD.NAME, SORT_ORDER.DESCENDING),
+            (SORT_METHOD.RANK, SORT_ORDER.ASCENDING),
+            (SORT_METHOD.RANK, SORT_ORDER.DESCENDING),
+        ]
+
+        for tup in values:
+            self.ui.cb_sort.addItem(
+                '{} {}'.format(tup[0].name, tup[1].name),
+                userData=tup
+            )
 
     def load_state(self):
         state = LogLoaderDialog.show_dialog(self)
@@ -186,6 +184,12 @@ class MainWindow(QMainWindow):
         self.ui.lv_players.itemChanged.connect(lambda *x: try_rename_player(x))
     '''
 
+    def cb_sort_set(self, idx):
+        method, order = self.ui.cb_sort.itemData(idx)
+        Player.SORT_METHOD = method
+        Player.SORT_ORDER = order
+        self.ui.lv_players.sortItems(order=PlayerListItem.SORT_ORDER())
+
     @UILog.with_status
     def add_player(self, player_name):
         #player_name = self.ui.le_player_name.text()
@@ -243,14 +247,14 @@ class MainWindow(QMainWindow):
             item = self.ui.lv_players.item(row)
             data = item.data(Qt.ItemDataRole.UserRole)
             item.setText(str(data))
-        self.ui.lv_players.sortItems()
+        self.ui.lv_players.sortItems(order=PlayerListItem.SORT_ORDER())
 
     def ui_create_player_list(self):
         for p in self.core.players:
             list_item = PlayerListItem(p)
             list_item.setData(Qt.ItemDataRole.UserRole, p)
             self.ui.lv_players.addItem(list_item)
-        self.ui.lv_players.sortItems()
+        self.ui.lv_players.sortItems(order=PlayerListItem.SORT_ORDER())
 
     @UILog.with_status
     def random_results(self):
@@ -292,7 +296,7 @@ class PodWidget(QWidget):
         )
         self.lw_players.clear()
         for p in self.pod.players:
-            list_item = QListWidgetItem(str(p))
+            list_item = PlayerListItem(p)
             list_item.setData(Qt.ItemDataRole.UserRole, p)
             self.lw_players.addItem(list_item)
 
