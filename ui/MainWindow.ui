@@ -92,7 +92,7 @@
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>283</width>
+             <width>280</width>
              <height>289</height>
             </rect>
            </property>
@@ -140,7 +140,7 @@
      <x>0</x>
      <y>0</y>
      <width>690</width>
-     <height>30</height>
+     <height>32</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -165,9 +165,17 @@
     <addaction name="actionReset_UI"/>
     <addaction name="actionRandom_Results"/>
    </widget>
+   <widget class="QMenu" name="menuExport">
+    <property name="title">
+     <string>Export</string>
+    </property>
+    <addaction name="actionPods"/>
+    <addaction name="actionStandings"/>
+   </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
    <addaction name="menuDebug"/>
+   <addaction name="menuExport"/>
   </widget>
   <action name="actionLoad_tour">
    <property name="text">
@@ -202,6 +210,16 @@
   <action name="actionRandom_Results">
    <property name="text">
     <string>Random Results</string>
+   </property>
+  </action>
+  <action name="actionStandings">
+   <property name="text">
+    <string>Standings</string>
+   </property>
+  </action>
+  <action name="actionPods">
+   <property name="text">
+    <string>Pods</string>
    </property>
   </action>
  </widget>

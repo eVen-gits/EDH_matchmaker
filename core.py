@@ -231,6 +231,7 @@ class Tournament:
     def reset_pods(self):
         if self.round:
             self.round.pods = []
+            self.round = None
 
     @TournamentAction.action
     def manual_pod(self, players=[]):
@@ -282,6 +283,10 @@ class Tournament:
             self.round.print_pods()
         else:
             Log.log('No pods currently created.')
+
+    def export_str(self, fdir, str):
+        with open(fdir, 'w') as f:
+            f.writelines(str)
 
     #PROPS AND CLASSMETHODS
 
@@ -377,7 +382,7 @@ class Player:
                 return False
         return b
 
-    def __repr__(self, tokens=['-i', '-p']):
+    def __repr__(self, tokens=['-p']):
         #ret = '{} | played: {} | pts: {}'.format(self.name, len(set(self.played)), self.points)
         parser_player = argparse.ArgumentParser()
 
@@ -387,6 +392,7 @@ class Player:
         parser_player.add_argument('-p', '--points',       dest='p', action='store_true')
         parser_player.add_argument('-r', '--winrate',      dest='wr', action='store_true')
         parser_player.add_argument('-u', '--unique',       dest='u', action='store_true')
+        parser_player.add_argument('-s', '--spaces',       dest='spaces', type=int, default=0)
         #parser.add_argument('-n', '--notplayed',    dest='np', action='store_true')
 
         try:
@@ -401,7 +407,7 @@ class Player:
         if args.id:
             fields.append('[{}] {}'.format(self.ID, self.name))
         else:
-            fields.append(self.name)
+            fields.append(self.name.ljust(args.spaces))
         if args.p:
             fields.append('pts: {}'.format(self.points))
         if args.w:
@@ -472,7 +478,8 @@ class Pod:
             player.games_won += 1
 
     def __repr__(self):
-        return 'Pod {} with {} players and seats:\n\t{}'.format(
+        maxlen = max([len(p.name) for p in self.players])
+        ret = 'Pod {} with {} players and seats:\n\t{}'.format(
             self.id,
             self.p_count,
             #self.score,
@@ -484,12 +491,12 @@ class Pod:
                         'W' if p == self.won else
                         'D' if p in self.draw else
                         'L',
-                        #TODO: p.__repr__(['-w']))
-                        str(p))
+                        p.__repr__(['-s', str(maxlen), '-p']))
                     for i, p in
                     zip(range(1, self.p_count+1), self.players)
                 ]
             ))
+        return ret
 
 class Round:
     def __init__(self, seq, tour: Tournament):
@@ -575,9 +582,9 @@ class Round:
         for pod_size in Tournament.POD_SIZES:
             if n-pod_size == 0:
                 return [pod_size]
-            if n-pod_size < Tournament.MIN_POD_SIZE and pod_size == Tournament.POD_SIZES[-1]:
+            if n-pod_size < min(Tournament.POD_SIZES) and pod_size == Tournament.POD_SIZES[-1]:
                 return None
-            if n-pod_size >= Tournament.MIN_POD_SIZE:
+            if n-pod_size >= min(Tournament.POD_SIZES):
                 tail = Round.get_pod_sizes(n-pod_size)
                 if tail:
                     return [pod_size] + tail

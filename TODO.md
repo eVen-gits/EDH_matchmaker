@@ -9,3 +9,6 @@
 * [x] Populate and check sorting for player list
 * [x] Manual pod creation (select + click)
 * [x] Select where to/from save logs
+* [ ] Delete round if pods are reset (so you can remove players)
+* [ ] Id generator doesn't get restored
+* [ ] Add column names to standings export

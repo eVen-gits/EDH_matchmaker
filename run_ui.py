@@ -110,7 +110,60 @@ class MainWindow(QMainWindow):
         self.ui.actionLoad_tour.triggered.connect(self.load_tour)
         self.ui.actionSave_As.triggered.connect(self.save_as)
 
+        self.ui.actionPods.triggered.connect(self.export_pods)
+        self.ui.actionStandings.triggered.connect(self.export_standings)
+
         self.restore_ui()
+
+    def export_standings(self):
+        file, ext = QFileDialog.getSaveFileName(
+            caption="Specify standings location...",
+            filter='*.txt',
+            initialFilter='*.txt'
+        )
+        if file:
+            if not file.endswith(ext.replace('*', '')):
+                file = ext.replace('*', '{}').format(file)
+
+            method = Player.SORT_METHOD
+            order = Player.SORT_ORDER
+            Player.SORT_METHOD = SORT_METHOD.RANK
+            Player.SORT_ORDER = SORT_ORDER.DESCENDING
+            players = sorted(self.core.players)
+            Player.SORT_METHOD = method
+            Player.SORT_ORDER = order
+
+            maxlen = max([len(p.name) for p in players])
+
+            standings = '\n'.join(
+                [
+                '[{:02d}] {} | {:.2f} | {}'.format(
+                    i+1,
+                    p.name.ljust(maxlen),
+                    p.opponent_winrate,
+                    p.unique_opponents
+                )
+                for i, p in zip(range(len(players)), players)
+            ])
+
+            self.core.export_str(file, standings)
+
+    def export_pods(self):
+        file, ext = QFileDialog.getSaveFileName(
+            caption="Specify pods printout location...",
+            filter='*.txt',
+            initialFilter='*.txt'
+        )
+        if file:
+            if not file.endswith(ext.replace('*', '')):
+                file = ext.replace('*', '{}').format(file)
+
+            pods_str = '\n\n'.join([
+                pod.__repr__()
+                for pod in self.core.round.pods
+            ])
+
+            self.core.export_str(file, pods_str)
 
     def init_sort_dropdown(self):
         values = [
@@ -177,10 +230,10 @@ class MainWindow(QMainWindow):
             'Remove {}?'.format(', '.join([p.name for p in players])),
             'Confirm player removal'
         )
-        #if ok:
-        self.remove_player(players)
-        self.ui.lv_players.clear()
-        self.ui_create_player_list()
+        if ok:
+            self.remove_player(players)
+            self.ui.lv_players.clear()
+            self.ui_create_player_list()
 
     #Renaming player
     #TODO
@@ -490,10 +543,13 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
 
     core = Tournament()
-    #core.add_player([
-    #    names.get_full_name()
-    #    for i in range(7)
-    #])
+    core.add_player([
+        names.get_full_name()
+        for i in range(27)
+    ])
+    for i in range(7):
+        core.make_pods()
+        core.random_results()
 
     window = MainWindow(core)
     window.show()
