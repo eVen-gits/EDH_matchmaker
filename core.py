@@ -82,7 +82,8 @@ class TournamentAction:
     '''Serializable action that will be stored in tournament log and can be restored
     '''
     ACTIONS = []
-    LOGF = 'logs/default.log'
+    LOGF = None
+    DEFAULT_LOGF = 'logs/default.log'
 
     def __init__(self, before, ret, after, func_name, *nargs, **kwargs):
         self.before = before
@@ -108,13 +109,10 @@ class TournamentAction:
         return wrapper
 
     @classmethod
-    def set_log_dir(cls, logdir):
-        cls.LOGF = logdir
-
-    @classmethod
     def store(cls):
-        with open(cls.LOGF, 'wb') as f:
-            pickle.dump(cls.ACTIONS, f)
+        if cls.LOGF:
+            with open(cls.LOGF, 'wb') as f:
+                pickle.dump(cls.ACTIONS, f)
 
     @classmethod
     def load(cls, logdir='logs/default.log'):
@@ -261,7 +259,7 @@ class Tournament:
     def random_results(self):
         if not self.round:
             Log.log(
-                'A round is not in progress.\nStart a new round with "pods" command.',
+                'A round is not in progress.\nCreate pods first!',
                 level=Log.Level.ERROR
             )
             return
@@ -308,6 +306,15 @@ class Player:
         self.ID = ID.next()
         self.games_played = 0
         self.games_won = 0
+
+    @property
+    def seated(self):
+        if self.tour.round is None:
+            return False
+        for pod in self.tour.round.pods:
+            if self in pod.players:
+                return not pod.done
+        return False
 
     @property
     def not_played(self):

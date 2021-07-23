@@ -82,6 +82,9 @@ class MainWindow(QMainWindow):
         #Window code
         self.ui = uic.loadUi('./ui/MainWindow.ui')
         self.setCentralWidget(self.ui)
+
+        self.seated_color = QColor(0, 204, 102)
+        self.unseated_color = QColor(117, 117, 163)
         #self.changeTitle()
         self.resize(900, 750)
 
@@ -96,18 +99,16 @@ class MainWindow(QMainWindow):
         self.ui.lv_players.customContextMenuRequested.connect(
             self.lv_players_rightclick_menu)
 
+        self.ui.pb_reset_pods.clicked.connect(lambda: self.reset_pods())
         self.ui.pb_pods.clicked.connect(lambda: self.create_pods())
 
-        self.ui.DEBUG1.clicked.connect(self.restore_ui)
-        self.ui.DEBUG1.setText('restore_ui')
+        self.ui.actionReset_UI.triggered.connect(self.restore_ui)
+        self.ui.actionRandom_Results.triggered.connect(lambda *_: self.random_results())
 
-        self.ui.DEBUG2.clicked.connect(lambda x: self.random_results())
-        self.ui.DEBUG2.setText('random_results')
-
-        self.ui.DEBUG3.clicked.connect(self.ui_toggle_player_list_sorting)
-        self.ui.DEBUG3.setText('toggle_player_list_sorting')
-
+        self.ui.actionNew_tour.triggered.connect(self.new_tour)
         self.ui.actionLoad_state.triggered.connect(self.load_state)
+        self.ui.actionLoad_tour.triggered.connect(self.load_tour)
+        self.ui.actionSave_As.triggered.connect(self.save_as)
 
         self.restore_ui()
 
@@ -146,26 +147,40 @@ class MainWindow(QMainWindow):
     def lv_players_rightclick_menu(self, position):
         #Popup menu
         pop_menu = QMenu()
-        delete_player_action = QAction('Remove player', self)
-        #rename_player_action = QAction('Rename player', self)
+        manual_pod_action = QAction('Create pod', self)
+        multiple = len(self.ui.lv_players.selectedItems()) > 1
         #Check if it is on the item when you right-click, if it is not, delete and modify will not be displayed.
         if self.ui.lv_players.itemAt(position):
+            delete_player_action = QAction(
+                'Remove player'
+                if not multiple
+                else 'Remove players',
+                self
+            )
             pop_menu.addAction(delete_player_action)
-        #    pop_menu.addAction(rename_player_action)
+            delete_player_action.triggered.connect(self.lva_remove_player)
 
-        delete_player_action.triggered.connect(self.lva_remove_player)
-        #rename_player_action.triggered.connect(self.lva_rename_player)
+            if multiple:
+                pop_menu.addAction(manual_pod_action)
+                manual_pod_action.triggered.connect(self.lva_manual_pod)
+
         pop_menu.exec(self.ui.lv_players.mapToGlobal(position))
 
+    #@UILog.with_status
     def lva_remove_player(self):
-        player = self.ui.lv_players.currentItem().data(Qt.ItemDataRole.UserRole)
+        players = [
+            item.data(Qt.ItemDataRole.UserRole)
+            for item in self.ui.lv_players.selectedItems()
+        ]
+        #player = self.ui.lv_players.currentItem().data(Qt.ItemDataRole.UserRole)
         ok = self.confirm(
-            'Remove {}?'.format(player.name),
+            'Remove {}?'.format(', '.join([p.name for p in players])),
             'Confirm player removal'
         )
         #if ok:
-        self.remove_player(player)
-        self.ui.lv_players.takeItem(self.ui.lv_players.currentRow())
+        self.remove_player(players)
+        self.ui.lv_players.clear()
+        self.ui_create_player_list()
 
     #Renaming player
     #TODO
@@ -205,18 +220,36 @@ class MainWindow(QMainWindow):
     @UILog.with_status
     def remove_player(self, player_name):
         self.core.remove_player(player_name)
+        self.ui_update_player_list()
 
     @UILog.with_status
     def create_pods(self):
         self.core.make_pods()
         self.ui_clear_pods()
         self.ui_create_pods()
+        self.ui_update_player_list()
+
+    @UILog.with_status
+    def reset_pods(self):
+        self.core.reset_pods()
+        self.restore_ui()
+
+    #@UILog.with_status
+    def lva_manual_pod(self):
+        self.core.manual_pod([
+            p.data(Qt.ItemDataRole.UserRole)
+            for p in self.ui.lv_players.selectedItems()
+            if not p.data(Qt.ItemDataRole.UserRole).seated
+        ])
+        self.restore_ui()
+        self.ui_update_player_list()
 
     def ui_create_pods(self):
         layout = self.ui.saw_content.layout()
         if self.core.round:
             for pod in self.core.round.pods:
-                layout.addWidget(PodWidget(self, pod))
+                if not pod.done:
+                    layout.addWidget(PodWidget(self, pod))
 
     def ui_clear_pods(self):
         layout = self.ui.saw_content.layout()
@@ -246,6 +279,10 @@ class MainWindow(QMainWindow):
         for row in range(self.ui.lv_players.count()):
             item = self.ui.lv_players.item(row)
             data = item.data(Qt.ItemDataRole.UserRole)
+            if data.seated:
+                item.setBackground(self.seated_color)
+            else:
+                item.setBackground(self.unseated_color)
             item.setText(str(data))
         self.ui.lv_players.sortItems(order=PlayerListItem.SORT_ORDER())
 
@@ -253,6 +290,10 @@ class MainWindow(QMainWindow):
         for p in self.core.players:
             list_item = PlayerListItem(p)
             list_item.setData(Qt.ItemDataRole.UserRole, p)
+            if p.seated:
+                list_item.setBackground(self.seated_color)
+            else:
+                list_item.setBackground(self.unseated_color)
             self.ui.lv_players.addItem(list_item)
         self.ui.lv_players.sortItems(order=PlayerListItem.SORT_ORDER())
 
@@ -265,6 +306,7 @@ class MainWindow(QMainWindow):
     def report_win(self, player):
         Log.log('Reporting player {} won this round.'.format(player.name))
         self.core.report_win(player)
+        self.ui_update_player_list()
 
     @UILog.with_status
     def report_draw(self, players):
@@ -272,6 +314,51 @@ class MainWindow(QMainWindow):
             ', '.join([p.name for p in players])
         ))
         self.core.report_draw(players)
+        self.ui_update_player_list()
+
+    def save_as(self):
+        file, ext = QFileDialog.getSaveFileName(
+            caption="Specify log location...",
+            filter='*.log',
+            initialFilter='*.log',
+            directory=os.path.dirname(TournamentAction.DEFAULT_LOGF)
+        )
+        if file:
+            if not file.endswith(ext.replace('*', '')):
+                file = ext.replace('*', '{}').format(file)
+            TournamentAction.LOGF = file
+            TournamentAction.store()
+
+    def new_tour(self):
+        file, ext = QFileDialog.getSaveFileName(
+            caption="Specify log location...",
+            filter='*.log',
+            initialFilter='*.log',
+            directory=os.path.dirname(TournamentAction.DEFAULT_LOGF)
+        )
+        if file:
+            if not file.endswith(ext.replace('*', '')):
+                file = ext.replace('*', '{}').format(file)
+            TournamentAction.LOGF = file
+            self.core = Tournament()
+            TournamentAction.ACTIONS=[]
+            TournamentAction.store()
+            self.restore_ui()
+
+    def load_tour(self):
+        file, ext = QFileDialog.getOpenFileName(
+            caption='Select a log to open...',
+            directory=os.path.dirname(TournamentAction.DEFAULT_LOGF),
+            filter='*.log',
+            initialFilter='*.log',
+        )
+        if file:
+            TournamentAction.load(file)
+            try:
+                self.core = TournamentAction.ACTIONS[-1].after
+            except Exception as e:
+                self.core = Tournament()
+            self.restore_ui()
 
 class PodWidget(QWidget):
     def __init__(self, app, pod:Pod, parent=None):
@@ -403,10 +490,10 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
 
     core = Tournament()
-    core.add_player([
-        names.get_full_name()
-        for i in range(7)
-    ])
+    #core.add_player([
+    #    names.get_full_name()
+    #    for i in range(7)
+    #])
 
     window = MainWindow(core)
     window.show()
