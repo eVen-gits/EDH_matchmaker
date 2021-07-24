@@ -157,6 +157,7 @@
      <string>Edit</string>
     </property>
     <addaction name="actionLoad_state"/>
+    <addaction name="actionLoad_players"/>
    </widget>
    <widget class="QMenu" name="menuDebug">
     <property name="title">
@@ -220,6 +221,11 @@
   <action name="actionPods">
    <property name="text">
     <string>Pods</string>
+   </property>
+  </action>
+  <action name="actionLoad_players">
+   <property name="text">
+    <string>Load players</string>
    </property>
   </action>
  </widget>

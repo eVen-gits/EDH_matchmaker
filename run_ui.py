@@ -113,7 +113,21 @@ class MainWindow(QMainWindow):
         self.ui.actionPods.triggered.connect(self.export_pods)
         self.ui.actionStandings.triggered.connect(self.export_standings)
 
+        self.ui.actionLoad_players.triggered.connect(self.load_players)
+
         self.restore_ui()
+
+    def load_players(self):
+        file, ext = QFileDialog.getOpenFileName(
+            caption='Select text file with players to load...',
+            filter='*.txt',
+            initialFilter='*.txt',
+        )
+        if file:
+            with open(file, 'r') as f:
+                player_names = f.readlines()
+            self.core.add_player([p.strip() for p in player_names])
+            self.restore_ui()
 
     def export_standings(self):
         file, ext = QFileDialog.getSaveFileName(
@@ -129,7 +143,7 @@ class MainWindow(QMainWindow):
             order = Player.SORT_ORDER
             Player.SORT_METHOD = SORT_METHOD.RANK
             Player.SORT_ORDER = SORT_ORDER.DESCENDING
-            players = sorted(self.core.players)
+            players = sorted(self.core.players, reverse=True)
             Player.SORT_METHOD = method
             Player.SORT_ORDER = order
 
@@ -137,9 +151,10 @@ class MainWindow(QMainWindow):
 
             standings = '\n'.join(
                 [
-                '[{:02d}] {} | {:.2f} | {}'.format(
+                '[{:02d}] {} | {} | {:.2f} | {}'.format(
                     i+1,
                     p.name.ljust(maxlen),
+                    p.points,
                     p.opponent_winrate,
                     p.unique_opponents
                 )
@@ -548,8 +563,8 @@ if __name__ == '__main__':
         for i in range(27)
     ])
     for i in range(7):
-        core.make_pods()
-        core.random_results()
+       core.make_pods()
+       core.random_results()
 
     window = MainWindow(core)
     window.show()
