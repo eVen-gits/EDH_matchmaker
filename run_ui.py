@@ -558,13 +558,13 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
 
     core = Tournament()
-    core.add_player([
-        names.get_full_name()
-        for i in range(27)
-    ])
-    for i in range(7):
-       core.make_pods()
-       core.random_results()
+    #core.add_player([
+    #    names.get_full_name()
+    #    for i in range(27)
+    #])
+    #for i in range(7):
+    #   core.make_pods()
+    #   core.random_results()
 
     window = MainWindow(core)
     window.show()
