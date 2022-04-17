@@ -550,9 +550,11 @@ if __name__ == '__main__':
     parser.add_argument('-f', '--file', dest='file')
     parser.add_argument('-i', '--input', dest='input', nargs='*')
     parser.add_argument('-n', '--number_of_mock_players', dest='number_of_mock_players', type=int, default=0)
-    parser.add_argument('-s', '--pod_sizes', dest='pod_sizes', nargs='*', type=int, default=None)
+    parser.add_argument('-s', '--pod_sizes', dest='pod_sizes', nargs='*', type=int, default=None,
+        help='Allowed od sizes by preference order (ex: "-s 4 3" will allow pods of size 4 and 3, preferring 4)')
     parser.add_argument('-b', '--allow_bye', dest='allow_bye', action='store_true', default=False)
-
+    parser.add_argument('-x', '--scoring', dest='scoring', nargs=3, type=int, default=None,
+        help='Change the scoring system. The first argument is the number of points for a win, the second is a draw, and the third is the number of points for a bye.')
     subparsers = parser.add_subparsers()
     args, unknown = parser.parse_known_args()
 
@@ -563,6 +565,8 @@ if __name__ == '__main__':
         Tournament.set_pod_sizes(args.pod_sizes)
     if args.allow_bye:
         Tournament.set_allow_bye(True)
+    if args.scoring:
+        Tournament.set_scoring(args.scoring)
     core.add_player([
         names.get_full_name()
         for i in range(args.number_of_mock_players)

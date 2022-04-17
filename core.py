@@ -305,9 +305,14 @@ class Tournament:
         cls.POD_SIZES = sizes
 
     @classmethod
+    def set_scoring(cls, scoring: list):
+        cls.WIN_POINTS, cls.BYE_POINTS, cls.DRAW_POINTS = scoring
+
+    @classmethod
     @property
     def MIN_POD_SIZE(cls):
         return min(cls.POD_SIZES)
+
 
 class Player:
     SORT_METHOD = SORT_METHOD.ID
