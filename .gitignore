@@ -4,4 +4,5 @@ __pycache__
 .vscode/*
 print.txt
 players.txt
-logs
+venv/*
+*.log

@@ -308,7 +308,7 @@ class Round:
                 continue
 
             if not pod.done:
-                player.points = player.points + 3
+                player.points = player.points + WIN_POINTS
 
                 pod.won = player
                 pod.done = True
@@ -320,7 +320,7 @@ class Round:
         for pname in tokens:
             player, pod = self.find_player_pod(pname)
 
-            player.points = player.points + 1
+            player.points = player.points + DRAW_POINTS
 
             pod.draw.append(player)
             pod.done = True
@@ -584,7 +584,6 @@ def log():
 
         player_stats(players=r.players)
 
-        #OUTPUT_BUFFER.append()
 
 def print_output(tokens=[]):
     global LAST
@@ -632,7 +631,7 @@ parser.add_argument('-i', '--input', dest='input', nargs='*')
 subparsers = parser.add_subparsers()
 
 if __name__ == "__main__":
-
+    raise NotImplementedError('The CLI interface has to be updated to comply with UI+core changes. Use \'run_cli.py\'')
     args, unknown = parser.parse_known_args()
 
     #Reads file to parse players from

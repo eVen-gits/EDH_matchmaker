@@ -552,16 +552,24 @@ if __name__ == '__main__':
     parser.add_argument('-p', '--players', dest='players', nargs='*')
     parser.add_argument('-f', '--file', dest='file')
     parser.add_argument('-i', '--input', dest='input', nargs='*')
+    parser.add_argument('-n', '--number_of_mock_players', dest='number_of_mock_players', type=int, default=0)
+    parser.add_argument('-s', '--pod_sizes', dest='pod_sizes', nargs='*', type=int, default=None)
+    parser.add_argument('-b', '--allow_bye', dest='allow_bye', action='store_true', default=False)
 
     subparsers = parser.add_subparsers()
+    args, unknown = parser.parse_known_args()
 
     app = QApplication(sys.argv)
 
     core = Tournament()
-    #core.add_player([
-    #    names.get_full_name()
-    #    for i in range(27)
-    #])
+    if args.pod_sizes:
+        Tournament.set_pod_sizes(args.pod_sizes)
+    if args.allow_bye:
+        Tournament.set_allow_bye(True)
+    core.add_player([
+        names.get_full_name()
+        for i in range(args.number_of_mock_players)
+    ])
     #for i in range(7):
     #   core.make_pods()
     #   core.random_results()

@@ -140,9 +140,15 @@ class TournamentAction:
 class Tournament:
     #CONFIG
     RANKING = lambda x: (-x.points, -x.opponent_winrate, -x.unique_opponents)
-    MATCHING = lambda _, x: (-x.unique_opponents, x.points, -x.opponent_winrate)
+    MATCHING = lambda _, x: (-x.games_played, -x.unique_opponents, x.points, -x.opponent_winrate)
 
     POD_SIZES = [4, 3]
+
+    ALLOW_BYE = False
+
+    WIN_POINTS = 3
+    BYE_POINTS = 3
+    DRAW_POINTS = 1
 
     def __init__(self, pod_sizes=POD_SIZES):
         self.__class__.set_pod_sizes(pod_sizes)
@@ -289,6 +295,10 @@ class Tournament:
             f.writelines(str)
 
     #PROPS AND CLASSMETHODS
+
+    @classmethod
+    def set_allow_bye(cls, allow_bye):
+        cls.ALLOW_BYE = allow_bye
 
     @classmethod
     def set_pod_sizes(cls, sizes):
@@ -503,7 +513,7 @@ class Round:
         self.tour = tour
         self.seq = seq
         self.pods = []
-        self.players = None
+        #self.players = None
         self.concluded = False
 
     @property
@@ -521,12 +531,15 @@ class Round:
 
         return s
 
+    def unseated(self):
+        return list(set(self.tour.players) - set(self.seated()))
+
     def make_pods(self):
         seated = set(self.seated())
-        remaining = list(set(self.tour.players) - seated)
+        remaining = self.unseated()
 
         n_plyr = len(remaining)
-        pod_sizes = Round.get_pod_sizes(n_plyr)
+        pod_sizes = Round.get_pod_sizes(n_plyr, allow_bye=self.tour.ALLOW_BYE)
         if pod_sizes is None:
             Log.log('Can not make pods.', level=Log.Level.WARNING)
             return None
@@ -576,17 +589,19 @@ class Round:
         Log.log('{} swaps in optimization stage.'.format(swap_count), Log.Level.INFO)
 
     @staticmethod
-    def get_pod_sizes(n=None):
+    def get_pod_sizes(n=None, allow_bye=False):
         if(isinstance(n, list)):
             n = n[0]
         for pod_size in Tournament.POD_SIZES:
             if n-pod_size == 0:
                 return [pod_size]
-            if n-pod_size < min(Tournament.POD_SIZES) and pod_size == Tournament.POD_SIZES[-1]:
+            if n-pod_size < Tournament.MIN_POD_SIZE and pod_size == Tournament.POD_SIZES[-1]:
+                if Tournament.ALLOW_BYE:
+                    return [pod_size]
                 return None
-            if n-pod_size >= min(Tournament.POD_SIZES):
+            if n-pod_size >= Tournament.MIN_POD_SIZE:
                 tail = Round.get_pod_sizes(n-pod_size)
-                if tail:
+                if tail is not None:
                     return [pod_size] + tail
         return None
 
@@ -595,7 +610,10 @@ class Round:
             for p in pod.players:
                 pod.update_player_history(p)
 
-        self.players = deepcopy(self.players)
+        #self.players = deepcopy(self.players)
+        if self.unseated() and self.tour.ALLOW_BYE:
+            for p in self.unseated():
+                p.points += self.tour.BYE_POINTS
         self.tour.rounds.append(self)
         self.concluded = True
         Log.log('{}{}{}'.format(30*'*', '\nRound completed!\n', 30*'*',), Log.Level.INFO)
@@ -619,7 +637,7 @@ class Round:
                 continue
 
             if not pod.done:
-                player.points = player.points + 3
+                player.points = player.points + self.tour.WIN_POINTS
 
                 pod.won = player
                 pod.done = True
@@ -631,7 +649,7 @@ class Round:
         for player in players:
             pod = self.find_player_pod(player)
 
-            player.points = player.points + 1
+            player.points = player.points + self.tour.DRAW_POINTS
 
             pod.draw.append(player)
             pod.done = True
