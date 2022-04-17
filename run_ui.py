@@ -554,7 +554,7 @@ if __name__ == '__main__':
         help='Allowed od sizes by preference order (ex: "-s 4 3" will allow pods of size 4 and 3, preferring 4)')
     parser.add_argument('-b', '--allow_bye', dest='allow_bye', action='store_true', default=False)
     parser.add_argument('-x', '--scoring', dest='scoring', nargs=3, type=int, default=None,
-        help='Change the scoring system. The first argument is the number of points for a win, the second is a draw, and the third is the number of points for a bye.')
+        help='Change the scoring system. The first argument is the number of points for a win, the second is a bye, and the third is the number of points for a draw.')
     subparsers = parser.add_subparsers()
     args, unknown = parser.parse_known_args()
 
