@@ -1,7 +1,4 @@
 import argparse
-#import jsonpickle
-#jsonpickle.set_encoder_options('json', indent=4)
-#jsonpickle.set_encoder_options('simplejson', indent=4)
 import io
 import os
 import sys
