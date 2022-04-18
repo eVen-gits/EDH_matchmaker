@@ -395,7 +395,7 @@ class MainWindow(QMainWindow):
             TournamentAction.store()
 
     def new_tour(self):
-        file, ext = QFileDialog.getSaveFileName(
+        '''file, ext = QFileDialog.getSaveFileName(
             caption="Specify log location...",
             filter='*.log',
             initialFilter='*.log',
@@ -409,6 +409,9 @@ class MainWindow(QMainWindow):
             TournamentAction.ACTIONS=[]
             TournamentAction.store()
             self.restore_ui()
+        '''
+        NewTournamentDialog.show_dialog(self)
+        self.restore_ui()
 
     def load_tour(self):
         file, ext = QFileDialog.getOpenFileName(
@@ -497,9 +500,8 @@ class PodWidget(QWidget):
             self.deleteLater()
 
 class LogLoaderDialog(QDialog):
-    def __init__(self, app, parent=None):
+    def __init__(self, parent=None):
         QDialog.__init__(self, parent)
-        self.app = app
 
         self.ui = uic.loadUi('./ui/LogLoader.ui', self)
         self.restore_ui()
@@ -535,13 +537,121 @@ class LogLoaderDialog(QDialog):
         self.done(0)
 
     @staticmethod
-    def show_dialog(app, parent=None):
-        dlg = LogLoaderDialog(app, parent)
+    def show_dialog(parent=None):
+        dlg = LogLoaderDialog(parent=parent)
         dlg.show()
         result = dlg.exec()
         if result == 0:
             return dlg.action
         return None
+
+class NewTournamentDialog(QDialog):
+    def __init__(self, parent=None):
+        QDialog.__init__(self, parent)
+        self.core = parent.core
+
+        self.ui = uic.loadUi('./ui/NewTournamentDialog.ui', self)
+
+        self.cb_allow_bye.stateChanged.connect(self.ui.sb_bye.setEnabled)
+        self.pb_browse.clicked.connect(self.select_log_location)
+        self.pb_add_psize.clicked.connect(self.add_psize)
+        self.pb_remove_psize.clicked.connect(self.remove_psize)
+        self.lw_pod_sizes.itemChanged.connect(self.check_pod_sizes)
+        self.pb_confirm.clicked.connect(self.apply_choices)
+
+        self.restore_ui()
+
+    def check_pod_sizes(self):
+        items = [
+            self.lw_pod_sizes.item(i)
+            for i
+            in range(self.lw_pod_sizes.count())
+        ]
+        for item in items:
+            try:
+                int(item.text())
+            except ValueError:
+                self.lw_pod_sizes.takeItem(self.lw_pod_sizes.row(item))
+
+    def remove_psize(self):
+        if self.lw_pod_sizes.currentItem():
+            self.lw_pod_sizes.takeItem(self.lw_pod_sizes.row(self.lw_pod_sizes.currentItem()))
+
+    def add_psize(self):
+        self.check_pod_sizes()
+        current_values = [
+            int(self.lw_pod_sizes.item(i).text())
+            for i
+            in range(self.lw_pod_sizes.count())
+        ]
+        if len(current_values) == 0:
+            self.create_psize_widget(4)
+        else:
+            self.create_psize_widget(
+                min(current_values) -1
+                if min(current_values) > 1
+                else max(current_values) + 1
+            )
+        self.check_pod_sizes()
+
+    def create_psize_widget(self, psize: int):
+        item = QListWidgetItem(str(psize))
+        item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
+        item.setData(Qt.ItemDataRole.UserRole, psize)
+        self.lw_pod_sizes.addItem(item)
+
+    def get_psizes(self):
+        return [
+            self.lw_pod_sizes.item(i).data(Qt.ItemDataRole.UserRole)
+            for i
+            in range(self.lw_pod_sizes.count())
+        ]
+
+    def select_log_location(self):
+        file, ext = QFileDialog.getSaveFileName(
+            caption="Specify log location...",
+            filter='*.log',
+            initialFilter='*.log',
+            directory=os.path.dirname(TournamentAction.DEFAULT_LOGF)
+        )
+        if file:
+            if not file.endswith(ext.replace('*', '')):
+                file = ext.replace('*', '{}').format(file)
+            self.ui.le_log_location.setText(file)
+
+    def restore_ui(self):
+        #Load current pod sizes
+        for psize in Tournament.POD_SIZES:
+            self.create_psize_widget(psize)
+        #Load and set bye option
+        self.cb_allow_bye.setChecked(Tournament.ALLOW_BYE)
+        self.check_pod_sizes()
+        #Load and set scoring
+        self.sb_win.setValue(Tournament.WIN_POINTS)
+        self.sb_draw.setValue(Tournament.DRAW_POINTS)
+        self.sb_bye.setValue(Tournament.BYE_POINTS)
+
+        if TournamentAction.LOGF:
+            self.ui.le_log_location.setText(TournamentAction.LOGF)
+        else:
+            self.ui.le_log_location.setText(os.path.abspath(TournamentAction.DEFAULT_LOGF))
+
+    def apply_choices(self):
+        self.parent().core = Tournament()
+        TournamentAction.LOGF = self.ui.le_log_location.text()
+        TournamentAction.reset()
+        Tournament.ALLOW_BYE = self.cb_allow_bye.isChecked()
+        Tournament.WIN_POINTS = self.sb_win.value()
+        Tournament.DRAW_POINTS = self.sb_draw.value()
+        Tournament.BYE_POINTS = self.sb_bye.value()
+        Tournament.POD_SIZES = self.get_psizes()
+        self.close()
+
+    @staticmethod
+    def show_dialog(parent=None):
+        dlg = NewTournamentDialog(parent)
+        dlg.show()
+        result = dlg.exec()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -554,7 +664,7 @@ if __name__ == '__main__':
         help='Allowed od sizes by preference order (ex: "-s 4 3" will allow pods of size 4 and 3, preferring 4)')
     parser.add_argument('-b', '--allow_bye', dest='allow_bye', action='store_true', default=False)
     parser.add_argument('-x', '--scoring', dest='scoring', nargs=3, type=int, default=None,
-        help='Change the scoring system. The first argument is the number of points for a win, the second is a bye, and the third is the number of points for a draw.')
+        help='Change the scoring system. The first argument is the number of points for a win, the second is a draw, and the third is the number of points for a bye.')
     subparsers = parser.add_subparsers()
     args, unknown = parser.parse_known_args()
 
@@ -567,10 +677,11 @@ if __name__ == '__main__':
         Tournament.set_allow_bye(True)
     if args.scoring:
         Tournament.set_scoring(args.scoring)
-    core.add_player([
-        names.get_full_name()
-        for i in range(args.number_of_mock_players)
-    ])
+    if args.number_of_mock_players:
+        core.add_player([
+            names.get_full_name()
+            for i in range(args.number_of_mock_players)
+        ])
     #for i in range(7):
     #   core.make_pods()
     #   core.random_results()

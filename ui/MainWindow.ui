@@ -92,7 +92,7 @@
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>280</width>
+             <width>283</width>
              <height>289</height>
             </rect>
            </property>
@@ -140,7 +140,7 @@
      <x>0</x>
      <y>0</y>
      <width>690</width>
-     <height>32</height>
+     <height>30</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -196,6 +196,9 @@
   <action name="actionNew_tour">
    <property name="text">
     <string>New...</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+N</string>
    </property>
   </action>
   <action name="actionSave_As">

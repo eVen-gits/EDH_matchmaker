@@ -96,6 +96,11 @@ class TournamentAction:
         self.time = datetime.now()
 
     @classmethod
+    def reset(cls):
+        TournamentAction.ACTIONS=[]
+        TournamentAction.store()
+
+    @classmethod
     def action(cls, func):
         def wrapper(self, *original_args, **original_kwargs):
             before = deepcopy(self)
@@ -306,13 +311,12 @@ class Tournament:
 
     @classmethod
     def set_scoring(cls, scoring: list):
-        cls.WIN_POINTS, cls.BYE_POINTS, cls.DRAW_POINTS = scoring
+        cls.WIN_POINTS, cls.DRAW_POINTS, cls.BYE_POINTS = scoring
 
     @classmethod
     @property
     def MIN_POD_SIZE(cls):
         return min(cls.POD_SIZES)
-
 
 class Player:
     SORT_METHOD = SORT_METHOD.ID
