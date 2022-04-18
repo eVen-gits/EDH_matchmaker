@@ -215,7 +215,8 @@ class MainWindow(QMainWindow):
         manual_pod_action = QAction('Create pod', self)
         multiple = len(self.ui.lv_players.selectedItems()) > 1
         #Check if it is on the item when you right-click, if it is not, delete and modify will not be displayed.
-        if self.ui.lv_players.itemAt(position):
+        item = self.ui.lv_players.itemAt(position)
+        if item:
             delete_player_action = QAction(
                 'Remove player'
                 if not multiple
@@ -225,13 +226,29 @@ class MainWindow(QMainWindow):
             pop_menu.addAction(delete_player_action)
             delete_player_action.triggered.connect(self.lva_remove_player)
 
+            #TODO: Rename player option
+            #rename_player_action = QAction('Rename player')
+            #pop_menu.addAction(rename_player_action)
+            #rename_player_action.triggered.connect(self.lva_rename_player)
+
+            if self.core.round:
+                if self.core.round.pods and not item.player.seated:
+                    add_to_pod_action = QMenu('Add to pod')
+                    pop_menu.addMenu(add_to_pod_action)
+                    for pod in self.core.round.pods:
+                        add_to_pod_action.addAction(
+                            'Pod {}'.format(pod.id),
+                            #lambda pod=pod: self.lva_add_to_pod(pod)
+                            lambda x=pod: self.lva_add_to_pod(x)
+                        )
+                    #add_to_pod_action.addAction(add_to_pod_action)
+                    #add_to_pod_action.triggered.connect(self.lva_add_to_pod)
+
             if multiple:
-                pop_menu.addAction(manual_pod_action)
                 manual_pod_action.triggered.connect(self.lva_manual_pod)
 
         pop_menu.exec(self.ui.lv_players.mapToGlobal(position))
 
-    #@UILog.with_status
     def lva_remove_player(self):
         players = [
             item.data(Qt.ItemDataRole.UserRole)
@@ -247,22 +264,23 @@ class MainWindow(QMainWindow):
             self.ui.lv_players.clear()
             self.ui_create_player_list()
 
-    #Renaming player
-    #TODO
-    '''
     def lva_rename_player(self):
+        #TODO:
         curRow = self.ui.lv_players.currentRow()
         item = self.ui.lv_players.item(curRow)
         item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
-        self.ui.lv_players.editItem(item)
+        item.setText(item.player.name)
 
-        def try_rename_player(*nargs):
-            player = self.ui.lv_players.currentItem().data(Qt.ItemDataRole.UserRole)
-            self.core.rename_player(player.name, new_name)
-
-
-        self.ui.lv_players.itemChanged.connect(lambda *x: try_rename_player(x))
-    '''
+    @UILog.with_status
+    def lva_add_to_pod(self, pod):
+        #p.data(Qt.ItemDataRole.UserRole)
+        #for p in self.ui.lv_players.selectedItems()
+        #if not p.data(Qt.ItemDataRole.UserRole).seated
+        for item in self.ui.lv_players.selectedItems():
+            pod.add_player(item.player, manual=True)
+            Log.log('Added {} to pod {}'.format(item.player.name, pod.id))
+        self.ui_update_player_list()
+        self.ui_update_pods()
 
     def cb_sort_set(self, idx):
         method, order = self.ui.cb_sort.itemData(idx)
@@ -322,6 +340,12 @@ class MainWindow(QMainWindow):
             widget = layout.itemAt(i).widget()
             if widget:
                 widget.setParent(None)
+
+    def ui_update_pods(self):
+        layout = self.ui.saw_content.layout()
+        for i in reversed(range(layout.count())):
+            widget = layout.itemAt(i).widget()
+            widget.refresh_ui()
 
     def confirm(self, message, title=''):
         reply = QMessageBox()
@@ -437,7 +461,6 @@ class PodWidget(QWidget):
         self.refresh_ui()
 
         self.ui.lw_players.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        my_object = QObject()
         self.ui.lw_players.customContextMenuRequested.connect(
                 self.rightclick_menu
         )

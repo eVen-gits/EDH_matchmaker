@@ -185,18 +185,34 @@ class Tournament:
 
     @TournamentAction.action
     def remove_player(self, players=[]):
-        if self.round:
-            if not self.round.concluded:
-                Log.log('Can\'t drop player during an active round.\nComplete the round and remove player before creating new pods.', level=Log.Level.WARNING)
-                return
         if not isinstance(players, list):
             players = [players]
         for p in players:
+            if self.round and p.seated:
+                if not self.round.concluded:
+                    Log.log('Can\'t drop {} during an active round.\nComplete the round or remove player from pod first.'.format(p.name), level=Log.Level.WARNING)
+                    continue
             if p.played:
                 self.dropped.append(p)
             self.players.remove(p)
 
             Log.log('\tRemoved player {}'.format(p.name), level=Log.Level.INFO)
+
+    @TournamentAction.action
+    def rename_player(self, player, new_name):
+        if player.name == new_name:
+            return
+        if new_name in [p.name for p in self.players]:
+            Log.log('\tPlayer {} already enlisted.'.format(new_name), level=Log.Level.WARNING)
+            return
+        if new_name:
+            player.name = new_name
+            for round in self.rounds:
+                for pod in round.pods:
+                    for p in pod.players:
+                        if p.name == player.name:
+                            p.name = new_name
+            Log.log('\tRenamed player {} to {}'.format(player.name, new_name), level=Log.Level.INFO)
 
     @TournamentAction.action
     def make_pods(self):
@@ -455,11 +471,11 @@ class Pod:
     def p_count(self):
         return len(self.players)
 
-    def add_player(self, player: Player):
-        if self.p_count >= self.cap and self.cap:
+    def add_player(self, player: Player, manual=False):
+        if self.p_count >= self.cap and self.cap and not manual:
             return False
         self.players.append(player)
-        if self.p_count == self.cap:
+        if self.p_count >= self.cap:
             random.shuffle(self.players)
         return True
 
