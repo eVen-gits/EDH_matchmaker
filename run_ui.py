@@ -232,14 +232,14 @@ class MainWindow(QMainWindow):
             #rename_player_action.triggered.connect(self.lva_rename_player)
 
             if self.core.round:
-                if self.core.round.pods and not item.player.seated:
-                    add_to_pod_action = QMenu('Add to pod')
+                if self.core.round.pods:
+                    add_to_pod_action = QMenu('Move to pod')
                     pop_menu.addMenu(add_to_pod_action)
                     for pod in self.core.round.pods:
                         add_to_pod_action.addAction(
-                            'Pod {}'.format(pod.id),
+                            pod.name,
                             #lambda pod=pod: self.lva_add_to_pod(pod)
-                            lambda x=pod: self.lva_add_to_pod(x)
+                            lambda x=pod: self.lva_move_to_pod(x)
                         )
                     #add_to_pod_action.addAction(add_to_pod_action)
                     #add_to_pod_action.triggered.connect(self.lva_add_to_pod)
@@ -271,14 +271,24 @@ class MainWindow(QMainWindow):
         item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
         item.setText(item.player.name)
 
+    def lva_move_to_pod(self, pod):
+        self.move_players_to_pod(
+            pod,
+            [
+                item.player
+                for item
+                in self.ui.lv_players.selectedItems()
+            ]
+        )
+
     @UILog.with_status
-    def lva_add_to_pod(self, pod):
-        #p.data(Qt.ItemDataRole.UserRole)
-        #for p in self.ui.lv_players.selectedItems()
-        #if not p.data(Qt.ItemDataRole.UserRole).seated
-        for item in self.ui.lv_players.selectedItems():
-            pod.add_player(item.player, manual=True)
-            Log.log('Added {} to pod {}'.format(item.player.name, pod.id))
+    def move_players_to_pod(self, pod, players):
+        self.core.move_player_to_pod(
+            pod,
+            players,
+            manual=True)
+
+        #Log.log('Added {} to pod {}'.format(item.player.name, pod.id))
         self.ui_update_player_list()
         self.ui_update_pods()
 
@@ -419,21 +429,6 @@ class MainWindow(QMainWindow):
             TournamentAction.store()
 
     def new_tour(self):
-        '''file, ext = QFileDialog.getSaveFileName(
-            caption="Specify log location...",
-            filter='*.log',
-            initialFilter='*.log',
-            directory=os.path.dirname(TournamentAction.DEFAULT_LOGF)
-        )
-        if file:
-            if not file.endswith(ext.replace('*', '')):
-                file = ext.replace('*', '{}').format(file)
-            TournamentAction.LOGF = file
-            self.core = Tournament()
-            TournamentAction.ACTIONS=[]
-            TournamentAction.store()
-            self.restore_ui()
-        '''
         NewTournamentDialog.show_dialog(self)
         self.restore_ui()
 
@@ -467,8 +462,8 @@ class PodWidget(QWidget):
 
     def refresh_ui(self):
         self.ui.lbl_pod_id.setText(
-            'Pod {} - {} players'.format(
-                self.pod.id,
+            '{} - {} players'.format(
+                self.pod.name,
                 len(self.pod.players)
             )
         )
@@ -487,6 +482,10 @@ class PodWidget(QWidget):
         pop_menu = QMenu()
         report_win = QAction('Report win', self)
         report_draw = QAction('Report draw', self)
+
+        selected_pod_players = [
+            i.player for i in self.lw_players.selectedItems()
+        ]
         #Check if it is on the item when you right-click, if it is not, delete and modify will not be displayed.
         if self.ui.lw_players.itemAt(position):
             if len(self.lw_players.selectedItems()) == 1:
@@ -494,8 +493,25 @@ class PodWidget(QWidget):
             else:
                 pop_menu.addAction(report_draw)
 
+        move_pod = QMenu('Move to pod')
+        pop_menu.addMenu(move_pod)
+        for p in self.app.core.round.pods:
+            if p != self.pod:
+                move_pod.addAction(p.name,
+                    lambda pod=p, players=selected_pod_players: self.app.move_players_to_pod(
+                        pod,
+                        players,
+                    )
+                )
+
+        pop_menu.addAction('Remove player')
+        pop_menu.addSeparator()
+        pop_menu.addAction('Remove pod')
+
         report_win.triggered.connect(self.report_win)
         report_draw.triggered.connect(self.report_draw)
+
+
         #rename_player_action.triggered.connect(self.lva_rename_player)
         pop_menu.exec(self.ui.lw_players.mapToGlobal(position))
 

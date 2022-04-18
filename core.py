@@ -303,6 +303,23 @@ class Tournament:
                     Log.log('draw {}'.format(' '.join(['"{}"'.format(p.name) for p in players])))
                     self.round.draw([p for p in players])
 
+    @TournamentAction.action
+    def move_player_to_pod(self, pod, players=[], manual=False):
+        #add all players to pod
+        #if player is already in a pod, remove it first
+        if not isinstance(players, list):
+            players = [players]
+        for player in players:
+            if player.pod and player.pod != pod:
+                old_pod = player.pod.name
+                player.pod.remove_player(player)
+                Log.log('\tRemoved player {} from {}.'.format(player.name, old_pod), level=Log.Level.INFO)
+            if player.pod != pod:
+                if pod.add_player(player, manual=manual):
+                    Log.log('\tAdded player {} to {}'.format(player.name, pod.name), level=Log.Level.INFO)
+                else:
+                    Log.log('\tFailed to add palyer {} to Pod {}'.format(player.name, pod.id), level=Log.Level.ERROR)
+
     #MISC ACTIONS
 
     def show_pods(self, tokens=[]):
@@ -355,6 +372,15 @@ class Player:
             if self in pod.players:
                 return not pod.done
         return False
+
+    @property
+    def pod(self):
+        if self.tour.round is None:
+            return None
+        for pod in self.tour.round.pods:
+            if self in pod.players:
+                return pod
+        return None
 
     @property
     def not_played(self):
@@ -472,6 +498,8 @@ class Pod:
         return len(self.players)
 
     def add_player(self, player: Player, manual=False):
+        if player.seated:
+            player.pod.remove_player(player)
         if self.p_count >= self.cap and self.cap and not manual:
             return False
         self.players.append(player)
@@ -511,6 +539,10 @@ class Pod:
         player.games_played += 1
         if player == self.won:
             player.games_won += 1
+
+    @property
+    def name(self):
+        return 'Pod {}'.format(self.id)
 
     def __repr__(self):
         maxlen = max([len(p.name) for p in self.players])
