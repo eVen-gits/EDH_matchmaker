@@ -423,6 +423,11 @@ class MainWindow(QMainWindow):
         self.core.bench_players(players)
         self.ui_update_player_list()
 
+    @UILog.with_status
+    def delete_pod(self, pod:Pod):
+        self.core.delete_pod(pod)
+        self.ui_update_player_list()
+
     def save_as(self):
         file, ext = QFileDialog.getSaveFileName(
             caption="Specify log location...",
@@ -487,7 +492,6 @@ class PodWidget(QWidget):
             self.lw_players.sizeHintForRow(0) * self.lw_players.count() + 2 * self.lw_players.frameWidth()
         )
 
-
     def rightclick_menu(self, position):
         #Popup menu
         pop_menu = QMenu()
@@ -526,7 +530,12 @@ class PodWidget(QWidget):
 
         ))
         pop_menu.addSeparator()
-        pop_menu.addAction('Delete pod')
+        pop_menu.addAction(
+            QAction(
+                'Delete pod',
+                self,
+                triggered=self.delete_pod
+        ))
 
 
         #rename_player_action.triggered.connect(self.lva_rename_player)
@@ -562,6 +571,11 @@ class PodWidget(QWidget):
             in self.lw_players.selectedItems()
         ]
         self.app.bench_players(players)
+        self.refresh_ui()
+
+
+    def delete_pod(self):
+        self.app.delete_pod(self.pod)
         self.refresh_ui()
 
 class LogLoaderDialog(QDialog):
@@ -721,9 +735,6 @@ class NewTournamentDialog(QDialog):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('-p', '--players', dest='players', nargs='*')
-    parser.add_argument('-f', '--file', dest='file')
-    parser.add_argument('-i', '--input', dest='input', nargs='*')
     parser.add_argument('-n', '--number_of_mock_players', dest='number_of_mock_players', type=int, default=0)
     parser.add_argument('-s', '--pod_sizes', dest='pod_sizes', nargs='*', type=int, default=None,
         help='Allowed od sizes by preference order (ex: "-s 4 3" will allow pods of size 4 and 3, preferring 4)')

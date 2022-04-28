@@ -316,9 +316,7 @@ class Tournament:
                     self.round.draw([p for p in players])
 
     @TournamentAction.action
-    def move_player_to_pod(self, pod, players: list[Player]=[], manual=False):
-        #add all players to pod
-        #if player is already in a pod, remove it first
+    def move_player_to_pod(self, pod:Pod, players: list[Player]=[], manual=False):
         if not isinstance(players, list):
             players = [players]
         for player in players:
@@ -341,6 +339,11 @@ class Tournament:
             if pod:
                 pod.remove_player(player)
                 Log.log('\tRemoved player {} from {}.'.format(player.name, pod.name), level=Log.Level.INFO)
+
+    @TournamentAction.action
+    def delete_pod(self, pod:Pod):
+        if self.round:
+            self.round.remove_pod(pod)
 
     def get_pod_sizes(self, n):
         for pod_size in self.POD_SIZES:
@@ -545,13 +548,17 @@ class Pod:
             random.shuffle(self.players)
         return True
 
+    def clear(self):
+        self.players = list()
+
     def remove_player(self, player: Player):
         p = None
-        for i in range(len(self.players)):
+        '''for i in range(len(self.players)):
             pi = self.players[i]
             if pi.name == player.name:
                 p = self.players.pop(i)
-                break
+                break'''
+        self.players.remove(player)
         if self.p_count == 0:
             self.round.remove_pod(self)
         return p
@@ -632,7 +639,11 @@ class Round:
         return list(set(self.tour.players) - set(self.seated))
 
     def remove_pod(self, pod:Pod):
-        self.pods.remove(pod)
+        if not pod.done:
+            pod.clear()
+            self.pods.remove(pod)
+            return True
+        return False
 
     def make_pods(self):
         remaining = self.unseated
@@ -713,7 +724,6 @@ class Round:
 
         if self.done and not self.concluded:
             self.conclude()
-
 
 if __name__ == "__main__":
     Log.PRINT = True
