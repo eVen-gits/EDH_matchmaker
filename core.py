@@ -10,6 +10,10 @@ import inspect
 import names
 from datetime import datetime
 
+class Pod: pass
+class Player: pass
+class Round: pass
+
 class SORT_METHOD(Enum):
     ID=0
     NAME=1
@@ -128,7 +132,7 @@ class TournamentAction:
             return True
         return False
 
-    def __repr__(self):
+    def __repr__(self, *nargs, **kwargs):
         ret_str = (
             '{}'
             '{}'
@@ -155,8 +159,16 @@ class Tournament:
     BYE_POINTS = 3
     DRAW_POINTS = 1
 
-    def __init__(self, pod_sizes=POD_SIZES):
+    def __init__(self,
+        pod_sizes=POD_SIZES,
+        allow_bye=ALLOW_BYE,
+        win_points=WIN_POINTS,
+        draw_points=DRAW_POINTS,
+        bye_points=BYE_POINTS,
+    ):
         self.__class__.set_pod_sizes(pod_sizes)
+        self.__class__.set_allow_bye(allow_bye)
+        self.__class__.set_scoring([win_points, draw_points, bye_points])
 
         self.rounds = list()
         self.players = list()
@@ -184,7 +196,7 @@ class Tournament:
         return new_players
 
     @TournamentAction.action
-    def remove_player(self, players=[]):
+    def remove_player(self, players: list[Player]=[]):
         if not isinstance(players, list):
             players = [players]
         for p in players:
@@ -218,7 +230,7 @@ class Tournament:
     def make_pods(self):
         if self.round is None or self.round.concluded:
             self.round = Round(len(self.rounds), self)
-        if not self.round.ready():
+        if not self.round.all_players_seated:
             self.round.make_pods()
         else:
             Log.log(30*'*', level=Log.Level.WARNING)
@@ -261,25 +273,25 @@ class Tournament:
             self.round = None
 
     @TournamentAction.action
-    def manual_pod(self, players=[]):
+    def manual_pod(self, players: list[Player]=[]):
         if self.round is None or self.round.concluded:
             self.round = Round(len(self.rounds), self)
         if not self.round.pods:
             self.round.pods = []
 
-        pod = Pod(len(self.round.pods))
+        pod = Pod(self.round, len(self.round.pods))
 
         for player in players:
             pod.add_player(player)
         self.round.pods.append(pod)
 
     @TournamentAction.action
-    def report_win(self, players=[]):
+    def report_win(self, players: list[Player]=[]):
         if self.round:
             self.round.won(players)
 
     @TournamentAction.action
-    def report_draw(self, players=[]):
+    def report_draw(self, players: list[Player]=[]):
         if self.round:
             self.round.draw(players)
 
@@ -304,7 +316,7 @@ class Tournament:
                     self.round.draw([p for p in players])
 
     @TournamentAction.action
-    def move_player_to_pod(self, pod, players=[], manual=False):
+    def move_player_to_pod(self, pod, players: list[Player]=[], manual=False):
         #add all players to pod
         #if player is already in a pod, remove it first
         if not isinstance(players, list):
@@ -319,6 +331,31 @@ class Tournament:
                     Log.log('\tAdded player {} to {}'.format(player.name, pod.name), level=Log.Level.INFO)
                 else:
                     Log.log('\tFailed to add palyer {} to Pod {}'.format(player.name, pod.id), level=Log.Level.ERROR)
+
+    @TournamentAction.action
+    def bench_players(self, players: list[Player]=[]):
+        if not isinstance(players, list):
+            players = [players]
+        for player in players:
+            pod = player.pod
+            if pod:
+                pod.remove_player(player)
+                Log.log('\tRemoved player {} from {}.'.format(player.name, pod.name), level=Log.Level.INFO)
+
+    def get_pod_sizes(self, n):
+        for pod_size in self.POD_SIZES:
+            if n-pod_size == 0:
+            #or n-pod_size < self.MIN_POD_SIZE and self.ALLOW_BYE and pod_size == self.POD_SIZES[-1]:
+                return [pod_size]
+            if n-pod_size < self.MIN_POD_SIZE and pod_size == self.POD_SIZES[-1]:
+                if self.ALLOW_BYE and n-pod_size > 0:
+                    return [pod_size]
+                return None
+            if n-pod_size >= self.MIN_POD_SIZE:
+                tail = self.get_pod_sizes(n-pod_size)
+                if tail is not None:
+                    return [pod_size] + tail
+        return None
 
     #MISC ACTIONS
 
@@ -374,7 +411,7 @@ class Player:
         return False
 
     @property
-    def pod(self):
+    def pod(self) -> Pod:
         if self.tour.round is None:
             return None
         for pod in self.tour.round.pods:
@@ -484,7 +521,8 @@ class Player:
         return ' | '.join(fields)
 
 class Pod:
-    def __init__(self, id, cap=0):
+    def __init__(self, round:Round, id, cap=0):
+        self.round = round
         self.players = list()
         self.cap = cap
         self.id = id
@@ -508,31 +546,15 @@ class Pod:
         return True
 
     def remove_player(self, player: Player):
+        p = None
         for i in range(len(self.players)):
-            p = self.players[i]
-            if p.name == player.name:
-                return self.players.pop(i)
-
-    def swap_players(self, p1: Player, other, p2: Player):
-        p1 = self.remove_player(p1)
-        p2 = other.remove_player(p2)
-
-        self.add_player(p2)
-        other.add_player(p1)
-
-    @property
-    def score(self):
-        score = self.p_count
-        self.cap = self.cap + 1
-        for player in self.players:
-            score = score + player.evaluate_pod(self)
-        self.cap = self.cap - 1
-        return score
-
-    def gain(self, player: Player):
-        copy = deepcopy(self)
-        copy.add_player(player)
-        return copy.score - self.score
+            pi = self.players[i]
+            if pi.name == player.name:
+                p = self.players.pop(i)
+                break
+        if self.p_count == 0:
+            self.round.remove_pod(self)
+        return p
 
     def update_player_history(self, player):
         player.played = player.played + ([p for p in self.players if not p is player])
@@ -545,7 +567,10 @@ class Pod:
         return 'Pod {}'.format(self.id)
 
     def __repr__(self):
-        maxlen = max([len(p.name) for p in self.players])
+        if not self.players:
+            maxlen = 0
+        else:
+            maxlen = max([len(p.name) for p in self.players])
         ret = 'Pod {} with {} players and seats:\n\t{}'.format(
             self.id,
             self.p_count,
@@ -573,6 +598,16 @@ class Round:
         #self.players = None
         self.concluded = False
 
+    def next_pod_id(self):
+        i = 0
+        while True:
+            for pod in self.pods:
+                if pod.id == i:
+                    i += 1
+                    break
+            else:
+                return i
+
     @property
     def done(self):
         for pod in self.pods:
@@ -580,36 +615,45 @@ class Round:
                 return False
         return True
 
+    @property
+    def all_players_seated(self):
+        return sum([pod.p_count for pod in self.pods]) == len(self.tour.players)
+
+    @property
     def seated(self):
         s = []
         if self.pods:
             for pod in self.pods:
                 s += pod.players
-
         return s
 
+    @property
     def unseated(self):
-        return list(set(self.tour.players) - set(self.seated()))
+        return list(set(self.tour.players) - set(self.seated))
+
+    def remove_pod(self, pod:Pod):
+        self.pods.remove(pod)
 
     def make_pods(self):
-        seated = set(self.seated())
-        remaining = self.unseated()
-
+        remaining = self.unseated
         n_plyr = len(remaining)
-        pod_sizes = Round.get_pod_sizes(n_plyr, allow_bye=self.tour.ALLOW_BYE)
+
+        pod_sizes = self.tour.get_pod_sizes(n_plyr)
         if pod_sizes is None:
             Log.log('Can not make pods.', level=Log.Level.WARNING)
             return None
-        n_pods = len(pod_sizes)
 
-        pods = [Pod(i, size) for size, i in zip(pod_sizes, range(n_pods))]
+        pods = []
+        for size in pod_sizes:
+            pod = Pod(self, self.next_pod_id(), cap=size)
+            pods.append(pod)
+            self.pods.append(pod)
+
         random.shuffle(remaining)
         for p in sorted(remaining, key=self.tour.MATCHING, reverse=True):
             pod_scores = [p.evaluate_pod(pod) for pod in pods]
             index = pod_scores.index(max(pod_scores))
             pods[index].add_player(p)
-
-        self.pods += pods
 
         self.print_pods()
 
@@ -618,58 +662,14 @@ class Round:
             Log.log(p)
             Log.log('-'*80)
 
-    #TODO: This doesn't work
-    def optimize(self):
-        pod = sorted(self.pods, key=lambda x: x.score)[0]
-        player = sorted(pod.players, key=lambda x: x.evaluate_pod(pod))[0]
-
-        swap_count = 0
-
-        swap = True
-        while swap:
-            swap = False
-            for i_pod in [x for x in self.pods if not x is pod]:
-                for i_player in i_pod.players:
-                    pod1_cp = deepcopy(pod)
-                    pod2_cp = deepcopy(i_pod)
-
-                    pod1_cp.swap_players(player, pod2_cp, i_player)
-
-                    gain = pod1_cp.score + pod2_cp.score - pod.score - i_pod.score
-
-                    if gain > 0:
-                        pod.swap_players(player, i_pod, i_player)
-                        swap_count = swap_count + 1
-                        break
-                if swap:
-                    break
-        Log.log('{} swaps in optimization stage.'.format(swap_count), Log.Level.INFO)
-
-    @staticmethod
-    def get_pod_sizes(n=None, allow_bye=False):
-        if(isinstance(n, list)):
-            n = n[0]
-        for pod_size in Tournament.POD_SIZES:
-            if n-pod_size == 0:
-                return [pod_size]
-            if n-pod_size < Tournament.MIN_POD_SIZE and pod_size == Tournament.POD_SIZES[-1]:
-                if Tournament.ALLOW_BYE:
-                    return [pod_size]
-                return None
-            if n-pod_size >= Tournament.MIN_POD_SIZE:
-                tail = Round.get_pod_sizes(n-pod_size)
-                if tail is not None:
-                    return [pod_size] + tail
-        return None
-
     def conclude(self):
         for pod in self.pods:
             for p in pod.players:
                 pod.update_player_history(p)
 
         #self.players = deepcopy(self.players)
-        if self.unseated() and self.tour.ALLOW_BYE:
-            for p in self.unseated():
+        if self.unseated and self.tour.ALLOW_BYE:
+            for p in self.unseated:
                 p.points += self.tour.BYE_POINTS
         self.tour.rounds.append(self)
         self.concluded = True
@@ -683,7 +683,7 @@ class Round:
                     return i_pod
         return None
 
-    def won(self, players=[]):
+    def won(self, players: list[Player]=[]):
         if not isinstance(players, list):
             players = [players]
         for player in players:
@@ -702,7 +702,7 @@ class Round:
             if self.done:
                 self.conclude()
 
-    def draw(self, players=[]):
+    def draw(self, players: list[Player]=[]):
         for player in players:
             pod = self.find_player_pod(player)
 
@@ -714,8 +714,6 @@ class Round:
         if self.done and not self.concluded:
             self.conclude()
 
-    def ready(self):
-        return sum([pod.p_count for pod in self.pods]) == len(self.tour.players)
 
 if __name__ == "__main__":
     Log.PRINT = True

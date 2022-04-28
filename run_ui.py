@@ -36,12 +36,12 @@ class PlayerListItem(QListWidgetItem):
         QListWidgetItem.__init__(self, str(player), parent=None)
         self.player = player
 
-    def __lt__(self, other):
+    def __lt__(self, other:Player):
         if isinstance(other, PlayerListItem):
             return self.player.__lt__(other.player)
         return False
 
-    def __gt__(self, other):
+    def __gt__(self, other:Player):
         return self.player.__gt__(other.player)
 
     @staticmethod
@@ -70,7 +70,7 @@ class PlayerListItem(QListWidgetItem):
         return self.player.__repr__(tokens)
 
 class MainWindow(QMainWindow):
-    def __init__(self, core=None):
+    def __init__(self, core:Tournament=None):
         self.file_name = None
 
         QMainWindow.__init__(self)
@@ -271,7 +271,7 @@ class MainWindow(QMainWindow):
         item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
         item.setText(item.player.name)
 
-    def lva_move_to_pod(self, pod):
+    def lva_move_to_pod(self, pod:Pod):
         self.move_players_to_pod(
             pod,
             [
@@ -282,7 +282,7 @@ class MainWindow(QMainWindow):
         )
 
     @UILog.with_status
-    def move_players_to_pod(self, pod, players):
+    def move_players_to_pod(self, pod:Pod, players:list[Player]):
         self.core.move_player_to_pod(
             pod,
             players,
@@ -327,7 +327,7 @@ class MainWindow(QMainWindow):
         self.core.reset_pods()
         self.restore_ui()
 
-    #@UILog.with_status
+    @UILog.with_status
     def lva_manual_pod(self):
         self.core.manual_pod([
             p.data(Qt.ItemDataRole.UserRole)
@@ -402,17 +402,25 @@ class MainWindow(QMainWindow):
         self.restore_ui()
 
     @UILog.with_status
-    def report_win(self, player):
+    def report_win(self, player:Player):
         Log.log('Reporting player {} won this round.'.format(player.name))
         self.core.report_win(player)
         self.ui_update_player_list()
 
     @UILog.with_status
-    def report_draw(self, players):
+    def report_draw(self, players:Player):
         Log.log('Reporting draw for players: {}.'.format(
             ', '.join([p.name for p in players])
         ))
         self.core.report_draw(players)
+        self.ui_update_player_list()
+
+    @UILog.with_status
+    def bench_players(self, players:list[Player]):
+        Log.log('Bench players: {}.'.format(
+            ', '.join([p.name for p in players])
+        ))
+        self.core.bench_players(players)
         self.ui_update_player_list()
 
     def save_as(self):
@@ -448,7 +456,7 @@ class MainWindow(QMainWindow):
             self.restore_ui()
 
 class PodWidget(QWidget):
-    def __init__(self, app, pod:Pod, parent=None):
+    def __init__(self, app:MainWindow, pod:Pod, parent=None):
         QWidget.__init__(self, parent=parent)
         self.app = app
         self.pod = pod
@@ -461,6 +469,9 @@ class PodWidget(QWidget):
         )
 
     def refresh_ui(self):
+        if not self.pod.players:
+            self.setParent(None)
+            return
         self.ui.lbl_pod_id.setText(
             '{} - {} players'.format(
                 self.pod.name,
@@ -472,50 +483,56 @@ class PodWidget(QWidget):
             list_item = PlayerListItem(p)
             list_item.setData(Qt.ItemDataRole.UserRole, p)
             self.lw_players.addItem(list_item)
-
         self.lw_players.setFixedHeight(
             self.lw_players.sizeHintForRow(0) * self.lw_players.count() + 2 * self.lw_players.frameWidth()
         )
 
+
     def rightclick_menu(self, position):
         #Popup menu
         pop_menu = QMenu()
-        report_win = QAction('Report win', self)
-        report_draw = QAction('Report draw', self)
 
         selected_pod_players = [
             i.player for i in self.lw_players.selectedItems()
         ]
+        n_selected = len(selected_pod_players)
+
         #Check if it is on the item when you right-click, if it is not, delete and modify will not be displayed.
         if self.ui.lw_players.itemAt(position):
-            if len(self.lw_players.selectedItems()) == 1:
-                pop_menu.addAction(report_win)
+            if n_selected == 1:
+                pop_menu.addAction(
+                    QAction('Report win', self, triggered=self.report_win))
             else:
-                pop_menu.addAction(report_draw)
+                pop_menu.addAction(
+                    QAction('Report draw', self, triggered=self.report_draw))
 
         move_pod = QMenu('Move to pod')
         pop_menu.addMenu(move_pod)
         for p in self.app.core.round.pods:
             if p != self.pod:
                 move_pod.addAction(p.name,
-                    lambda pod=p, players=selected_pod_players: self.app.move_players_to_pod(
-                        pod,
-                        players,
+                    lambda pod=p, players=selected_pod_players:
+                        self.app.move_players_to_pod(
+                            pod, players
+                        )
                     )
-                )
 
-        pop_menu.addAction('Remove player')
+        pop_menu.addAction(QAction(
+            'Bench player'
+            if n_selected == 1
+            else 'Bench players',
+            self,
+            triggered=self.bench_players
+
+        ))
         pop_menu.addSeparator()
-        pop_menu.addAction('Remove pod')
-
-        report_win.triggered.connect(self.report_win)
-        report_draw.triggered.connect(self.report_draw)
+        pop_menu.addAction('Delete pod')
 
 
         #rename_player_action.triggered.connect(self.lva_rename_player)
         pop_menu.exec(self.ui.lw_players.mapToGlobal(position))
 
-    def report_win(self, *nargs, **kwargs):
+    def report_win(self):
         player = self.lw_players.currentItem().data(Qt.ItemDataRole.UserRole)
         ok = self.app.confirm('Report player {} won?'.format(player.name), 'Confirm result')
         if ok:
@@ -537,6 +554,15 @@ class PodWidget(QWidget):
         if ok:
             self.app.report_draw(players)
             self.deleteLater()
+
+    def bench_players(self):
+        players = [
+            item.data(Qt.ItemDataRole.UserRole)
+            for item
+            in self.lw_players.selectedItems()
+        ]
+        self.app.bench_players(players)
+        self.refresh_ui()
 
 class LogLoaderDialog(QDialog):
     def __init__(self, parent=None):
