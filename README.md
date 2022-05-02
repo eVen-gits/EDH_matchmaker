@@ -26,7 +26,7 @@ To make sure it's added, go to your start menu, and search for "Edit the system 
 
 Once you find it, depending on the version of Windows you have, you will have different sections. Search for "Path" variable and check if your python installation dirrectory is also added. Since this is not really the scope of this installation guide, you will have to figure this on your own as it can differ a bit from system to system, but generally something along those lines.
 
-Right, now that you've checked that python is actually in your Path variable, it's still possible that python is not recognized. Windows 10 can
+Right, now that you've checked that python is actually in your Path variable, it's still possible that python is not recognized. Windows 10 can hide it behind some *feature*. I'll try to find what it was, but I think it was something along system integration of python or something. To be added.
 
 ### Once python is sorted, the actual installation
 
@@ -36,7 +36,7 @@ On windows, you can do this from the file menu. I assume linux/mac users shouldn
 
 The command is `pip install -r requirements.py`
 
-This will install the required libraries for the program to run
+This will install the required libraries for the program to run.
 
 ## Running
 
