@@ -14,6 +14,14 @@ class Pod: pass
 class Player: pass
 class Round: pass
 
+class STANDINGS_EXPORT_FIELDS(Enum):
+    ID = 0  # Player ID
+    WIN = 1 # Number of wins
+    OPPONENTWIN = 2 # Opponents' win percentage
+    POINTS = 3  # Number of points
+    WINRATE = 4 # Winrate
+    UNIQUE = 5 # Number of unique opponents
+
 class SORT_METHOD(Enum):
     ID=0
     NAME=1

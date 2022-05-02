@@ -139,8 +139,8 @@ class MainWindow(QMainWindow):
             method = Player.SORT_METHOD
             order = Player.SORT_ORDER
             Player.SORT_METHOD = SORT_METHOD.RANK
-            Player.SORT_ORDER = SORT_ORDER.DESCENDING
-            players = sorted(self.core.players, reverse=True)
+            Player.SORT_ORDER = SORT_ORDER.ASCENDING
+            players = sorted(self.core.players)
             Player.SORT_METHOD = method
             Player.SORT_ORDER = order
 
@@ -148,11 +148,11 @@ class MainWindow(QMainWindow):
 
             standings = '\n'.join(
                 [
-                '[{:02d}] {} | {} | {:.2f} | {}'.format(
+                '[{:02d}] {} | {} | {:.2f}% | {}'.format(
                     i+1,
                     p.name.ljust(maxlen),
                     p.points,
-                    p.opponent_winrate,
+                    p.opponent_winrate*100,
                     p.unique_opponents
                 )
                 for i, p in zip(range(len(players)), players)
