@@ -49,6 +49,7 @@ class PlayerListItem(QListWidgetItem):
 
     @staticmethod
     def toggle_sort():
+        raise DeprecationWarning()
         if Player.SORT_ORDER == SORT_ORDER.ASCENDING:
             Player.SORT_ORDER = SORT_ORDER.DESCENDING
         elif Player.SORT_METHOD == SORT_METHOD.ID:
@@ -408,10 +409,6 @@ class MainWindow(QMainWindow):
 
         return x == QMessageBox.StandardButton.Ok
 
-    def ui_toggle_player_list_sorting(self):
-        PlayerListItem.toggle_sort()
-        self.ui_update_player_list()
-
     def ui_update_player_list(self):
         for row in range(self.ui.lv_players.count()):
             item = self.ui.lv_players.item(row)
@@ -642,6 +639,7 @@ class PodWidget(QWidget):
         )
         if ok:
             self.app.report_game_loss(players)
+
 
 class LogLoaderDialog(QDialog):
     def __init__(self, parent=None):

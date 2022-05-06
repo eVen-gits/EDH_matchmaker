@@ -171,9 +171,8 @@ class TournamentAction:
 
 
 class Tournament:
-    # CONFIG
-    #TODO: Opponents beaten in 2nd factor
-    def RANKING(x): return (-x.points, -x.opponent_winrate, -x.unique_opponents)
+    # CONFIGURATION
+    def RANKING(_, x): return (-x.points, -x.n_opponents_beaten, -x.opponent_winrate, -x.unique_opponents)
 
     def MATCHING(_, x): return (-x.games_played, -x.unique_opponents, x.points, -x.opponent_winrate)
 
@@ -427,6 +426,17 @@ class Tournament:
         with open(fdir, 'w') as f:
             f.writelines(str)
 
+    def get_standings(self):
+        method = Player.SORT_METHOD
+        order = Player.SORT_ORDER
+        Player.SORT_METHOD = SORT_METHOD.RANK
+        Player.SORT_ORDER = SORT_ORDER.DESCENDING
+        standings = sorted(self.players, key=self.RANKING)
+        Player.SORT_METHOD = method
+        Player.SORT_ORDER = order
+        return standings
+
+
     # PROPS AND CLASSMETHODS
 
     @classmethod
@@ -450,6 +460,7 @@ class Tournament:
 class Player:
     SORT_METHOD = SORT_METHOD.ID
     SORT_ORDER = SORT_ORDER.ASCENDING
+    FORMATTING = ['-p']
 
     def __init__(self, name, tour: Tournament):
         self.tour = tour
@@ -459,7 +470,12 @@ class Player:
         self.ID = ID.next()
         self.games_played = 0
         self.games_won = 0
+        self.opponents_beaten = set()
         self.game_loss = False
+
+    @property
+    def n_opponents_beaten(self):
+        return len(self.opponents_beaten)
 
     @property
     def seated(self):
@@ -500,14 +516,6 @@ class Player:
         oppwr = [opp.winrate for opp in self.played]
         return sum(oppwr)/len(oppwr)
 
-    @property
-    def opponents_beaten(self):
-        raise NotImplementedError('TODO')
-        if not self.played:
-            return 0
-        oppwr = [opp for opp in self.played]
-        return sum(oppwr)
-
     def evaluate_pod(self, pod):
         score = 0
         if pod.p_count == pod.cap:
@@ -522,14 +530,13 @@ class Player:
         elif self.SORT_METHOD == SORT_METHOD.NAME:
             b = self.name > other.name
         elif self.SORT_METHOD == SORT_METHOD.RANK:
-            if self.points != other.points:
-                b = self.points > other.points
-            elif self.opponent_winrate != other.opponent_winrate:
-                b = self.opponent_winrate > other.opponent_winrate
-            elif self.unique_opponents != other.unique_opponents:
-                b = self.unique_opponents > other.unique_opponents
-            else:
-                return False
+            my_score = Tournament.RANKING(None, self)
+            other_score = Tournament.RANKING(None, other)
+            b = True
+            for i in range(len(my_score)):
+                if my_score[i] != other_score[i]:
+                    b = my_score[i] < other_score[i]
+                    break
         return b
 
     def __lt__(self, other):
@@ -538,17 +545,18 @@ class Player:
         elif self.SORT_METHOD == SORT_METHOD.NAME:
             b = self.name < other.name
         elif self.SORT_METHOD == SORT_METHOD.RANK:
-            if self.points != other.points:
-                b = self.points < other.points
-            elif self.opponent_winrate != other.opponent_winrate:
-                b = self.opponent_winrate < other.opponent_winrate
-            elif self.unique_opponents != other.unique_opponents:
-                b = self.unique_opponents < other.unique_opponents
-            else:
-                return False
+            my_score = Tournament.RANKING(None, self)
+            other_score = Tournament.RANKING(None, other)
+            b = False
+            for i in range(len(my_score)):
+                if my_score[i] != other_score[i]:
+                    b = my_score[i] > other_score[i]
+                    break
         return b
 
-    def __repr__(self, tokens=['-p']):
+    def __repr__(self, tokens=None):
+        if not tokens:
+            tokens = self.FORMATTING
         #ret = '{} | played: {} | pts: {}'.format(self.name, len(set(self.played)), self.points)
         parser_player = argparse.ArgumentParser()
 
@@ -637,11 +645,12 @@ class Pod:
         return p
 
     def update_player_history(self, player):
-        player.played = player.played + \
-            ([p for p in self.players if not p is player])
+        round_opponents = [p for p in self.players if not p is player]
+        player.played += round_opponents
         player.games_played += 1
         if player == self.won:
             player.games_won += 1
+            player.opponents_beaten.update(set(round_opponents))
 
     @property
     def name(self):

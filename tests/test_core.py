@@ -1,3 +1,4 @@
+from pydoc import plain
 import unittest
 from core import *
 import names
@@ -14,14 +15,14 @@ class TestPlayer(unittest.TestCase):
                 p = Player(name, self.t)
 
 
-class TestTournament43Nobye(unittest.TestCase):
-    def setUp(self) -> None:
-        self.t = Tournament(
+class TestTournamentPodSizing(unittest.TestCase):
+
+    def test_correct_pod_sizing_43_nobye(self):
+        t = Tournament(
             pod_sizes=[4, 3],
             allow_bye=False,
         )
 
-    def test_correct_pod_sizing(self):
         pod_sizes = {
             0: None,
             1: None,
@@ -47,17 +48,13 @@ class TestTournament43Nobye(unittest.TestCase):
         }
         for n, expected in pod_sizes.items():
             with self.subTest(n=str(n).zfill(2)):
-                self.assertEqual(self.t.get_pod_sizes(n), expected)
+                self.assertEqual(t.get_pod_sizes(n), expected)
 
-
-class TestTournament4Bye(unittest.TestCase):
-    def setUp(self) -> None:
-        self.t = Tournament(
+    def test_correct_pod_sizing_4_bye(self):
+        t = Tournament(
             pod_sizes=[4],
             allow_bye=True,
         )
-
-    def test_correct_pod_sizing(self):
         pod_sizes = (
             (0,  [], 0),
             (1,  [], 1),
@@ -83,22 +80,19 @@ class TestTournament4Bye(unittest.TestCase):
         )
         for n, expected_sizes, bench in pod_sizes:
             with self.subTest(n=str(n).zfill(2)):
-                self.t.make_pods()
-                sizes = [p.p_count for p in self.t.round.pods]
+                t.make_pods()
+                sizes = [p.p_count for p in t.round.pods]
                 self.assertListEqual(sizes, expected_sizes)
-                self.assertEqual(len(self.t.round.unseated), bench)
-                self.t.reset_pods()
-                self.t.add_player(names.get_full_name())
+                self.assertEqual(len(t.round.unseated), bench)
+                t.reset_pods()
+                t.add_player(names.get_full_name())
 
-
-class TestTournament4NoBye(unittest.TestCase):
-    def setUp(self) -> None:
-        self.t = Tournament(
+    def test_correct_pod_sizing_4_nobye(self):
+        t = Tournament(
             pod_sizes=[4],
             allow_bye=False,
         )
 
-    def test_correct_pod_sizing(self):
         pod_sizes = (
             (0,  [], 0),
             (1,  [], 1),
@@ -124,9 +118,52 @@ class TestTournament4NoBye(unittest.TestCase):
         )
         for n, expected_sizes, bench in pod_sizes:
             with self.subTest(n=str(n).zfill(2)):
-                self.t.make_pods()
-                sizes = [p.p_count for p in self.t.round.pods]
+                t.make_pods()
+                sizes = [p.p_count for p in t.round.pods]
                 self.assertListEqual(sizes, expected_sizes)
-                self.assertEqual(len(self.t.round.unseated), bench)
-                self.t.reset_pods()
-                self.t.add_player(names.get_full_name())
+                self.assertEqual(len(t.round.unseated), bench)
+                t.reset_pods()
+                t.add_player(names.get_full_name())
+
+class TestScoring(unittest.TestCase):
+    def setUp(self) -> None:
+        self.t = Tournament(
+            pod_sizes=[4],
+            allow_bye=True,
+            bye_points=4,
+            win_points=4,
+            draw_points=1,
+        )
+        Player.FORMATTING = ['-p', '-w', '-o']
+
+    def test_bye_scoring(self):
+        self.t.add_player([
+            names.get_full_name()
+            for _ in range(9)
+        ])
+
+        self.t.make_pods()
+
+        benched = self.t.round.unseated[0]
+
+        for pod in self.t.round.pods:
+            self.t.report_win(pod.players[0])
+
+        leaders = [p for p in self.t.players if p.points == 4]
+        self.assertEqual(len(leaders), 3)
+        self.assertEqual(benched.points, 4)
+        standings = self.t.get_standings()
+        self.assertEqual(standings[2], benched)
+
+
+        self.t.manual_pod([benched, standings[0]])
+        self.t.manual_pod([standings[1], standings[2]])
+        self.t.report_game_loss(self.t.round.unseated)
+        self.t.report_win([benched, standings[0]])
+
+        new_standings = self.t.get_standings()
+        self.assertEqual(new_standings[0], standings[0])
+        self.assertEqual(new_standings[1], benched)
+
+
+
