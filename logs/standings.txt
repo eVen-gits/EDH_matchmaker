@@ -1,0 +1,11 @@
+[01] Glen Ellis       | 0 | 25.00% | 5
+[02] John Williams    | 0 | 25.00% | 5
+[03] Cynthia Brogan   | 0 | 33.33% | 5
+[04] Leon Middleton   | 0 | 50.00% | 3
+[05] Barbara Lowe     | 0 | 50.00% | 3
+[06] Dennis Bernard   | 3 | 16.67% | 3
+[07] Suzanne Kellam   | 3 | 16.67% | 6
+[08] Alma Estrada     | 3 | 33.33% | 3
+[09] Jacqueline Cline | 3 | 33.33% | 3
+[10] Bruce Smith      | 6 | 0.00% | 5
+[11] Wendy Castillo   | 6 | 16.67% | 3

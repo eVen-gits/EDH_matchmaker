@@ -2,6 +2,7 @@ import unittest
 from core import *
 import names
 
+
 class TestPlayer(unittest.TestCase):
     def setUp(self) -> None:
         self.t = Tournament()
@@ -11,6 +12,7 @@ class TestPlayer(unittest.TestCase):
             name = f.readline()
             with self.subTest(name=name):
                 p = Player(name, self.t)
+
 
 class TestTournament43Nobye(unittest.TestCase):
     def setUp(self) -> None:
@@ -47,7 +49,8 @@ class TestTournament43Nobye(unittest.TestCase):
             with self.subTest(n=str(n).zfill(2)):
                 self.assertEqual(self.t.get_pod_sizes(n), expected)
 
-class TestTournament44Bye(unittest.TestCase):
+
+class TestTournament4Bye(unittest.TestCase):
     def setUp(self) -> None:
         self.t = Tournament(
             pod_sizes=[4],
@@ -76,6 +79,47 @@ class TestTournament44Bye(unittest.TestCase):
             (17, [4, 4, 4, 4], 1),
             (18, [4, 4, 4, 4], 2),
             (19, [4, 4, 4, 4], 3),
+            (20, [4, 4, 4, 4, 4], 0),
+        )
+        for n, expected_sizes, bench in pod_sizes:
+            with self.subTest(n=str(n).zfill(2)):
+                self.t.make_pods()
+                sizes = [p.p_count for p in self.t.round.pods]
+                self.assertListEqual(sizes, expected_sizes)
+                self.assertEqual(len(self.t.round.unseated), bench)
+                self.t.reset_pods()
+                self.t.add_player(names.get_full_name())
+
+
+class TestTournament4NoBye(unittest.TestCase):
+    def setUp(self) -> None:
+        self.t = Tournament(
+            pod_sizes=[4],
+            allow_bye=False,
+        )
+
+    def test_correct_pod_sizing(self):
+        pod_sizes = (
+            (0,  [], 0),
+            (1,  [], 1),
+            (2,  [], 2),
+            (3,  [], 3),
+            (4,  [4], 0),
+            (5,  [], 5),
+            (6,  [], 6),
+            (7,  [], 7),
+            (8,  [4, 4], 0),
+            (9,  [], 9),
+            (10, [], 10),
+            (11, [], 11),
+            (12, [4, 4, 4], 0),
+            (13, [], 13),
+            (14, [], 14),
+            (15, [], 15),
+            (16, [4, 4, 4, 4], 0),
+            (17, [], 17),
+            (18, [], 18),
+            (19, [], 19),
             (20, [4, 4, 4, 4, 4], 0),
         )
         for n, expected_sizes, bench in pod_sizes:

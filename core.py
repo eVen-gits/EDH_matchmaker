@@ -1,35 +1,47 @@
-import sys, argparse
-from copy import deepcopy
-import random
-import shlex
-import jellyfish
-from enum import Enum
-import pickle
-import os
+import argparse
 import inspect
-import names
+import os
+import pickle
+import random
+import sys
+from copy import deepcopy
 from datetime import datetime
+from enum import Enum
 
-class Pod: pass
-class Player: pass
-class Round: pass
+import names
+
+
+class Pod:
+    pass
+
+
+class Player:
+    pass
+
+
+class Round:
+    pass
+
 
 class STANDINGS_EXPORT_FIELDS(Enum):
     ID = 0  # Player ID
-    WIN = 1 # Number of wins
-    OPPONENTWIN = 2 # Opponents' win percentage
+    WIN = 1  # Number of wins
+    OPPONENTWIN = 2  # Opponents' win percentage
     POINTS = 3  # Number of points
-    WINRATE = 4 # Winrate
-    UNIQUE = 5 # Number of unique opponents
+    WINRATE = 4  # Winrate
+    UNIQUE = 5  # Number of unique opponents
+
 
 class SORT_METHOD(Enum):
-    ID=0
-    NAME=1
-    RANK=2
+    ID = 0
+    NAME = 1
+    RANK = 2
+
 
 class SORT_ORDER(Enum):
-    ASCENDING=0
-    DESCENDING=1
+    ASCENDING = 0
+    DESCENDING = 1
+
 
 class Log:
     class Level(Enum):
@@ -80,8 +92,10 @@ class Log:
         except Exception as e:
             cls.log(str(e), level=cls.Level.ERROR)
 
+
 class ID:
     lastID = 0
+
     def __init__(self):
         pass
 
@@ -89,6 +103,7 @@ class ID:
     def next():
         ID.lastID += 1
         return ID.lastID
+
 
 class TournamentAction:
     '''Serializable action that will be stored in tournament log and can be restored
@@ -109,7 +124,7 @@ class TournamentAction:
 
     @classmethod
     def reset(cls):
-        TournamentAction.ACTIONS=[]
+        TournamentAction.ACTIONS = []
         TournamentAction.store()
 
     @classmethod
@@ -154,10 +169,13 @@ class TournamentAction:
         )
         return ret_str
 
+
 class Tournament:
-    #CONFIG
-    RANKING = lambda x: (-x.points, -x.opponent_winrate, -x.unique_opponents)
-    MATCHING = lambda _, x: (-x.games_played, -x.unique_opponents, x.points, -x.opponent_winrate)
+    # CONFIG
+    #TODO: Opponents beaten in 2nd factor
+    def RANKING(x): return (-x.points, -x.opponent_winrate, -x.unique_opponents)
+
+    def MATCHING(_, x): return (-x.games_played, -x.unique_opponents, x.points, -x.opponent_winrate)
 
     POD_SIZES = [4, 3]
 
@@ -168,12 +186,12 @@ class Tournament:
     DRAW_POINTS = 1
 
     def __init__(self,
-        pod_sizes=POD_SIZES,
-        allow_bye=ALLOW_BYE,
-        win_points=WIN_POINTS,
-        draw_points=DRAW_POINTS,
-        bye_points=BYE_POINTS,
-    ):
+                 pod_sizes=POD_SIZES,
+                 allow_bye=ALLOW_BYE,
+                 win_points=WIN_POINTS,
+                 draw_points=DRAW_POINTS,
+                 bye_points=BYE_POINTS,
+                 ):
         self.__class__.set_pod_sizes(pod_sizes)
         self.__class__.set_allow_bye(allow_bye)
         self.__class__.set_scoring([win_points, draw_points, bye_points])
@@ -184,33 +202,36 @@ class Tournament:
 
         self.round = None
 
-    #TOURNAMENT ACTIONS
-    #IMPORTANT: No nested tournament actions
+    # TOURNAMENT ACTIONS
+    # IMPORTANT: No nested tournament actions
 
     @TournamentAction.action
     def add_player(self, names=[]):
         new_players = []
         if not isinstance(names, list):
-            names =  [names]
+            names = [names]
         for name in names:
             if name in [p.name for p in self.players]:
-                Log.log('\tPlayer {} already enlisted.'.format(name), level=Log.Level.WARNING)
+                Log.log('\tPlayer {} already enlisted.'.format(
+                    name), level=Log.Level.WARNING)
                 continue
             if name:
                 p = Player(name, tour=self)
                 self.players.append(p)
                 new_players.append(p)
-                Log.log('\tAdded player {}'.format(p.name), level=Log.Level.INFO)
+                Log.log('\tAdded player {}'.format(
+                    p.name), level=Log.Level.INFO)
         return new_players
 
     @TournamentAction.action
-    def remove_player(self, players: list[Player]=[]):
+    def remove_player(self, players: list[Player] = []):
         if not isinstance(players, list):
             players = [players]
         for p in players:
             if self.round and p.seated:
                 if not self.round.concluded:
-                    Log.log('Can\'t drop {} during an active round.\nComplete the round or remove player from pod first.'.format(p.name), level=Log.Level.WARNING)
+                    Log.log('Can\'t drop {} during an active round.\nComplete the round or remove player from pod first.'.format(
+                        p.name), level=Log.Level.WARNING)
                     continue
             if p.played:
                 self.dropped.append(p)
@@ -223,7 +244,8 @@ class Tournament:
         if player.name == new_name:
             return
         if new_name in [p.name for p in self.players]:
-            Log.log('\tPlayer {} already enlisted.'.format(new_name), level=Log.Level.WARNING)
+            Log.log('\tPlayer {} already enlisted.'.format(
+                new_name), level=Log.Level.WARNING)
             return
         if new_name:
             player.name = new_name
@@ -232,7 +254,8 @@ class Tournament:
                     for p in pod.players:
                         if p.name == player.name:
                             p.name = new_name
-            Log.log('\tRenamed player {} to {}'.format(player.name, new_name), level=Log.Level.INFO)
+            Log.log('\tRenamed player {} to {}'.format(
+                player.name, new_name), level=Log.Level.INFO)
 
     @TournamentAction.action
     def make_pods(self):
@@ -281,7 +304,7 @@ class Tournament:
             self.round = None
 
     @TournamentAction.action
-    def manual_pod(self, players: list[Player]=[]):
+    def manual_pod(self, players: list[Player] = []):
         if self.round is None or self.round.concluded:
             self.round = Round(len(self.rounds), self)
         if not self.round.pods:
@@ -294,12 +317,16 @@ class Tournament:
         self.round.pods.append(pod)
 
     @TournamentAction.action
-    def report_win(self, players: list[Player]=[]):
+    def report_win(self, players: list[Player] = []):
         if self.round:
+            if not isinstance(players, list):
+                players = [players]
+            for p in players:
+                Log.log('Reporting player {} won this round.'.format(p.name))
             self.round.won(players)
 
     @TournamentAction.action
-    def report_draw(self, players: list[Player]=[]):
+    def report_draw(self, players: list[Player] = []):
         if self.round:
             self.round.draw(players)
 
@@ -317,46 +344,66 @@ class Tournament:
                 if draw_or_win:
                     player = random.sample(pod.players, 1)[0]
                     Log.log('won "{}"'.format(player.name))
-                    self.round.won(player)
+                    self.round.won([player])
                 else:
-                    players = random.sample(pod.players, random.randint(1, pod.p_count))
-                    Log.log('draw {}'.format(' '.join(['"{}"'.format(p.name) for p in players])))
+                    players = random.sample(
+                        pod.players, random.randint(1, pod.p_count))
+                    Log.log('draw {}'.format(
+                        ' '.join(['"{}"'.format(p.name) for p in players])))
                     self.round.draw([p for p in players])
 
     @TournamentAction.action
-    def move_player_to_pod(self, pod:Pod, players: list[Player]=[], manual=False):
+    def move_player_to_pod(self, pod: Pod, players: list[Player] = [], manual=False):
         if not isinstance(players, list):
             players = [players]
         for player in players:
             if player.pod and player.pod != pod:
                 old_pod = player.pod.name
                 player.pod.remove_player(player)
-                Log.log('\tRemoved player {} from {}.'.format(player.name, old_pod), level=Log.Level.INFO)
+                Log.log('Removed player {} from {}.'.format(
+                    player.name, old_pod), level=Log.Level.INFO)
             if player.pod != pod:
                 if pod.add_player(player, manual=manual):
-                    Log.log('\tAdded player {} to {}'.format(player.name, pod.name), level=Log.Level.INFO)
+                    Log.log('Added player {} to {}'.format(
+                        player.name, pod.name), level=Log.Level.INFO)
                 else:
-                    Log.log('\tFailed to add palyer {} to Pod {}'.format(player.name, pod.id), level=Log.Level.ERROR)
+                    Log.log('Failed to add palyer {} to Pod {}'.format(
+                        player.name, pod.id), level=Log.Level.ERROR)
 
     @TournamentAction.action
-    def bench_players(self, players: list[Player]=[]):
+    def bench_players(self, players: list[Player] = []):
         if not isinstance(players, list):
             players = [players]
         for player in players:
-            pod = player.pod
-            if pod:
-                pod.remove_player(player)
-                Log.log('\tRemoved player {} from {}.'.format(player.name, pod.name), level=Log.Level.INFO)
+            self.remove_player_from_pod(player)
 
     @TournamentAction.action
-    def delete_pod(self, pod:Pod):
+    def report_game_loss(self, players: list[Player] = []):
+        if not isinstance(players, list):
+            players = [players]
+        for player in players:
+            player.game_loss = True
+            self.remove_player_from_pod(player)
+            Log.log('{} assigned a game loss.'.format(
+                player.name), level=Log.Level.INFO)
+
+    @TournamentAction.action
+    def delete_pod(self, pod: Pod):
         if self.round:
             self.round.remove_pod(pod)
+
+    def remove_player_from_pod(self, player):
+        pod = player.pod
+        if pod:
+            pod.remove_player(player)
+            Log.log('Removed player {} from {}.'.format(
+                player.name, pod.name), level=Log.Level.INFO)
+        return None
 
     def get_pod_sizes(self, n):
         for pod_size in self.POD_SIZES:
             if n-pod_size == 0:
-            #or n-pod_size < self.MIN_POD_SIZE and self.ALLOW_BYE and pod_size == self.POD_SIZES[-1]:
+                # or n-pod_size < self.MIN_POD_SIZE and self.ALLOW_BYE and pod_size == self.POD_SIZES[-1]:
                 return [pod_size]
             if n-pod_size < self.MIN_POD_SIZE and pod_size == self.POD_SIZES[-1]:
                 if self.ALLOW_BYE and n-pod_size > 0:
@@ -368,7 +415,7 @@ class Tournament:
                     return [pod_size] + tail
         return None
 
-    #MISC ACTIONS
+    # MISC ACTIONS
 
     def show_pods(self, tokens=[]):
         if self.round and self.round.pods:
@@ -380,7 +427,7 @@ class Tournament:
         with open(fdir, 'w') as f:
             f.writelines(str)
 
-    #PROPS AND CLASSMETHODS
+    # PROPS AND CLASSMETHODS
 
     @classmethod
     def set_allow_bye(cls, allow_bye):
@@ -399,6 +446,7 @@ class Tournament:
     def MIN_POD_SIZE(cls):
         return min(cls.POD_SIZES)
 
+
 class Player:
     SORT_METHOD = SORT_METHOD.ID
     SORT_ORDER = SORT_ORDER.ASCENDING
@@ -411,6 +459,7 @@ class Player:
         self.ID = ID.next()
         self.games_played = 0
         self.games_won = 0
+        self.game_loss = False
 
     @property
     def seated(self):
@@ -451,6 +500,14 @@ class Player:
         oppwr = [opp.winrate for opp in self.played]
         return sum(oppwr)/len(oppwr)
 
+    @property
+    def opponents_beaten(self):
+        raise NotImplementedError('TODO')
+        if not self.played:
+            return 0
+        oppwr = [opp for opp in self.played]
+        return sum(oppwr)
+
     def evaluate_pod(self, pod):
         score = 0
         if pod.p_count == pod.cap:
@@ -459,11 +516,11 @@ class Player:
             score = score - self.played.count(player) ** 2
         return score
 
-    def __gt__ (self, other):
+    def __gt__(self, other):
         if self.SORT_METHOD == SORT_METHOD.ID:
             b = self.id > other.id
         elif self.SORT_METHOD == SORT_METHOD.NAME:
-            b =  self.name > other.name
+            b = self.name > other.name
         elif self.SORT_METHOD == SORT_METHOD.RANK:
             if self.points != other.points:
                 b = self.points > other.points
@@ -475,11 +532,11 @@ class Player:
                 return False
         return b
 
-    def __lt__ (self, other):
+    def __lt__(self, other):
         if self.SORT_METHOD == SORT_METHOD.ID:
-            b =  self.ID < other.ID
+            b = self.ID < other.ID
         elif self.SORT_METHOD == SORT_METHOD.NAME:
-            b =  self.name < other.name
+            b = self.name < other.name
         elif self.SORT_METHOD == SORT_METHOD.RANK:
             if self.points != other.points:
                 b = self.points < other.points
@@ -495,13 +552,20 @@ class Player:
         #ret = '{} | played: {} | pts: {}'.format(self.name, len(set(self.played)), self.points)
         parser_player = argparse.ArgumentParser()
 
-        parser_player.add_argument('-i', '--id',           dest='id', action='store_true')
-        parser_player.add_argument('-w', '--win',          dest='w', action='store_true')
-        parser_player.add_argument('-o', '--opponentwin',   dest='ow', action='store_true')
-        parser_player.add_argument('-p', '--points',       dest='p', action='store_true')
-        parser_player.add_argument('-r', '--winrate',      dest='wr', action='store_true')
-        parser_player.add_argument('-u', '--unique',       dest='u', action='store_true')
-        parser_player.add_argument('-s', '--spaces',       dest='spaces', type=int, default=0)
+        parser_player.add_argument(
+            '-i', '--id',           dest='id', action='store_true')
+        parser_player.add_argument(
+            '-w', '--win',          dest='w', action='store_true')
+        parser_player.add_argument(
+            '-o', '--opponentwin',   dest='ow', action='store_true')
+        parser_player.add_argument(
+            '-p', '--points',       dest='p', action='store_true')
+        parser_player.add_argument(
+            '-r', '--winrate',      dest='wr', action='store_true')
+        parser_player.add_argument(
+            '-u', '--unique',       dest='u', action='store_true')
+        parser_player.add_argument(
+            '-s', '--spaces',       dest='spaces', type=int, default=0)
         #parser.add_argument('-n', '--notplayed',    dest='np', action='store_true')
 
         try:
@@ -525,14 +589,15 @@ class Player:
             fields.append('o.wr.: {:.2f}'.format(self.opponent_winrate))
         if args.u:
             fields.append('uniq: {}'.format(self.unique_opponents))
-        #if args.np:
+        # if args.np:
         #    fields.append(''.format())
         #OUTPUT_BUFFER.append('\t{}'.format(' | '.join(fields)))
 
         return ' | '.join(fields)
 
+
 class Pod:
-    def __init__(self, round:Round, id, cap=0):
+    def __init__(self, round: Round, id, cap=0):
         self.round = round
         self.players = list()
         self.cap = cap
@@ -572,7 +637,8 @@ class Pod:
         return p
 
     def update_player_history(self, player):
-        player.played = player.played + ([p for p in self.players if not p is player])
+        player.played = player.played + \
+            ([p for p in self.players if not p is player])
         player.games_played += 1
         if player == self.won:
             player.games_won += 1
@@ -589,7 +655,7 @@ class Pod:
         ret = 'Pod {} with {} players and seats:\n\t{}'.format(
             self.id,
             self.p_count,
-            #self.score,
+            # self.score,
             '\n\t'.join(
                 [
                     '{}: [{}] {}\t'.format(
@@ -604,6 +670,7 @@ class Pod:
                 ]
             ))
         return ret
+
 
 class Round:
     def __init__(self, seq, tour: Tournament):
@@ -644,9 +711,9 @@ class Round:
 
     @property
     def unseated(self):
-        return list(set(self.tour.players) - set(self.seated))
+        return list(set([p for p in self.tour.players if not p.game_loss]) - set(self.seated))
 
-    def remove_pod(self, pod:Pod):
+    def remove_pod(self, pod: Pod):
         if not pod.done:
             pod.clear()
             self.pods.remove(pod)
@@ -690,26 +757,22 @@ class Round:
         if self.unseated and self.tour.ALLOW_BYE:
             for p in self.unseated:
                 p.points += self.tour.BYE_POINTS
+        for p in [p for p in self.tour.players if p.game_loss]:
+            p.games_played += 1
+            p.game_loss = False
         self.tour.rounds.append(self)
         self.concluded = True
-        Log.log('{}{}{}'.format(30*'*', '\nRound completed!\n', 30*'*',), Log.Level.INFO)
+        Log.log('{}{}{}'.format(
+            30*'*', '\nRound completed!\n', 30*'*',), Log.Level.INFO)
         self.tour.round = None
 
-    def find_player_pod(self, player):
-        for i_pod in self.pods:
-            for i_player in i_pod.players:
-                if player is i_player:
-                    return i_pod
-        return None
-
-    def won(self, players: list[Player]=[]):
-        if not isinstance(players, list):
-            players = [players]
+    def won(self, players: list[Player] = []):
         for player in players:
-            pod = self.find_player_pod(player)
+            pod = player.pod
 
             if not player or not pod:
-                Log.log('Player {} not found in any pod'.format(player.name), Log.Level.WARNING)
+                Log.log('Player {} not found in any pod'.format(
+                    player.name), Log.Level.WARNING)
                 continue
 
             if not pod.done:
@@ -721,9 +784,9 @@ class Round:
             if self.done:
                 self.conclude()
 
-    def draw(self, players: list[Player]=[]):
+    def draw(self, players: list[Player] = []):
         for player in players:
-            pod = self.find_player_pod(player)
+            pod = player.pod
 
             player.points = player.points + self.tour.DRAW_POINTS
 
@@ -732,6 +795,7 @@ class Round:
 
         if self.done and not self.concluded:
             self.conclude()
+
 
 if __name__ == "__main__":
     Log.PRINT = True
@@ -758,7 +822,7 @@ if __name__ == "__main__":
         for i in range(2):
             tour.make_pods()
             tour.random_results()
-            #tour.remove_player(tour.players[0])
+            # tour.remove_player(tour.players[0])
 
         print()
-    #tour.show_pods()
+    # tour.show_pods()

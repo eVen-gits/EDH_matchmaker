@@ -1,5 +1,4 @@
 import argparse
-import io
 import os
 import sys
 from enum import Enum
@@ -8,10 +7,13 @@ import names
 from PyQt6 import uic
 from PyQt6.QtCore import *
 from PyQt6.QtGui import *
-from PyQt6.QtWidgets import *  # QMainWindow, QDialog, QGraphicsScene, QListWidget, QListWidgetItem, QApplication, QSizePolicy
+# QMainWindow, QDialog, QGraphicsScene, QListWidget, QListWidgetItem, QApplication, QSizePolicy
+from PyQt6.QtWidgets import *
 from PyQt6.QtWidgets import QListWidgetItem
 
-from core import ID, Log, Player, Pod, Round, Tournament, TournamentAction, SORT_ORDER, SORT_METHOD
+from core import (ID, SORT_METHOD, SORT_ORDER, Log, Player, Pod, Round,
+                  Tournament, TournamentAction)
+
 
 class UILog:
     backlog = 0
@@ -27,21 +29,22 @@ class UILog:
                 #TODO: Scroll
                 self.ui.lw_status.scrollToBottom()
                 self.ui.lw_status.setCurrentRow(self.ui.lw_status.count()-1)
-            #Log.log()
+            # Log.log()
             return ret
         return wrapper
 
+
 class PlayerListItem(QListWidgetItem):
-    def __init__(self, player:Player):
+    def __init__(self, player: Player):
         QListWidgetItem.__init__(self, str(player), parent=None)
         self.player = player
 
-    def __lt__(self, other:Player):
+    def __lt__(self, other: Player):
         if isinstance(other, PlayerListItem):
             return self.player.__lt__(other.player)
         return False
 
-    def __gt__(self, other:Player):
+    def __gt__(self, other: Player):
         return self.player.__gt__(other.player)
 
     @staticmethod
@@ -65,24 +68,26 @@ class PlayerListItem(QListWidgetItem):
             return Qt.SortOrder.AscendingOrder
         return Qt.SortOrder.DescendingOrder
 
-    #overwrite
+    # overwrite
     def text(self, tokens=['-i', '-p']):
         return self.player.__repr__(tokens)
 
+
 class MainWindow(QMainWindow):
-    def __init__(self, core:Tournament=None):
+    def __init__(self, core: Tournament = None):
         self.file_name = None
 
         QMainWindow.__init__(self)
         self.core = core if core else Tournament()
 
-        #Window code
+        # Window code
         self.ui = uic.loadUi('./ui/MainWindow.ui')
         self.setCentralWidget(self.ui)
 
         self.seated_color = QColor(0, 204, 102)
         self.unseated_color = QColor(117, 117, 163)
-        #self.changeTitle()
+        self.game_loss_color = QColor(255, 128, 128)
+        # self.changeTitle()
         self.resize(900, 750)
 
         self.init_sort_dropdown()
@@ -100,7 +105,8 @@ class MainWindow(QMainWindow):
         self.ui.pb_pods.clicked.connect(lambda: self.create_pods())
 
         self.ui.actionReset_UI.triggered.connect(self.restore_ui)
-        self.ui.actionRandom_Results.triggered.connect(lambda *_: self.random_results())
+        self.ui.actionRandom_Results.triggered.connect(
+            lambda *_: self.random_results())
 
         self.ui.actionNew_tour.triggered.connect(self.new_tour)
         self.ui.actionLoad_state.triggered.connect(self.load_state)
@@ -139,7 +145,7 @@ class MainWindow(QMainWindow):
             method = Player.SORT_METHOD
             order = Player.SORT_ORDER
             Player.SORT_METHOD = SORT_METHOD.RANK
-            Player.SORT_ORDER = SORT_ORDER.ASCENDING
+            Player.SORT_ORDER = SORT_ORDER.DESCENDING
             players = sorted(self.core.players)
             Player.SORT_METHOD = method
             Player.SORT_ORDER = order
@@ -148,15 +154,15 @@ class MainWindow(QMainWindow):
 
             standings = '\n'.join(
                 [
-                '[{:02d}] {} | {} | {:.2f}% | {}'.format(
-                    i+1,
-                    p.name.ljust(maxlen),
-                    p.points,
-                    p.opponent_winrate*100,
-                    p.unique_opponents
-                )
-                for i, p in zip(range(len(players)), players)
-            ])
+                    '[{:02d}] {} | {} | {:.2f}% | {}'.format(
+                        i+1,
+                        p.name.ljust(maxlen),
+                        p.points,
+                        p.opponent_winrate*100,
+                        p.unique_opponents
+                    )
+                    for i, p in zip(range(len(players)), players)
+                ])
 
             self.core.export_str(file, standings)
 
@@ -201,20 +207,19 @@ class MainWindow(QMainWindow):
 
     def restore_ui(self):
 
-        #clear pods
+        # clear pods
         self.ui_clear_pods()
         self.ui_create_pods()
 
-        #clear players
+        # clear players
         self.ui.lv_players.clear()
         self.ui_create_player_list()
 
     def lv_players_rightclick_menu(self, position):
-        #Popup menu
+        # Popup menu
         pop_menu = QMenu()
-        manual_pod_action = QAction('Create pod', self)
         multiple = len(self.ui.lv_players.selectedItems()) > 1
-        #Check if it is on the item when you right-click, if it is not, delete and modify will not be displayed.
+        # Check if it is on the item when you right-click, if it is not, delete and modify will not be displayed.
         item = self.ui.lv_players.itemAt(position)
         if item:
             delete_player_action = QAction(
@@ -224,12 +229,13 @@ class MainWindow(QMainWindow):
                 self
             )
             pop_menu.addAction(delete_player_action)
-            delete_player_action.triggered.connect(self.lva_remove_player)
+            delete_player_action.triggered.connect(
+                lambda: self.lva_remove_player())
 
-            #TODO: Rename player option
+            # TODO: Rename player option
             #rename_player_action = QAction('Rename player')
-            #pop_menu.addAction(rename_player_action)
-            #rename_player_action.triggered.connect(self.lva_rename_player)
+            # pop_menu.addAction(rename_player_action)
+            # rename_player_action.triggered.connect(self.lva_rename_player)
 
             if self.core.round:
                 if self.core.round.pods:
@@ -241,12 +247,21 @@ class MainWindow(QMainWindow):
                             #lambda pod=pod: self.lva_add_to_pod(pod)
                             lambda x=pod: self.lva_move_to_pod(x)
                         )
-                    #add_to_pod_action.addAction(add_to_pod_action)
-                    #add_to_pod_action.triggered.connect(self.lva_add_to_pod)
+                    # add_to_pod_action.addAction(add_to_pod_action)
+                    # add_to_pod_action.triggered.connect(self.lva_add_to_pod)
+
 
             if multiple:
-                manual_pod_action.triggered.connect(self.lva_manual_pod)
-
+                pop_menu.addAction(QAction(
+                    'Create pod',
+                    self,
+                    triggered=lambda: self.lva_manual_pod()
+                ))
+            pop_menu.addAction(QAction(
+                'Game loss',
+                self,
+                triggered=lambda: self.lva_game_loss()
+            ))
         pop_menu.exec(self.ui.lv_players.mapToGlobal(position))
 
     def lva_remove_player(self):
@@ -265,13 +280,14 @@ class MainWindow(QMainWindow):
             self.ui_create_player_list()
 
     def lva_rename_player(self):
-        #TODO:
+        # TODO:
+        raise NotImplementedError()
         curRow = self.ui.lv_players.currentRow()
         item = self.ui.lv_players.item(curRow)
         item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
         item.setText(item.player.name)
 
-    def lva_move_to_pod(self, pod:Pod):
+    def lva_move_to_pod(self, pod: Pod):
         self.move_players_to_pod(
             pod,
             [
@@ -281,8 +297,30 @@ class MainWindow(QMainWindow):
             ]
         )
 
+    def lva_game_loss(self):
+        players = [
+            item.data(Qt.ItemDataRole.UserRole)
+            for item in self.ui.lv_players.selectedItems()
+        ]
+        ok = self.confirm(
+            'Give game loss to: {}?'.format(
+                ', '.join([p.name for p in players])),
+            'Confirm game loss'
+        )
+        if ok:
+            self.report_game_loss(players)
+
     @UILog.with_status
-    def move_players_to_pod(self, pod:Pod, players:list[Player]):
+    def report_game_loss(self, players: list[Player]):
+        if not isinstance(players, list):
+            players = [players]
+
+        self.core.report_game_loss(players)
+        self.ui_update_player_list()
+        self.ui_update_pods()
+
+    @UILog.with_status
+    def move_players_to_pod(self, pod: Pod, players: list[Player]):
         self.core.move_player_to_pod(
             pod,
             players,
@@ -359,7 +397,7 @@ class MainWindow(QMainWindow):
 
     def confirm(self, message, title=''):
         reply = QMessageBox()
-        #Force cancel left and OK right
+        # Force cancel left and OK right
         reply.setStyleSheet('*{button-layout: 3}')
         reply.setText(message)
         reply.setWindowTitle(title)
@@ -380,6 +418,8 @@ class MainWindow(QMainWindow):
             data = item.data(Qt.ItemDataRole.UserRole)
             if data.seated:
                 item.setBackground(self.seated_color)
+            elif data.game_loss:
+                item.setBackground(self.game_loss_color)
             else:
                 item.setBackground(self.unseated_color)
             item.setText(str(data))
@@ -391,6 +431,8 @@ class MainWindow(QMainWindow):
             list_item.setData(Qt.ItemDataRole.UserRole, p)
             if p.seated:
                 list_item.setBackground(self.seated_color)
+            elif p.game_loss:
+                list_item.setBackground(self.game_loss_color)
             else:
                 list_item.setBackground(self.unseated_color)
             self.ui.lv_players.addItem(list_item)
@@ -402,13 +444,12 @@ class MainWindow(QMainWindow):
         self.restore_ui()
 
     @UILog.with_status
-    def report_win(self, player:Player):
-        Log.log('Reporting player {} won this round.'.format(player.name))
+    def report_win(self, player: Player):
         self.core.report_win(player)
         self.ui_update_player_list()
 
     @UILog.with_status
-    def report_draw(self, players:Player):
+    def report_draw(self, players: Player):
         Log.log('Reporting draw for players: {}.'.format(
             ', '.join([p.name for p in players])
         ))
@@ -416,7 +457,7 @@ class MainWindow(QMainWindow):
         self.ui_update_player_list()
 
     @UILog.with_status
-    def bench_players(self, players:list[Player]):
+    def bench_players(self, players: list[Player]):
         Log.log('Bench players: {}.'.format(
             ', '.join([p.name for p in players])
         ))
@@ -424,7 +465,7 @@ class MainWindow(QMainWindow):
         self.ui_update_player_list()
 
     @UILog.with_status
-    def delete_pod(self, pod:Pod):
+    def delete_pod(self, pod: Pod):
         self.core.delete_pod(pod)
         self.ui_update_player_list()
 
@@ -460,17 +501,19 @@ class MainWindow(QMainWindow):
                 self.core = Tournament()
             self.restore_ui()
 
+
 class PodWidget(QWidget):
-    def __init__(self, app:MainWindow, pod:Pod, parent=None):
+    def __init__(self, app: MainWindow, pod: Pod, parent=None):
         QWidget.__init__(self, parent=parent)
         self.app = app
         self.pod = pod
         self.ui = uic.loadUi('./ui/PodWidget.ui', self)
         self.refresh_ui()
 
-        self.ui.lw_players.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.ui.lw_players.setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu)
         self.ui.lw_players.customContextMenuRequested.connect(
-                self.rightclick_menu
+            self.rightclick_menu
         )
 
     def refresh_ui(self):
@@ -489,11 +532,12 @@ class PodWidget(QWidget):
             list_item.setData(Qt.ItemDataRole.UserRole, p)
             self.lw_players.addItem(list_item)
         self.lw_players.setFixedHeight(
-            self.lw_players.sizeHintForRow(0) * self.lw_players.count() + 2 * self.lw_players.frameWidth()
+            self.lw_players.sizeHintForRow(
+                0) * self.lw_players.count() + 2 * self.lw_players.frameWidth()
         )
 
     def rightclick_menu(self, position):
-        #Popup menu
+        # Popup menu
         pop_menu = QMenu()
 
         selected_pod_players = [
@@ -501,7 +545,7 @@ class PodWidget(QWidget):
         ]
         n_selected = len(selected_pod_players)
 
-        #Check if it is on the item when you right-click, if it is not, delete and modify will not be displayed.
+        # Check if it is on the item when you right-click, if it is not, delete and modify will not be displayed.
         if self.ui.lw_players.itemAt(position):
             if n_selected == 1:
                 pop_menu.addAction(
@@ -515,11 +559,11 @@ class PodWidget(QWidget):
         for p in self.app.core.round.pods:
             if p != self.pod:
                 move_pod.addAction(p.name,
-                    lambda pod=p, players=selected_pod_players:
-                        self.app.move_players_to_pod(
-                            pod, players
-                        )
-                    )
+                                   lambda pod=p, players=selected_pod_players:
+                                   self.app.move_players_to_pod(
+                                       pod, players
+                                   )
+                                   )
 
         pop_menu.addAction(QAction(
             'Bench player'
@@ -529,21 +573,28 @@ class PodWidget(QWidget):
             triggered=self.bench_players
 
         ))
+        pop_menu.addAction(QAction(
+            'Assign game loss'
+            if n_selected == 1
+            else 'Assign game losses',
+            self,
+            triggered=self.assign_game_loss
+        ))
         pop_menu.addSeparator()
         pop_menu.addAction(
             QAction(
                 'Delete pod',
                 self,
                 triggered=self.delete_pod
-        ))
+            ))
 
-
-        #rename_player_action.triggered.connect(self.lva_rename_player)
+        # rename_player_action.triggered.connect(self.lva_rename_player)
         pop_menu.exec(self.ui.lw_players.mapToGlobal(position))
 
     def report_win(self):
         player = self.lw_players.currentItem().data(Qt.ItemDataRole.UserRole)
-        ok = self.app.confirm('Report player {} won?'.format(player.name), 'Confirm result')
+        ok = self.app.confirm('Report player {} won?'.format(
+            player.name), 'Confirm result')
         if ok:
             self.app.report_win(player)
             self.deleteLater()
@@ -573,10 +624,24 @@ class PodWidget(QWidget):
         self.app.bench_players(players)
         self.refresh_ui()
 
-
     def delete_pod(self):
         self.app.delete_pod(self.pod)
         self.refresh_ui()
+
+    def assign_game_loss(self):
+        players = [
+            item.data(Qt.ItemDataRole.UserRole)
+            for item
+            in self.lw_players.selectedItems()
+        ]
+        ok = self.app.confirm(
+            'Assign game loss for players:\n\n{}'.format(
+                '\n'.join([p.name for p in players])
+            ),
+            'Confirm game loss penalty'
+        )
+        if ok:
+            self.app.report_game_loss(players)
 
 class LogLoaderDialog(QDialog):
     def __init__(self, parent=None):
@@ -601,7 +666,7 @@ class LogLoaderDialog(QDialog):
                 ', '.join(['{}={}'.format(
                     key, val
                 ) for key, val
-                in action.kwargs.items()
+                    in action.kwargs.items()
                 ])
             ))
             item.setData(Qt.ItemDataRole.UserRole, action)
@@ -623,6 +688,7 @@ class LogLoaderDialog(QDialog):
         if result == 0:
             return dlg.action
         return None
+
 
 class NewTournamentDialog(QDialog):
     def __init__(self, parent=None):
@@ -654,7 +720,8 @@ class NewTournamentDialog(QDialog):
 
     def remove_psize(self):
         if self.lw_pod_sizes.currentItem():
-            self.lw_pod_sizes.takeItem(self.lw_pod_sizes.row(self.lw_pod_sizes.currentItem()))
+            self.lw_pod_sizes.takeItem(
+                self.lw_pod_sizes.row(self.lw_pod_sizes.currentItem()))
 
     def add_psize(self):
         self.check_pod_sizes()
@@ -667,7 +734,7 @@ class NewTournamentDialog(QDialog):
             self.create_psize_widget(4)
         else:
             self.create_psize_widget(
-                min(current_values) -1
+                min(current_values) - 1
                 if min(current_values) > 1
                 else max(current_values) + 1
             )
@@ -699,13 +766,13 @@ class NewTournamentDialog(QDialog):
             self.ui.le_log_location.setText(file)
 
     def restore_ui(self):
-        #Load current pod sizes
+        # Load current pod sizes
         for psize in Tournament.POD_SIZES:
             self.create_psize_widget(psize)
-        #Load and set bye option
+        # Load and set bye option
         self.cb_allow_bye.setChecked(Tournament.ALLOW_BYE)
         self.check_pod_sizes()
-        #Load and set scoring
+        # Load and set scoring
         self.sb_win.setValue(Tournament.WIN_POINTS)
         self.sb_draw.setValue(Tournament.DRAW_POINTS)
         self.sb_bye.setValue(Tournament.BYE_POINTS)
@@ -713,7 +780,8 @@ class NewTournamentDialog(QDialog):
         if TournamentAction.LOGF:
             self.ui.le_log_location.setText(TournamentAction.LOGF)
         else:
-            self.ui.le_log_location.setText(os.path.abspath(TournamentAction.DEFAULT_LOGF))
+            self.ui.le_log_location.setText(
+                os.path.abspath(TournamentAction.DEFAULT_LOGF))
 
     def apply_choices(self):
         self.parent().core = Tournament()
@@ -732,15 +800,18 @@ class NewTournamentDialog(QDialog):
         dlg.show()
         result = dlg.exec()
 
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('-n', '--number_of_mock_players', dest='number_of_mock_players', type=int, default=0)
+    parser.add_argument('-n', '--number_of_mock_players',
+                        dest='number_of_mock_players', type=int, default=0)
     parser.add_argument('-s', '--pod_sizes', dest='pod_sizes', nargs='*', type=int, default=None,
-        help='Allowed od sizes by preference order (ex: "-s 4 3" will allow pods of size 4 and 3, preferring 4)')
-    parser.add_argument('-b', '--allow_bye', dest='allow_bye', action='store_true', default=False)
+                        help='Allowed od sizes by preference order (ex: "-s 4 3" will allow pods of size 4 and 3, preferring 4)')
+    parser.add_argument('-b', '--allow_bye', dest='allow_bye',
+                        action='store_true', default=False)
     parser.add_argument('-x', '--scoring', dest='scoring', nargs=3, type=int, default=None,
-        help='Change the scoring system. The first argument is the number of points for a win, the second is a draw, and the third is the number of points for a bye.')
+                        help='Change the scoring system. The first argument is the number of points for a win, the second is a draw, and the third is the number of points for a bye.')
     subparsers = parser.add_subparsers()
     args, unknown = parser.parse_known_args()
 
@@ -758,7 +829,7 @@ if __name__ == '__main__':
             names.get_full_name()
             for i in range(args.number_of_mock_players)
         ])
-    #for i in range(7):
+    # for i in range(7):
     #   core.make_pods()
     #   core.random_results()
 
@@ -767,5 +838,5 @@ if __name__ == '__main__':
 
     app.exec()
     sys.exit(app.exit())
-    #app.exec_()
-    #sys.exit(app.exit())
+    # app.exec_()
+    # sys.exit(app.exit())
