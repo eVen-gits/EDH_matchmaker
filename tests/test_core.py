@@ -125,6 +125,7 @@ class TestTournamentPodSizing(unittest.TestCase):
                 t.reset_pods()
                 t.add_player(names.get_full_name())
 
+
 class TestScoring(unittest.TestCase):
     def setUp(self) -> None:
         self.t = Tournament(
@@ -155,7 +156,6 @@ class TestScoring(unittest.TestCase):
         standings = self.t.get_standings()
         self.assertEqual(standings[2], benched)
 
-
         self.t.manual_pod([benched, standings[0]])
         self.t.manual_pod([standings[1], standings[2]])
         self.t.report_game_loss(self.t.round.unseated)
@@ -164,6 +164,3 @@ class TestScoring(unittest.TestCase):
         new_standings = self.t.get_standings()
         self.assertEqual(new_standings[0], standings[0])
         self.assertEqual(new_standings[1], benched)
-
-
-

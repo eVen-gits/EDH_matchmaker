@@ -172,9 +172,11 @@ class TournamentAction:
 
 class Tournament:
     # CONFIGURATION
-    def RANKING(_, x): return (-x.points, -x.n_opponents_beaten, -x.opponent_winrate, -x.unique_opponents)
+    def RANKING(_, x): return (-x.points, -x.n_opponents_beaten, -
+                               x.opponent_winrate, -x.unique_opponents)
 
-    def MATCHING(_, x): return (-x.games_played, -x.unique_opponents, x.points, -x.opponent_winrate)
+    def MATCHING(_, x): return (-x.games_played, -
+                                x.unique_opponents, x.points, -x.opponent_winrate)
 
     POD_SIZES = [4, 3]
 
@@ -435,7 +437,6 @@ class Tournament:
         Player.SORT_METHOD = method
         Player.SORT_ORDER = order
         return standings
-
 
     # PROPS AND CLASSMETHODS
 

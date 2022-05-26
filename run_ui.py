@@ -251,7 +251,6 @@ class MainWindow(QMainWindow):
                     # add_to_pod_action.addAction(add_to_pod_action)
                     # add_to_pod_action.triggered.connect(self.lva_add_to_pod)
 
-
             if multiple:
                 pop_menu.addAction(QAction(
                     'Create pod',
