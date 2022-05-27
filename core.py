@@ -7,6 +7,7 @@ import sys
 from copy import deepcopy
 from datetime import datetime
 from enum import Enum
+from misc import Json2Obj
 
 import names
 
@@ -23,13 +24,130 @@ class Round:
     pass
 
 
-class STANDINGS_EXPORT_FIELDS(Enum):
-    ID = 0  # Player ID
-    WIN = 1  # Number of wins
-    OPPONENTWIN = 2  # Opponents' win percentage
-    POINTS = 3  # Number of points
-    WINRATE = 4  # Winrate
-    UNIQUE = 5  # Number of unique opponents
+class Export:
+    __instance = None
+
+    @staticmethod
+    def instance():
+        """ Static access method. """
+        if Export.__instance == None:
+            Export()
+        return Export.__instance
+
+    def __init__(self):
+        """ Virtually private constructor. """
+        if Export.__instance != None:
+            raise Exception("This class is a singleton!")
+        else:
+            Export.__instance = self
+
+    class Field(Enum):
+        STANDING = 0  # Standing
+        ID = 1  # Player ID
+        NAME = 2  # Player name
+        POINTS = 3  # Number of points
+        WINS = 4  # Number of wins
+        OPPONENTSBEATEN = 5  # Number of opponents beaten
+        OPPONENTWIN = 6  # Opponents' win percentage
+        UNIQUE = 7  # Number of unique opponents
+        WINRATE = 8  # Winrate
+        GAMES = 9  # Number of games played
+
+    class Format(Enum):
+        TXT = 0
+        CSV = 1
+        DISCORD = 2
+
+    info = {
+        Field.STANDING: Json2Obj({
+            'name': '#',
+            'format': '{:d}',
+            'denom': None,
+            'description': 'Player\'s standing in the tournament.',
+            'getter': lambda p: p.standing,
+        }),
+        Field.ID: Json2Obj({
+            'name': 'ID',
+            'format': '{:d}',
+            'denom': None,
+            'description': 'Player ID',
+            'getter': lambda p: p.ID
+        }),
+        Field.NAME: Json2Obj({
+            'name': 'name',
+            'format': '{:s}',
+            'denom': None,
+            'description': 'Player name',
+            'getter': lambda p: p.name
+        }),
+        Field.OPPONENTWIN: Json2Obj({
+            'name': 'opp. win %',
+            'format': '{:.2f}%',
+            'denom': 100,
+            'description': 'Opponents\' win percentage',
+            'getter': lambda p: p.opponent_winrate
+        }),
+        Field.POINTS: Json2Obj({
+            'name': 'pts',
+            'format': '{:d}',
+            'denom': None,
+            'description': 'Number of points',
+            'getter': lambda p: p.points
+        }),
+        Field.WINS: Json2Obj({
+            'name': '# wins',
+            'format': '{:d}',
+            'denom': None,
+            'description': 'Number of games won',
+            'getter': lambda p: p.games_won
+        }),
+        Field.WINRATE: Json2Obj({
+            'name': 'win %',
+            'format': '{:.2f}%',
+            'denom': 100,
+            'description': 'Winrate',
+            'getter': lambda p: p.winrate
+        }),
+        Field.UNIQUE: Json2Obj({
+            'name': 'uniq. opp.',
+            'format': '{:d}',
+            'denom': None,
+            'description': 'Number of unique opponents',
+            'getter': lambda p: p.unique_opponents
+        }),
+        Field.GAMES: Json2Obj({
+            'name': '# games',
+            'format': '{:d}',
+            'denom': None,
+            'description': 'Number of games played',
+            'getter': lambda p: p.games_played
+        }),
+        Field.OPPONENTSBEATEN: Json2Obj({
+            'name': '# opp. beat',
+            'format': '{:d}',
+            'denom': None,
+            'description': 'Number of opponents beaten',
+            'getter': lambda p: p.n_opponents_beaten
+        }),
+    }
+
+    ext = {
+        Format.DISCORD: '.txt',
+        Format.TXT: '.txt',
+        Format.CSV: '.csv'
+    }
+
+    DEFAULT_FIELDS = [
+        Field.STANDING,
+        Field.NAME,
+        Field.POINTS,
+        Field.OPPONENTWIN,
+        Field.OPPONENTSBEATEN,
+    ]
+
+    fields = [f for f in DEFAULT_FIELDS]
+    format = Format.TXT
+    dir = './logs/standings' + ext[format]
 
 
 class SORT_METHOD(Enum):
@@ -438,6 +556,49 @@ class Tournament:
         Player.SORT_ORDER = order
         return standings
 
+    def export(
+        self,
+        fdir: str,
+        fields: list[Export.Field] = Export.DEFAULT_FIELDS,
+        style: Export.Format = Export.Format.TXT,
+    ):
+        standings = self.get_standings()
+        lines = [[Export.info[f].name for f in fields]]
+        lines += [
+            [
+                (Export.info[f].format).format(
+                    Export.info[f].getter(p)
+                    if Export.info[f].denom is None
+                    else Export.info[f].getter(p) * Export.info[f].denom
+                )
+                for f
+                in fields
+            ]
+            for p in standings
+        ]
+        if style == Export.Format.TXT:
+            col_len = [0] * len(fields)
+            for col in range(len(fields)):
+                for line in lines:
+                    if len(line[col]) > col_len[col]:
+                        col_len[col] = len(line[col])
+            for line in lines:
+                for col in range(len(fields)):
+                    line[col] = line[col].ljust(col_len[col])
+            # add new line at index 1
+            lines.insert(1, ['-' * width for width in col_len])
+            lines = '\n'.join([' | '.join(line) for line in lines])
+
+            self.export_str(fdir, lines)
+            Log.log('Log saved: {}.'.format(
+                fdir), level=Log.Level.INFO)
+        elif style == Export.Format.CSV:
+            Log.log('Log not saved - CSV not implemented.'.format(
+                fdir), level=Log.Level.WARNING)
+        elif style == Export.Format.DISCORD:
+            Log.log('Log not saved - DISCORD not implemented.'.format(
+                fdir), level=Log.Level.WARNING)
+
     # PROPS AND CLASSMETHODS
 
     @classmethod
@@ -473,6 +634,11 @@ class Player:
         self.games_won = 0
         self.opponents_beaten = set()
         self.game_loss = False
+
+    @property
+    def standing(self):
+        standings = self.tour.get_standings()
+        return standings.index(self) + 1
 
     @property
     def n_opponents_beaten(self):
@@ -766,6 +932,7 @@ class Round:
         #self.players = deepcopy(self.players)
         if self.unseated and self.tour.ALLOW_BYE:
             for p in self.unseated:
+                Log.log('bye "{}"'.format(p.name))
                 p.points += self.tour.BYE_POINTS
         for p in [p for p in self.tour.players if p.game_loss]:
             p.games_played += 1

@@ -24,23 +24,7 @@
       </widget>
      </item>
      <item>
-      <widget class="QComboBox" name="cb_format">
-       <item>
-        <property name="text">
-         <string>csv</string>
-        </property>
-       </item>
-       <item>
-        <property name="text">
-         <string>discord</string>
-        </property>
-       </item>
-       <item>
-        <property name="text">
-         <string>plain</string>
-        </property>
-       </item>
-      </widget>
+      <widget class="QComboBox" name="cb_format"/>
      </item>
     </layout>
    </item>
@@ -54,7 +38,7 @@
       </widget>
      </item>
      <item>
-      <widget class="QLineEdit" name="lineEdit"/>
+      <widget class="QLineEdit" name="le_export_dir"/>
      </item>
      <item>
       <widget class="QPushButton" name="pb_browse">
@@ -66,9 +50,21 @@
     </layout>
    </item>
    <item>
+    <widget class="QLabel" name="label_3">
+     <property name="font">
+      <font>
+       <italic>true</italic>
+      </font>
+     </property>
+     <property name="text">
+      <string>List is sorted by standing</string>
+     </property>
+    </widget>
+   </item>
+   <item>
     <layout class="QHBoxLayout" name="horizontalLayout_3">
      <item>
-      <widget class="QListWidget" name="lw_pod_sizes">
+      <widget class="QListWidget" name="lw_fields">
        <property name="sizePolicy">
         <sizepolicy hsizetype="MinimumExpanding" vsizetype="Expanding">
          <horstretch>50</horstretch>
@@ -114,7 +110,7 @@
         </widget>
        </item>
        <item>
-        <widget class="QPushButton" name="pushButton">
+        <widget class="QPushButton" name="pb_add">
          <property name="sizePolicy">
           <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
            <horstretch>0</horstretch>
@@ -123,6 +119,13 @@
          </property>
          <property name="text">
           <string>Add</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="pb_remove">
+         <property name="text">
+          <string>Remove</string>
          </property>
         </widget>
        </item>
@@ -159,7 +162,7 @@
       </spacer>
      </item>
      <item>
-      <widget class="QPushButton" name="pushButton_2">
+      <widget class="QPushButton" name="pb_export">
        <property name="text">
         <string>Export</string>
        </property>

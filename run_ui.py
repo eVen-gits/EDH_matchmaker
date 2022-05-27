@@ -11,7 +11,7 @@ from PyQt6.QtGui import *
 from PyQt6.QtWidgets import *
 from PyQt6.QtWidgets import QListWidgetItem
 
-from core import (ID, SORT_METHOD, SORT_ORDER, Log, Player, Pod, Round,
+from core import (ID, SORT_METHOD, SORT_ORDER, Export, Log, Player, Pod, Round,
                   Tournament, TournamentAction)
 
 
@@ -134,38 +134,7 @@ class MainWindow(QMainWindow):
             self.restore_ui()
 
     def export_standings(self):
-        file, ext = QFileDialog.getSaveFileName(
-            caption="Specify standings location...",
-            filter='*.txt',
-            initialFilter='*.txt'
-        )
-        if file:
-            if not file.endswith(ext.replace('*', '')):
-                file = ext.replace('*', '{}').format(file)
-
-            method = Player.SORT_METHOD
-            order = Player.SORT_ORDER
-            Player.SORT_METHOD = SORT_METHOD.RANK
-            Player.SORT_ORDER = SORT_ORDER.DESCENDING
-            players = sorted(self.core.players)
-            Player.SORT_METHOD = method
-            Player.SORT_ORDER = order
-
-            maxlen = max([len(p.name) for p in players])
-
-            standings = '\n'.join(
-                [
-                    '[{:02d}] {} | {} | {:.2f}% | {}'.format(
-                        i+1,
-                        p.name.ljust(maxlen),
-                        p.points,
-                        p.opponent_winrate*100,
-                        p.unique_opponents
-                    )
-                    for i, p in zip(range(len(players)), players)
-                ])
-
-            self.core.export_str(file, standings)
+        ExportStandingsDialog.show_dialog(self)
 
     def export_pods(self):
         file, ext = QFileDialog.getSaveFileName(
@@ -794,6 +763,94 @@ class NewTournamentDialog(QDialog):
     @staticmethod
     def show_dialog(parent=None):
         dlg = NewTournamentDialog(parent)
+        dlg.show()
+        result = dlg.exec()
+
+
+class ExportStandingsDialog(QDialog):
+    def __init__(self, parent=None):
+        QDialog.__init__(self, parent)
+        self.core = parent.core
+        self.ui = uic.loadUi('./ui/ExportDialog.ui', self)
+
+        self.restore_ui()
+
+        self.ui.pb_browse.clicked.connect(self.select_export_path)
+        self.ui.cb_format.currentIndexChanged.connect(
+            self.update_export_format)
+        self.ui.pb_add.clicked.connect(self.add_field)
+        self.ui.pb_remove.clicked.connect(self.remove_field)
+        self.ui.pb_export.clicked.connect(self.export)
+
+    def update_export_format(self, idx):
+        data = self.ui.cb_format.itemData(idx)
+        Export.instance().format = data
+
+    def restore_ui(self):
+        self.ui.le_export_dir.setText(Export.instance().dir)
+
+        for f in Export.Field:
+            info = Export.instance().info[f]
+            if f in Export.instance().fields:
+                item = QListWidgetItem(
+                    '{} ({})'.format(info.name, info.description))
+                item.setData(Qt.ItemDataRole.UserRole, f)
+                self.ui.lw_fields.addItem(item)
+            else:
+                self.ui.cb_fields.addItem(info.name, userData=f)
+
+        for s in Export.Format:
+            self.ui.cb_format.addItem(s.name, userData=s)
+
+        self.ui.cb_format.setCurrentIndex(
+            self.ui.cb_format.findData(Export.instance().format))
+
+    def add_field(self):
+        f = self.ui.cb_fields.currentData(Qt.ItemDataRole.UserRole)
+        info = Export.instance().info[f]
+        self.ui.cb_fields.removeItem(self.ui.cb_fields.currentIndex())
+        item = QListWidgetItem('{} ({})'.format(info.name, info.description))
+        item.setData(Qt.ItemDataRole.UserRole, f)
+        self.ui.lw_fields.addItem(item)
+
+    def remove_field(self):
+        item = self.ui.lw_fields.currentItem()
+        f = item.data(Qt.ItemDataRole.UserRole)
+        info = Export.instance().info[f]
+        self.ui.cb_fields.addItem(info.name, userData=f)
+        self.ui.lw_fields.takeItem(self.ui.lw_fields.row(item))
+
+    def select_export_path(self):
+        file, ext = QFileDialog.getSaveFileName(
+            caption="Specify standings location...",
+            filter='*{}'.format(
+                Export.instance().ext[Export.instance().format]),
+            initialFilter='*{}'.format(
+                Export.instance().ext[Export.instance().format]),
+            directory=os.path.dirname(Export.instance().dir)
+        )
+        if file:
+            if not file.endswith(ext.replace('*', '')):
+                file = ext.replace('*', '{}').format(file)
+            self.ui.le_export_dir.setText(file)
+            Export.instance().dir = file
+
+    def export(self):
+        Export.instance().fields = [
+            self.ui.lw_fields.item(i).data(Qt.ItemDataRole.UserRole)
+            for i
+            in range(self.ui.lw_fields.count())
+        ]
+        self.core.export(
+            self.ui.le_export_dir.text(),
+            Export.instance().fields,
+            Export.instance().format
+        )
+        self.close()
+
+    @staticmethod
+    def show_dialog(parent=None):
+        dlg = ExportStandingsDialog(parent)
         dlg.show()
         result = dlg.exec()
 
