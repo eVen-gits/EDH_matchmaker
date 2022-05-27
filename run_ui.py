@@ -137,21 +137,22 @@ class MainWindow(QMainWindow):
         ExportStandingsDialog.show_dialog(self)
 
     def export_pods(self):
-        file, ext = QFileDialog.getSaveFileName(
-            caption="Specify pods printout location...",
-            filter='*.txt',
-            initialFilter='*.txt'
-        )
-        if file:
-            if not file.endswith(ext.replace('*', '')):
-                file = ext.replace('*', '{}').format(file)
+        if self.core.round:
+            file, ext = QFileDialog.getSaveFileName(
+                caption="Specify pods printout location...",
+                filter='*.txt',
+                initialFilter='*.txt'
+            )
+            if file:
+                if not file.endswith(ext.replace('*', '')):
+                    file = ext.replace('*', '{}').format(file)
 
-            pods_str = '\n\n'.join([
-                pod.__repr__()
-                for pod in self.core.round.pods
-            ])
+                pods_str = '\n\n'.join([
+                    pod.__repr__()
+                    for pod in self.core.round.pods
+                ])
 
-            self.core.export_str(file, pods_str)
+                self.core.export_str(file, pods_str)
 
     def init_sort_dropdown(self):
         values = [
