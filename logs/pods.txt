@@ -1,11 +1,14 @@
 Pod 0 with 4 players and seats:
-	1: [  ] Ryan Johnson     | pts: 0	
-	2: [  ] George Armstrong | pts: 0	
-	3: [  ] Eve Cox          | pts: 0	
-	4: [  ] Keith Allison    | pts: 0	
+	1: [  ] James Smith        | pts: 0	
+	2: [  ] William Nemec      | pts: 0	
+	3: [  ] Teresa Dunham      | pts: 0	
+	4: [  ] Victoria Renninger | pts: 0	
 
 Pod 1 with 4 players and seats:
-	1: [  ] Amanda Enos   | pts: 0	
-	2: [  ] James Cable   | pts: 0	
-	3: [  ] Jessie Heyde  | pts: 0	
-	4: [  ] Marian Marron | pts: 0	
+	1: [  ] Tracey Proctor    | pts: 0	
+	2: [  ] Felton Konakowitz | pts: 0	
+	3: [  ] Carla Pankey      | pts: 0	
+	4: [  ] Anglea Smith      | pts: 0	
+
+Byes:
+Willie Ross	| pts: 0

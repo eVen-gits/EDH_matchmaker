@@ -147,12 +147,18 @@ class MainWindow(QMainWindow):
                 if not file.endswith(ext.replace('*', '')):
                     file = ext.replace('*', '{}').format(file)
 
-                pods_str = '\n\n'.join([
+                export_str = '\n\n'.join([
                     pod.__repr__()
                     for pod in self.core.round.pods
                 ])
 
-                self.core.export_str(file, pods_str)
+                if self.core.ALLOW_BYE:
+                    export_str += '\n\nByes:\n' + '\n:'.join([
+                        "\t{}\t| pts: {}".format(p.name, p.points)
+                        for p in self.core.round.unseated
+                    ])
+
+                self.core.export_str(file, export_str)
 
     def init_sort_dropdown(self):
         values = [
