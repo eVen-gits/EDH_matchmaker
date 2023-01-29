@@ -6,4 +6,4 @@ print.txt
 players.txt
 venv/*
 *.log
-.logs/*
+logs/

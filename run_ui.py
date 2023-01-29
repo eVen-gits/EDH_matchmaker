@@ -11,7 +11,7 @@ from PyQt6.QtGui import *
 from PyQt6.QtWidgets import *
 from PyQt6.QtWidgets import QListWidgetItem
 
-from core import (ID, SORT_METHOD, SORT_ORDER, Export, Log, Player, Pod, Round,
+from src.core import (ID, SORT_METHOD, SORT_ORDER, Export, Log, Player, Pod,
                   Tournament, TournamentAction)
 
 

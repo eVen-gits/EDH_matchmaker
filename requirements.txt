@@ -2,3 +2,5 @@ jellyfish
 names
 PyQt6
 names
+tqdm
+numpy

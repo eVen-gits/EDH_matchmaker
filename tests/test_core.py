@@ -1,6 +1,6 @@
 from pydoc import plain
 import unittest
-from core import *
+from src.core import *
 import names
 
 

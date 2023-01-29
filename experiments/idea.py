@@ -1,4 +1,8 @@
-from core import *
+#This is requred so that relative imports work
+import sys
+sys.path.append(".")
+
+from src.core import *
 
 from tqdm import tqdm
 import names
@@ -14,7 +18,7 @@ def create_tournament(players):
     """
     t = Tournament()
     t.add_player(list(players.keys()))
-    
+
     return t
 
 

@@ -7,7 +7,7 @@ import sys
 from copy import deepcopy
 from datetime import datetime
 from enum import Enum
-from misc import Json2Obj
+from src.misc import Json2Obj
 
 import names
 
