@@ -1,5 +1,6 @@
 import argparse
 import inspect
+import math
 import os
 import pickle
 import random
@@ -12,15 +13,15 @@ from src.misc import Json2Obj
 import names
 
 
-class Pod:
+class Pod: # type: ignore
     pass
 
 
-class Player:
+class Player: # type: ignore
     pass
 
 
-class Round:
+class Round: # type: ignore
     pass
 
 
@@ -290,8 +291,13 @@ class TournamentAction:
 
 class Tournament:
     # CONFIGURATION
-    def RANKING(_, x): return (-x.points, -x.n_opponents_beaten, -
-                               x.opponent_winrate, -x.unique_opponents)
+    # Logic: Points is primary sorting key,
+    # then number of opponents beaten,
+    # then opponent winrate,
+    # then number of unique opponents,
+    # then ID - this last one is to ensure deterministic sorting in case of equal values (start of tournament for example)
+    def RANKING(_, x): return (x.points, x.n_opponents_beaten,
+                               x.opponent_winrate, x.unique_opponents, -x.ID)
 
     def MATCHING(_, x): return (-x.games_played, -
                                 x.unique_opponents, x.points, -x.opponent_winrate)
@@ -300,8 +306,8 @@ class Tournament:
 
     ALLOW_BYE = False
 
-    WIN_POINTS = 3
-    BYE_POINTS = 3
+    WIN_POINTS = 5
+    BYE_POINTS = 5
     DRAW_POINTS = 1
 
     def __init__(self,
@@ -550,8 +556,8 @@ class Tournament:
         method = Player.SORT_METHOD
         order = Player.SORT_ORDER
         Player.SORT_METHOD = SORT_METHOD.RANK
-        Player.SORT_ORDER = SORT_ORDER.DESCENDING
-        standings = sorted(self.players, key=self.RANKING)
+        Player.SORT_ORDER = SORT_ORDER.ASCENDING
+        standings = sorted(self.players, key=self.RANKING, reverse=True)
         Player.SORT_METHOD = method
         Player.SORT_ORDER = order
         return standings
@@ -699,10 +705,10 @@ class Player:
         elif self.SORT_METHOD == SORT_METHOD.RANK:
             my_score = Tournament.RANKING(None, self)
             other_score = Tournament.RANKING(None, other)
-            b = True
+            b = None
             for i in range(len(my_score)):
                 if my_score[i] != other_score[i]:
-                    b = my_score[i] < other_score[i]
+                    b = my_score[i] > other_score[i]
                     break
         return b
 
@@ -714,7 +720,7 @@ class Player:
         elif self.SORT_METHOD == SORT_METHOD.RANK:
             my_score = Tournament.RANKING(None, self)
             other_score = Tournament.RANKING(None, other)
-            b = False
+            b = None
             for i in range(len(my_score)):
                 if my_score[i] != other_score[i]:
                     b = my_score[i] > other_score[i]
@@ -724,23 +730,32 @@ class Player:
     def __repr__(self, tokens=None):
         if not tokens:
             tokens = self.FORMATTING
-        #ret = '{} | played: {} | pts: {}'.format(self.name, len(set(self.played)), self.points)
         parser_player = argparse.ArgumentParser()
 
         parser_player.add_argument(
-            '-i', '--id',           dest='id', action='store_true')
+            '-n', '--stanti[n]g',
+            dest='standing', action='store_true')
         parser_player.add_argument(
-            '-w', '--win',          dest='w', action='store_true')
+            '-i', '--id',
+            dest='id', action='store_true')
         parser_player.add_argument(
-            '-o', '--opponentwin',   dest='ow', action='store_true')
+            '-w', '--win',
+            dest='w', action='store_true')
         parser_player.add_argument(
-            '-p', '--points',       dest='p', action='store_true')
+            '-o', '--opponentwin',
+            dest='ow', action='store_true')
         parser_player.add_argument(
-            '-r', '--winrate',      dest='wr', action='store_true')
+            '-p', '--points',
+            dest='p', action='store_true')
         parser_player.add_argument(
-            '-u', '--unique',       dest='u', action='store_true')
+            '-r', '--winrate',
+            dest='wr', action='store_true')
         parser_player.add_argument(
-            '-s', '--spaces',       dest='spaces', type=int, default=0)
+            '-u', '--unique',
+            dest='u', action='store_true')
+        '''parser_player.add_argument(
+            '-s', '--spaces',
+            dest='spaces', type=int, default=0)'''
         #parser.add_argument('-n', '--notplayed',    dest='np', action='store_true')
 
         try:
@@ -752,10 +767,15 @@ class Player:
 
         fields = list()
 
+        tsize = int(math.floor(math.log10(len(self.tour.players))) + 1)
+        pname_size = max([len(p.name) for p in self.tour.players])
+
+        if args.standing:
+            fields.append('#{:>{}}'.format(self.standing, tsize))
         if args.id:
-            fields.append('[{}] {}'.format(self.ID, self.name))
+            fields.append('[{:>{}}] {}'.format(self.ID, tsize, self.name.ljust(pname_size)))
         else:
-            fields.append(self.name.ljust(args.spaces))
+            fields.append(self.name.ljust(pname_size))
         if args.p:
             fields.append('pts: {}'.format(self.points))
         if args.w:

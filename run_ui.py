@@ -35,8 +35,11 @@ class UILog:
 
 
 class PlayerListItem(QListWidgetItem):
-    def __init__(self, player: Player):
-        QListWidgetItem.__init__(self, str(player), parent=None)
+    def __init__(self, player: Player, p_fmt=['-n', '-i', '-p'], parent=None):
+        QListWidgetItem.__init__(self, player.__repr__(p_fmt), parent=parent)
+
+        monospace_font = QFont("Monospace")  # Use the generic "Monospace" font family
+        self.setFont(monospace_font)
         self.player = player
 
     def __lt__(self, other: Player):
@@ -44,24 +47,9 @@ class PlayerListItem(QListWidgetItem):
             return self.player.__lt__(other.player)
         return False
 
-    def __gt__(self, other: Player):
+    def __gt__(self, other):
         return self.player.__gt__(other.player)
 
-    @staticmethod
-    def toggle_sort():
-        raise DeprecationWarning()
-        if Player.SORT_ORDER == SORT_ORDER.ASCENDING:
-            Player.SORT_ORDER = SORT_ORDER.DESCENDING
-        elif Player.SORT_METHOD == SORT_METHOD.ID:
-            Player.SORT_METHOD = SORT_METHOD.NAME
-            Player.SORT_ORDER = SORT_ORDER.ASCENDING
-        elif Player.SORT_METHOD == SORT_METHOD.NAME:
-            Player.SORT_METHOD = SORT_METHOD.RANK
-            Player.SORT_ORDER = SORT_ORDER.ASCENDING
-        elif Player.SORT_METHOD == SORT_METHOD.RANK:
-            Player.SORT_METHOD = SORT_METHOD.ID
-            Player.SORT_ORDER = SORT_ORDER.ASCENDING
-        print(Player.SORT_METHOD.name, Player.SORT_ORDER.name)
 
     @staticmethod
     def SORT_ORDER():
@@ -75,6 +63,8 @@ class PlayerListItem(QListWidgetItem):
 
 
 class MainWindow(QMainWindow):
+    PLIST_FMT = '-n -i -p'.split()
+
     def __init__(self, core: Tournament = None):
         self.file_name = None
 
@@ -311,6 +301,7 @@ class MainWindow(QMainWindow):
         Player.SORT_METHOD = method
         Player.SORT_ORDER = order
         self.ui.lv_players.sortItems(order=PlayerListItem.SORT_ORDER())
+        pass
 
     @UILog.with_status
     def add_player(self, player_name):
@@ -319,7 +310,7 @@ class MainWindow(QMainWindow):
         if len(players) == 1:
             player = players[0]
             self.ui.le_player_name.clear()
-            list_item = PlayerListItem(player)
+            list_item = PlayerListItem(player, p_fmt=self.PLIST_FMT)
             list_item.setData(Qt.ItemDataRole.UserRole, player)
             self.ui.lv_players.addItem(list_item)
         self.ui_update_player_list()
@@ -394,12 +385,12 @@ class MainWindow(QMainWindow):
                 item.setBackground(self.game_loss_color)
             else:
                 item.setBackground(self.unseated_color)
-            item.setText(str(data))
+            item.setText(data.__repr__(self.PLIST_FMT))
         self.ui.lv_players.sortItems(order=PlayerListItem.SORT_ORDER())
 
     def ui_create_player_list(self):
         for p in self.core.players:
-            list_item = PlayerListItem(p)
+            list_item = PlayerListItem(p, p_fmt=self.PLIST_FMT)
             list_item.setData(Qt.ItemDataRole.UserRole, p)
             if p.seated:
                 list_item.setBackground(self.seated_color)
@@ -475,6 +466,7 @@ class MainWindow(QMainWindow):
 
 
 class PodWidget(QWidget):
+    PLIST_FMT = '-n -p'.split()
     def __init__(self, app: MainWindow, pod: Pod, parent=None):
         QWidget.__init__(self, parent=parent)
         self.app = app
@@ -500,7 +492,7 @@ class PodWidget(QWidget):
         )
         self.lw_players.clear()
         for p in self.pod.players:
-            list_item = PlayerListItem(p)
+            list_item = PlayerListItem(p, p_fmt=self.PLIST_FMT)
             list_item.setData(Qt.ItemDataRole.UserRole, p)
             self.lw_players.addItem(list_item)
         self.lw_players.setFixedHeight(

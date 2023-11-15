@@ -2,6 +2,7 @@ from pydoc import plain
 import unittest
 from src.core import *
 import names
+import random
 
 
 class TestPlayer(unittest.TestCase):
@@ -164,3 +165,22 @@ class TestScoring(unittest.TestCase):
         new_standings = self.t.get_standings()
         self.assertEqual(new_standings[0], standings[0])
         self.assertEqual(new_standings[1], benched)
+
+    def test_standings_constant(self):
+        self.t.add_player([
+            names.get_full_name()
+            for _ in range(32)
+        ])
+
+        self.t.make_pods()
+        for pod in self.t.round.pods:
+            self.t.report_win(pod.players[0])
+
+        orig_standings = self.t.get_standings()
+
+        for _ in range(100):
+            #shuffle players
+            random.shuffle(self.t.players)
+
+            self.assertEqual(self.t.get_standings(), orig_standings)
+
