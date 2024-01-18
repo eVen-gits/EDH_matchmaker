@@ -7,14 +7,10 @@
 * [ ] Ranking number in the players list
 * [ ] Discord handle vs real name
 
-# Tournament flow
 
-```mermaid
-flowchart TD
-    A[Christmas] -->|Get money| B(Go shopping)
-    B --> C{Let me think}
-    C -->|One| D[Laptop]
-    C -->|Two| E[iPhone]
-    C -->|Three| F[fa:fa-car Car]
-```
+# V2
+
+* Make configuration as a file so it can be distributed
+* Make matchmaking logic configurable/swapable -
+    * This has to have config too - exportable
 
