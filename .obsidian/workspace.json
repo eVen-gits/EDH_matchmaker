@@ -11,11 +11,25 @@
             "id": "9051526bde159fa9",
             "type": "leaf",
             "state": {
+              "type": "empty",
+              "state": {}
+            }
+          }
+        ]
+      },
+      {
+        "id": "33b7ae993856ef82",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "c4ae22693092d7bd",
+            "type": "leaf",
+            "state": {
               "type": "markdown",
               "state": {
-                "file": "notes/flow.md",
+                "file": "README.md",
                 "mode": "preview",
-                "source": true
+                "source": false
               }
             }
           }
@@ -85,14 +99,14 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "notes/flow.md",
-                "collapseAll": true,
+                "file": "README.md",
+                "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
                 "showSearch": false,
                 "searchQuery": "",
                 "backlinkCollapsed": false,
-                "unlinkedCollapsed": false
+                "unlinkedCollapsed": true
               }
             }
           }
@@ -100,7 +114,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 333.5,
+    "width": 300,
     "collapsed": true
   },
   "left-ribbon": {
@@ -112,12 +126,23 @@
       "markdown-importer:Open format converter": false
     }
   },
-  "active": "9051526bde159fa9",
+  "active": "c4ae22693092d7bd",
   "lastOpenFiles": [
+    "src/core.py",
+    "src",
+    "v1/ui/PodWidget.ui",
+    "v1/ui/NewTournamentDialog.ui",
+    "v1/ui/MainWindow.ui",
+    "v1/ui/LogLoader.ui",
+    "v1/ui/ExportDialog.ui",
+    "v1/ui",
+    "v1/tests/test_core.py",
+    "v1/tests/blns.txt",
+    "v1/tests",
     "TODO.md",
-    "notes/TODO.md",
     "notes/flow.md",
+    "notes/TODO.md",
     "README.md",
-    "notes"
+    "Untitled.md"
   ]
 }
