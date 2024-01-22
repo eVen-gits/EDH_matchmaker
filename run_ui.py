@@ -144,7 +144,7 @@ class MainWindow(QMainWindow):
 
                 if self.core.ALLOW_BYE:
                     export_str += '\n\nByes:\n' + '\n:'.join([
-                        "\t{}\t| pts: {}".format(p.name, p.points)
+                        "\t{}\t| pts: {}".format(p.name, p.rating)
                         for p in self.core.round.unseated
                     ])
 

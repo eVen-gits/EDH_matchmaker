@@ -46,7 +46,7 @@ class Export:
         STANDING = 0  # Standing
         ID = 1  # Player ID
         NAME = 2  # Player name
-        POINTS = 3  # Number of points
+        RATING = 3  # Number of points
         WINS = 4  # Number of wins
         OPPONENTSBEATEN = 5  # Number of opponents beaten
         OPPONENTWIN = 6  # Opponents' win percentage
@@ -88,9 +88,9 @@ class Export:
             'description': 'Opponents\' win percentage',
             'getter': lambda p: p.opponent_winrate
         }),
-        Field.POINTS: Json2Obj({
+        Field.RATING: Json2Obj({
             'name': 'pts',
-            'format': '{:d}',
+            'format': '{:.2f}',
             'denom': None,
             'description': 'Number of points',
             'getter': lambda p: p.points
@@ -141,7 +141,7 @@ class Export:
     DEFAULT_FIELDS = [
         Field.STANDING,
         Field.NAME,
-        Field.POINTS,
+        Field.RATING,
         Field.OPPONENTWIN,
         Field.OPPONENTSBEATEN,
     ]
@@ -296,19 +296,19 @@ class Tournament:
     # then opponent winrate,
     # then number of unique opponents,
     # then ID - this last one is to ensure deterministic sorting in case of equal values (start of tournament for example)
-    def RANKING(_, x): return (x.points, x.n_opponents_beaten,
+    def RANKING(_, x): return (x.rating, x.n_opponents_beaten,
                                x.opponent_winrate, x.unique_opponents, -x.ID)
 
     def MATCHING(_, x): return (-x.games_played, -
-                                x.unique_opponents, x.points, -x.opponent_winrate)
+                                x.unique_opponents, x.rating, -x.opponent_winrate)
 
     POD_SIZES = [4, 3]
 
     ALLOW_BYE = False
 
-    WIN_POINTS = 5
-    BYE_POINTS = 5
-    DRAW_POINTS = 1
+    WIN_POINTS = 7 # this is %
+    BYE_POINTS = 0
+    DRAW_POINTS = -7 # this is also in %
 
     def __init__(self,
                  pod_sizes=POD_SIZES,
@@ -633,7 +633,7 @@ class Player:
     def __init__(self, name, tour: Tournament):
         self.tour = tour
         self.name = name
-        self.points = 0
+        self.rating = 1000
         self.played = list()
         self.ID = ID.next()
         self.games_played = 0
@@ -777,7 +777,7 @@ class Player:
         else:
             fields.append(self.name.ljust(pname_size))
         if args.p:
-            fields.append('pts: {}'.format(self.points))
+            fields.append('pts: {:.2f}'.format(self.rating))
         if args.w:
             fields.append('w: {}'.format(self.games_won))
         if args.ow:
@@ -953,7 +953,7 @@ class Round:
         if self.unseated and self.tour.ALLOW_BYE:
             for p in self.unseated:
                 Log.log('bye "{}"'.format(p.name))
-                p.points += self.tour.BYE_POINTS
+                #p.points += self.tour.BYE_POINTS
         for p in [p for p in self.tour.players if p.game_loss]:
             p.games_played += 1
             p.game_loss = False
@@ -973,7 +973,14 @@ class Round:
                 continue
 
             if not pod.done:
-                player.points = player.points + self.tour.WIN_POINTS
+                total_diff = 0
+                for p in pod.players:
+                    if p != player:
+                        diff = p.rating * self.tour.WIN_POINTS / 100
+                        total_diff += diff
+                        p.rating = p.rating * (1-self.tour.WIN_POINTS/100)
+
+                player.rating += total_diff
 
                 pod.won = player
                 pod.done = True
@@ -983,12 +990,15 @@ class Round:
 
     def draw(self, players: list[Player] = []):
         for player in players:
-            pod = player.pod
+            if not player.pod.done:
+                pod = player.pod
 
-            player.points = player.points + self.tour.DRAW_POINTS
+                for p in player.pod.players:
+                    p.rating *= (1+self.tour.DRAW_POINTS/100)
 
-            pod.draw.append(player)
-            pod.done = True
+
+                pod.draw.append(player)
+                pod.done = True
 
         if self.done and not self.concluded:
             self.conclude()
@@ -1006,7 +1016,7 @@ if __name__ == "__main__":
                 print('[{}]{} - {} '.format(
                     p.ID,
                     p.name,
-                    p.points
+                    p.rating
                 ))
             print()
         print()
