@@ -4,20 +4,6 @@
     "type": "split",
     "children": [
       {
-        "id": "03c306446795caea",
-        "type": "tabs",
-        "children": [
-          {
-            "id": "9051526bde159fa9",
-            "type": "leaf",
-            "state": {
-              "type": "empty",
-              "state": {}
-            }
-          }
-        ]
-      },
-      {
         "id": "33b7ae993856ef82",
         "type": "tabs",
         "children": [
@@ -27,7 +13,7 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "README.md",
+                "file": "notes/flow.md",
                 "mode": "preview",
                 "source": false
               }
@@ -99,7 +85,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "README.md",
+                "file": "notes/flow.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -114,8 +100,7 @@
       }
     ],
     "direction": "horizontal",
-    "width": 300,
-    "collapsed": true
+    "width": 300
   },
   "left-ribbon": {
     "hiddenItems": {
@@ -128,21 +113,21 @@
   },
   "active": "c4ae22693092d7bd",
   "lastOpenFiles": [
+    "src/__pycache__/structure.cpython-311.pyc.139995031418800",
+    "src/__pycache__/structure.cpython-311.pyc.139873834989488",
+    "src/structure_builtin.py",
+    "demo_statemachine.py",
+    "src/__pycache__/structure.cpython-311.pyc",
+    "README.md",
     "src/core.py",
     "src",
     "v1/ui/PodWidget.ui",
     "v1/ui/NewTournamentDialog.ui",
     "v1/ui/MainWindow.ui",
     "v1/ui/LogLoader.ui",
-    "v1/ui/ExportDialog.ui",
-    "v1/ui",
-    "v1/tests/test_core.py",
-    "v1/tests/blns.txt",
-    "v1/tests",
     "TODO.md",
     "notes/flow.md",
     "notes/TODO.md",
-    "README.md",
     "Untitled.md"
   ]
 }

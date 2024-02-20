@@ -15,6 +15,12 @@ from src.core import (ID, SORT_METHOD, SORT_ORDER, Export, Log, Player, Pod,
                   Tournament, TournamentAction)
 
 
+from PySide6 import QtWidgets
+# from PySide2 import QtWidgets
+# from PyQt5 import QtWidgets
+from qt_material import apply_stylesheet
+
+
 class UILog:
     backlog = 0
 
@@ -82,8 +88,16 @@ class MainWindow(QMainWindow):
         self.core = core if core else Tournament()
 
         # Window code
-        self.ui = uic.loadUi('./ui/MainWindow.ui')
+        self.ui = uic.loadUi('./v1/ui/MainWindow.ui')
         self.setCentralWidget(self.ui)
+
+        # setup stylesheet
+
+        extra = {
+            # Density Scale
+            'density_scale': '-2',
+        }
+        apply_stylesheet(app, theme='dark_purple.xml', extra=extra)
 
         self.seated_color = QColor(0, 204, 102)
         self.unseated_color = QColor(117, 117, 163)
@@ -479,7 +493,7 @@ class PodWidget(QWidget):
         QWidget.__init__(self, parent=parent)
         self.app = app
         self.pod = pod
-        self.ui = uic.loadUi('./ui/PodWidget.ui', self)
+        self.ui = uic.loadUi('./v1/ui/PodWidget.ui', self)
         self.refresh_ui()
 
         self.ui.lw_players.setContextMenuPolicy(
@@ -620,7 +634,7 @@ class LogLoaderDialog(QDialog):
     def __init__(self, parent=None):
         QDialog.__init__(self, parent)
 
-        self.ui = uic.loadUi('./ui/LogLoader.ui', self)
+        self.ui = uic.loadUi('./v1/ui/LogLoader.ui', self)
         self.restore_ui()
 
         self.pb_load_before.clicked.connect(lambda: self.load(True))
@@ -668,7 +682,7 @@ class NewTournamentDialog(QDialog):
         QDialog.__init__(self, parent)
         self.core = parent.core
 
-        self.ui = uic.loadUi('./ui/NewTournamentDialog.ui', self)
+        self.ui = uic.loadUi('./v1/ui/NewTournamentDialog.ui', self)
 
         self.cb_allow_bye.stateChanged.connect(self.ui.sb_bye.setEnabled)
         self.pb_browse.clicked.connect(self.select_log_location)
@@ -778,7 +792,7 @@ class ExportStandingsDialog(QDialog):
     def __init__(self, parent=None):
         QDialog.__init__(self, parent)
         self.core = parent.core
-        self.ui = uic.loadUi('./ui/ExportDialog.ui', self)
+        self.ui = uic.loadUi('./v1/ui/ExportDialog.ui', self)
 
         self.restore_ui()
 
