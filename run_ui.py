@@ -109,6 +109,9 @@ class MainWindow(QMainWindow):
 
         self.ui.actionLoad_players.triggered.connect(self.load_players)
 
+        #self.ui.actionUndo.triggered.connect(self.undo)
+        #self.ui.actionRedo.triggered.connect(self.redo)
+
         self.restore_ui()
 
     def load_players(self):
@@ -171,6 +174,14 @@ class MainWindow(QMainWindow):
         if state:
             self.core = state
         self.restore_ui()
+
+    #def undo(self):
+    #    self.core = TournamentAction.ACTIONS[-1].before
+    #    self.restore_ui()
+
+    #def redo(self):
+    #    self.core = TournamentAction.ACTIONS[-1].after
+    #    self.restore_ui()
 
     def restore_ui(self):
 
@@ -741,6 +752,8 @@ class NewTournamentDialog(QDialog):
         self.sb_win.setValue(Tournament.WIN_POINTS)
         self.sb_draw.setValue(Tournament.DRAW_POINTS)
         self.sb_bye.setValue(Tournament.BYE_POINTS)
+        self.sb_nRounds.setValue(Tournament.N_ROUNDS)
+        self.cb_snakePods.setChecked(Tournament.SNAKE_PODS)
 
         if TournamentAction.LOGF:
             self.ui.le_log_location.setText(TournamentAction.LOGF)
@@ -757,6 +770,8 @@ class NewTournamentDialog(QDialog):
         Tournament.DRAW_POINTS = self.sb_draw.value()
         Tournament.BYE_POINTS = self.sb_bye.value()
         Tournament.POD_SIZES = self.get_psizes()
+        Tournament.N_ROUNDS = self.sb_nRounds.value()
+        Tournament.SNAKE_PODS = self.cb_snakePods.isChecked()
         self.close()
 
     @staticmethod
@@ -865,6 +880,9 @@ if __name__ == '__main__':
                         action='store_true', default=False)
     parser.add_argument('-x', '--scoring', dest='scoring', nargs=3, type=int, default=None,
                         help='Change the scoring system. The first argument is the number of points for a win, the second is a draw, and the third is the number of points for a bye.')
+    parser.add_argument('-S', '--snake', dest='snake', action='store_true', default=False)
+    parser.add_argument('-r', '--rounds', dest='rounds', type=int, default=None,
+                        help='Set the number of rounds for the tournament.')
     subparsers = parser.add_subparsers()
     args, unknown = parser.parse_known_args()
 
@@ -882,6 +900,11 @@ if __name__ == '__main__':
             names.get_full_name()
             for i in range(args.number_of_mock_players)
         ])
+    if args.snake:
+        Tournament.set_snake_pods(True)
+    if args.rounds:
+        Tournament.set_n_rounds(args.rounds)
+
     # for i in range(7):
     #   core.make_pods()
     #   core.random_results()
@@ -890,6 +913,8 @@ if __name__ == '__main__':
     window.show()
 
     app.exec()
+    #for p in core.get_standings():
+    #    print(p.unique_opponents)
     sys.exit(app.exit())
     # app.exec_()
     # sys.exit(app.exit())

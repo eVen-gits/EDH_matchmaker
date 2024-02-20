@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import argparse
 import inspect
 import math
@@ -9,20 +11,9 @@ from copy import deepcopy
 from datetime import datetime
 from enum import Enum
 from src.misc import Json2Obj
+import numpy as np
 
 import names
-
-
-class Pod: # type: ignore
-    pass
-
-
-class Player: # type: ignore
-    pass
-
-
-class Round: # type: ignore
-    pass
 
 
 class Export:
@@ -53,6 +44,7 @@ class Export:
         UNIQUE = 7  # Number of unique opponents
         WINRATE = 8  # Winrate
         GAMES = 9  # Number of games played
+        AVG_SEAT = 10  # Average seat
 
     class Format(Enum):
         TXT = 0
@@ -130,6 +122,13 @@ class Export:
             'description': 'Number of opponents beaten',
             'getter': lambda p: p.n_opponents_beaten
         }),
+        Field.AVG_SEAT: Json2Obj({
+            'name': 'avg. seat',
+            'format': '{:.2f}',
+            'denom': None,
+            'description': 'Average seat',
+            'getter': lambda p: p.average_seat
+        }),
     }
 
     ext = {
@@ -144,6 +143,7 @@ class Export:
         Field.POINTS,
         Field.OPPONENTWIN,
         Field.OPPONENTSBEATEN,
+        Field.AVG_SEAT,
     ]
 
     fields = [f for f in DEFAULT_FIELDS]
@@ -292,15 +292,26 @@ class TournamentAction:
 class Tournament:
     # CONFIGURATION
     # Logic: Points is primary sorting key,
+    # then opponent winrate, - CHANGE - moved this upwards and added dummy opponents with 33% winrate
     # then number of opponents beaten,
-    # then opponent winrate,
-    # then number of unique opponents,
     # then ID - this last one is to ensure deterministic sorting in case of equal values (start of tournament for example)
-    def RANKING(_, x): return (x.points, x.n_opponents_beaten,
-                               x.opponent_winrate, x.unique_opponents, -x.ID)
+    def RANKING(_, x):
+        return (
+                x.points,
+                x.games_played,
+                np.round(x.opponent_winrate, 2),
+                x.n_opponents_beaten,
+                x.average_seat,
+                -x.ID
+        )
 
-    def MATCHING(_, x): return (-x.games_played, -
-                                x.unique_opponents, x.points, -x.opponent_winrate)
+    def MATCHING(_, x):
+        return (
+            -x.games_played,
+            -x.unique_opponents,
+            x.points,
+            x.opponent_winrate
+        )
 
     POD_SIZES = [4, 3]
 
@@ -309,6 +320,10 @@ class Tournament:
     WIN_POINTS = 5
     BYE_POINTS = 5
     DRAW_POINTS = 1
+
+    SNAKE_PODS = False
+
+    N_ROUNDS = 5
 
     def __init__(self,
                  pod_sizes=POD_SIZES,
@@ -552,7 +567,7 @@ class Tournament:
         with open(fdir, 'w') as f:
             f.writelines(str)
 
-    def get_standings(self):
+    def get_standings(self) -> list[Player]:
         method = Player.SORT_METHOD
         order = Player.SORT_ORDER
         Player.SORT_METHOD = SORT_METHOD.RANK
@@ -620,6 +635,14 @@ class Tournament:
         cls.WIN_POINTS, cls.DRAW_POINTS, cls.BYE_POINTS = scoring
 
     @classmethod
+    def set_snake_pods(cls, snake_pods: bool):
+        cls.SNAKE_PODS = snake_pods
+
+    @classmethod
+    def set_n_rounds(cls, n_rounds: int):
+        cls.N_ROUNDS = n_rounds
+
+    @classmethod
     @property
     def MIN_POD_SIZE(cls):
         return min(cls.POD_SIZES)
@@ -640,10 +663,22 @@ class Player:
         self.games_won = 0
         self.opponents_beaten = set()
         self.game_loss = False
+        self.pods = []
+
+    @property
+    def average_seat(self):
+        if not self.pods:
+            return 0
+        return sum([
+            p.players.index(self)+1
+            for p in self.pods
+        ])/len(self.pods)
 
     @property
     def standing(self):
         standings = self.tour.get_standings()
+        if self not in standings:
+            return -1
         return standings.index(self) + 1
 
     @property
@@ -806,14 +841,28 @@ class Pod:
     def p_count(self):
         return len(self.players)
 
-    def add_player(self, player: Player, manual=False):
+    def add_player(self, player: Player, manual=False) -> bool:
         if player.seated:
             player.pod.remove_player(player)
         if self.p_count >= self.cap and self.cap and not manual:
             return False
         self.players.append(player)
         if self.p_count >= self.cap:
-            random.shuffle(self.players)
+            # Average seating positions
+            average_positions = [p.average_seat for p in self.players]
+            if not all(average_positions):
+                random.shuffle(self.players)
+                return True
+
+            # Calculate inverse averages
+            inverse_averages = [1 / pos for pos in average_positions]
+
+            # Normalize to get probabilities
+            probabilities = [inv / sum(inverse_averages) for inv in inverse_averages]
+
+            # Generate random seat assignment based on probabilities
+            seat_assignment = np.random.choice([1, 2, 3, 4], size=4, replace=False, p=probabilities)
+            self.players = [p for _, p in sorted(zip(seat_assignment, self.players))]
         return True
 
     def clear(self):
@@ -835,6 +884,9 @@ class Pod:
         round_opponents = [p for p in self.players if not p is player]
         player.played += round_opponents
         player.games_played += 1
+        while len(player.pods) < self.round.seq+1:
+            player.pods.append(None)
+        player.pods[self.round.seq] = self
         if player == self.won:
             player.games_won += 1
             player.opponents_beaten.update(set(round_opponents))
@@ -931,11 +983,35 @@ class Round:
             pods.append(pod)
             self.pods.append(pod)
 
-        random.shuffle(remaining)
-        for p in sorted(remaining, key=self.tour.MATCHING, reverse=True):
-            pod_scores = [p.evaluate_pod(pod) for pod in pods]
-            index = pod_scores.index(max(pod_scores))
-            pods[index].add_player(p)
+        if self.seq == 0:
+            random.shuffle(remaining)
+            for pod in pods:
+                for _ in range(pod.cap):
+                    pod.add_player(remaining.pop(0))
+
+        elif self.tour.SNAKE_PODS and self.seq < Tournament.N_ROUNDS-1:
+            remaining = sorted(remaining, key=self.tour.RANKING, reverse=True)
+            bucket_order = sorted(list(set([self.tour.RANKING(p)[0:-1] for p in remaining])), reverse=True)
+            buckets = {k: [p for p in remaining if self.tour.RANKING(p)[0:-1] == k] for k in bucket_order}
+
+            pass
+            for b in bucket_order:
+                i = 0
+                for p in buckets[b]:
+                    ok = False
+                    while not ok:
+                        ok = pods[i % len(pods)].add_player(p)
+                        i += 1
+                    #pods[i % len(pods)].add_player(p)
+
+            pass
+        else:
+            random.shuffle(remaining)
+            for p in sorted(remaining, key=self.tour.MATCHING, reverse=True):
+                pod_scores = [p.evaluate_pod(pod) for pod in pods]
+                index = pod_scores.index(max(pod_scores))
+                pods[index].add_player(p)
+
 
         self.print_pods()
 
