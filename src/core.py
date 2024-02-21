@@ -37,14 +37,15 @@ class Export:
         STANDING = 0  # Standing
         ID = 1  # Player ID
         NAME = 2  # Player name
-        POINTS = 3  # Number of points
-        WINS = 4  # Number of wins
-        OPPONENTSBEATEN = 5  # Number of opponents beaten
-        OPPONENTWIN = 6  # Opponents' win percentage
-        UNIQUE = 7  # Number of unique opponents
-        WINRATE = 8  # Winrate
-        GAMES = 9  # Number of games played
-        AVG_SEAT = 10  # Average seat
+        RECORD = 3 # Record
+        POINTS = 4  # Number of points
+        WINS = 5  # Number of wins
+        OPPONENTSBEATEN = 6  # Number of opponents beaten
+        OPPONENTWIN = 7  # Opponents' win percentage
+        UNIQUE = 8  # Number of unique opponents
+        WINRATE = 9  # Winrate
+        GAMES = 10  # Number of games played
+        AVG_SEAT = 11  # Average seat
 
     class Format(Enum):
         TXT = 0
@@ -129,6 +130,13 @@ class Export:
             'description': 'Average seat',
             'getter': lambda p: p.average_seat
         }),
+        Field.RECORD: Json2Obj({
+            'name': 'record',
+            'format': '{:s}',
+            'denom': None,
+            'description': 'Player\'s record',
+            'getter': lambda p: p.record
+        }),
     }
 
     ext = {
@@ -141,6 +149,7 @@ class Export:
         Field.STANDING,
         Field.NAME,
         Field.POINTS,
+        Field.RECORD,
         Field.OPPONENTWIN,
         Field.OPPONENTSBEATEN,
         Field.AVG_SEAT,
@@ -664,6 +673,7 @@ class Player:
         self.opponents_beaten = set()
         self.game_loss = False
         self.pods = []
+        self.byes = 0
 
     @property
     def average_seat(self):
@@ -672,6 +682,7 @@ class Player:
         return sum([
             p.players.index(self)+1
             for p in self.pods
+            if p is not None
         ])/len(self.pods)
 
     @property
@@ -723,6 +734,34 @@ class Player:
             return 0
         oppwr = [opp.winrate for opp in self.played]
         return sum(oppwr)/len(oppwr)
+
+    @property
+    def record(self) -> str:
+        if len(self.tour.rounds) < 1:
+            return ''
+        total_rounds = len(self.tour.rounds)
+        seq = [' '] * total_rounds
+        for round, pod in enumerate(self.pods):
+            if pod is None:
+                seq[round] = 'B'
+            elif pod.won is not None:
+                if pod.won is self:
+                    seq[round] = 'W'
+                else:
+                    seq[round] = 'L'
+            else:
+                if self in pod.draw:
+                    seq[round] = 'D'
+                else:
+                    seq[round] = 'L'
+        record_sequence = ''.join(seq)
+        return ('{} ({}/{}/{})'.format(
+            record_sequence.ljust(total_rounds),
+            record_sequence.count('W') + record_sequence.count('B'),
+            record_sequence.count('L'),
+            record_sequence.count('D'),
+        ))
+
 
     def evaluate_pod(self, pod):
         score = 0
@@ -855,7 +894,7 @@ class Pod:
                 return True
 
             # Calculate inverse averages
-            inverse_averages = [1 / pos for pos in average_positions]
+            inverse_averages = [pos / max(average_positions) for pos in average_positions]
 
             # Normalize to get probabilities
             probabilities = [inv / sum(inverse_averages) for inv in inverse_averages]
@@ -863,6 +902,7 @@ class Pod:
             # Generate random seat assignment based on probabilities
             seat_assignment = np.random.choice([1, 2, 3, 4], size=4, replace=False, p=probabilities)
             self.players = [p for _, p in sorted(zip(seat_assignment, self.players))]
+            pass
         return True
 
     def clear(self):
@@ -973,6 +1013,7 @@ class Round:
         n_plyr = len(remaining)
 
         pod_sizes = self.tour.get_pod_sizes(n_plyr)
+        bye_count = n_plyr - sum(pod_sizes)
         if pod_sizes is None:
             Log.log('Can not make pods.', level=Log.Level.WARNING)
             return None
@@ -989,16 +1030,20 @@ class Round:
                 for _ in range(pod.cap):
                     pod.add_player(remaining.pop(0))
 
-        elif self.tour.SNAKE_PODS and self.seq < Tournament.N_ROUNDS-1:
-            remaining = sorted(remaining, key=self.tour.RANKING, reverse=True)
-            bucket_order = sorted(list(set([self.tour.RANKING(p)[0:-1] for p in remaining])), reverse=True)
-            buckets = {k: [p for p in remaining if self.tour.RANKING(p)[0:-1] == k] for k in bucket_order}
+        elif self.tour.SNAKE_PODS and self.seq == 1:
+            ranking = lambda x: (x.points, x.unique_opponents)
+            remaining = sorted(remaining, key=ranking, reverse=True)
+            bucket_order = sorted(list(set([ranking(p) for p in remaining])), reverse=True)
+            buckets = {k: [p for p in remaining if ranking(p) == k] for k in bucket_order}
+            for b in buckets.values():
+                random.shuffle(b)
 
-            pass
             for b in bucket_order:
                 i = 0
                 for p in buckets[b]:
                     ok = False
+                    if b == bucket_order[-1] and p in buckets[b][-1:-bye_count-1:-1]:
+                        ok = True
                     while not ok:
                         ok = pods[i % len(pods)].add_player(p)
                         i += 1
@@ -1030,6 +1075,8 @@ class Round:
             for p in self.unseated:
                 Log.log('bye "{}"'.format(p.name))
                 p.points += self.tour.BYE_POINTS
+                p.byes += 1
+                p.pods.append(None)
         for p in [p for p in self.tour.players if p.game_loss]:
             p.games_played += 1
             p.game_loss = False
