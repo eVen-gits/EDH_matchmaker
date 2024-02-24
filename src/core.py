@@ -317,8 +317,8 @@ class Tournament:
     def MATCHING(_, x):
         return (
             -x.games_played,
-            -x.unique_opponents,
             x.points,
+            -x.unique_opponents,
             x.opponent_winrate
         )
 
@@ -893,6 +893,7 @@ class Pod:
                 random.shuffle(self.players)
                 return True
 
+            n = len(average_positions)
             # Calculate inverse averages
             inverse_averages = [pos / max(average_positions) for pos in average_positions]
 
@@ -900,7 +901,7 @@ class Pod:
             probabilities = [inv / sum(inverse_averages) for inv in inverse_averages]
 
             # Generate random seat assignment based on probabilities
-            seat_assignment = np.random.choice([1, 2, 3, 4], size=4, replace=False, p=probabilities)
+            seat_assignment = np.random.choice(range(1, n+1, 1), size=n, replace=False, p=probabilities)
             self.players = [p for _, p in sorted(zip(seat_assignment, self.players))]
             pass
         return True
@@ -1051,8 +1052,7 @@ class Round:
 
             pass
         else:
-            random.shuffle(remaining)
-            for p in sorted(remaining, key=self.tour.MATCHING, reverse=True):
+            for p in sorted(random.sample(remaining, len(remaining)), key=self.tour.MATCHING, reverse=True):
                 pod_scores = [p.evaluate_pod(pod) for pod in pods]
                 index = pod_scores.index(max(pod_scores))
                 pods[index].add_player(p)
