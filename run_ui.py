@@ -121,7 +121,7 @@ class MainWindow(QMainWindow):
             initialFilter='*.txt',
         )
         if file:
-            with open(file, 'r') as f:
+            with open(file, 'r', encoding='utf-8') as f:
                 player_names = f.readlines()
             self.core.add_player([p.strip() for p in player_names])
             self.restore_ui()
