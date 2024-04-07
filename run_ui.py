@@ -71,6 +71,8 @@ class MainWindow(QMainWindow):
         QMainWindow.__init__(self)
         self.core = core if core else Tournament()
 
+        self.setWindowTitle("EDH matchmaker")
+
         # Window code
         self.ui = uic.loadUi('./ui/MainWindow.ui')
         self.setCentralWidget(self.ui)
