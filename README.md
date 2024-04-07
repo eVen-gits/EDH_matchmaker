@@ -34,7 +34,7 @@ First, you have to install the require packages. This is rather simple.
 You have to open your command prompt/powershell/terminal in the directory where you've downloaded the software.
 On windows, you can do this from the file menu. I assume linux/mac users shouldn't have a problem here.
 
-The command is `pip install -r requirements.py`
+The command is `pip install -r requirements.txt`
 
 This will install the required libraries for the program to run.
 
