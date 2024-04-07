@@ -573,7 +573,7 @@ class Tournament:
             Log.log('No pods currently created.')
 
     def export_str(self, fdir, str):
-        with open(fdir, 'w') as f:
+        with open(fdir, 'w', encoding='utf-8') as f:
             f.writelines(str)
 
     def get_standings(self) -> list[Player]:
