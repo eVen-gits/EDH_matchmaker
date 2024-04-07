@@ -14,7 +14,7 @@ The software was developed on Linux and installation should be rather straight f
 ### Windows ###
 
 First, you need python 3 and pip working.
-The easiest way to do this on Windows is by downloading the latest python version from official site (an installer). Generally, following default steps is OK, but you have to change one thing:
+The easiest way to do this on Windows is by downloading the latest python version from [official site](https://www.python.org/downloads/) (an installer). Generally, following default steps is OK, but you have to change one thing:
 
 **Important:** When installing, you have a couple of checkboxes. The one you want to tick is the "Add python to PATH" (or something similar).
 
@@ -27,6 +27,8 @@ To make sure it's added, go to your start menu, and search for "Edit the system 
 Once you find it, depending on the version of Windows you have, you will have different sections. Search for "Path" variable and check if your python installation dirrectory is also added. Since this is not really the scope of this installation guide, you will have to figure this on your own as it can differ a bit from system to system, but generally something along those lines.
 
 Right, now that you've checked that python is actually in your Path variable, it's still possible that python is not recognized. Windows 10 can hide it behind some *feature*. I'll try to find what it was, but I think it was something along system integration of python or something. To be added.
+
+Rebooting your system might help the machine recognize python and pip if you're sure they're in your Path variable (especially on older versions of Windows).
 
 ### Once python is sorted, the actual installation
 
