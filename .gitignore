@@ -2,6 +2,7 @@ __pycache__
 .qt_for_python
 .vscode
 .vscode/*
+.idea
 print.txt
 players.txt
 venv/*
