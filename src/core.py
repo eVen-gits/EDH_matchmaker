@@ -325,7 +325,7 @@ class TournamentConfiguration:
                 -x.ID
         )
 
-    def scoring(_, x):
+    def matching(_, x):
         return (
             -x.games_played,
             x.points,
