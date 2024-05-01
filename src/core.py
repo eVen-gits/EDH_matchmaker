@@ -1045,7 +1045,7 @@ class Round:
 
             pass
         else:
-            for p in sorted(random.sample(remaining, len(remaining)), key=self.tour.MATCHING, reverse=True):
+            for p in sorted(random.sample(remaining, len(remaining)), key=self.tour.TC.matching, reverse=True):
                 pod_scores = [p.evaluate_pod(pod) for pod in pods]
                 index = pod_scores.index(max(pod_scores))
                 pods[index].add_player(p)

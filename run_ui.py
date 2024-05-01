@@ -14,6 +14,9 @@ from PyQt6.QtWidgets import QListWidgetItem
 from src.core import (ID, SORT_METHOD, SORT_ORDER, Export, Log, Player, Pod,
                   Tournament, TournamentAction, TournamentConfiguration)
 
+# from PySide2 import QtWidgets
+# from PyQt5 import QtWidgets
+from qt_material import apply_stylesheet
 
 class UILog:
     backlog = 0
@@ -70,6 +73,29 @@ class MainWindow(QMainWindow):
 
         QMainWindow.__init__(self)
         self.core = core if core else Tournament()
+
+        extra = {
+
+            # Button colors
+            'danger': '#dc3545',
+            'warning': '#ffc107',
+            'success': '#17a2b8',
+
+            # Font
+            'font_family': 'monoespace',
+            'font_size': '13px',
+            'line_height': '13px',
+
+            # Density Scale
+            'density_scale': '-3',
+
+            # environ
+            'pyside6': True,
+            'linux': True,
+
+        }
+
+        apply_stylesheet(app, theme='dark_amber.xml', extra=extra)
 
         self.setWindowTitle("EDH matchmaker")
 
