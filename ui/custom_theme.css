@@ -1,0 +1,21 @@
+/* styles.css */
+
+/* Style for QListWidget */
+QListWidget {
+  background-color: #2E2E2E;
+}
+
+/* Style for QListWidgetItem */
+QListWidget::Item {
+  background-color: #FFD700;
+}
+
+/* Style for selected QListWidgetItem */
+QListWidget::Item:selected {
+  background-color: #FFA500;
+}
+
+/* Custom style for a specific QListWidgetItem */
+.custom-item {
+  background-color: #00FF00;
+}

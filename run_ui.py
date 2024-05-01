@@ -95,7 +95,7 @@ class MainWindow(QMainWindow):
 
         }
 
-        apply_stylesheet(app, theme='dark_amber.xml', extra=extra)
+        #apply_stylesheet(app, theme='dark_amber.xml', extra=extra, css_file='ui/custom_theme.css')
 
         self.setWindowTitle("EDH matchmaker")
 
@@ -421,6 +421,7 @@ class MainWindow(QMainWindow):
             data = item.data(Qt.ItemDataRole.UserRole)
             if data.seated:
                 item.setBackground(self.seated_color)
+                #item.setData(1, "background-color: {QTMATERIAL_PRIMARYCOLOR};")
             elif data.game_loss:
                 item.setBackground(self.game_loss_color)
             else:
@@ -539,6 +540,7 @@ class PodWidget(QWidget):
             list_item = PlayerListItem(p, p_fmt=self.PLIST_FMT)
             list_item.setData(Qt.ItemDataRole.UserRole, p)
             self.lw_players.addItem(list_item)
+
         self.lw_players.setFixedHeight(
             self.lw_players.sizeHintForRow(
                 0) * self.lw_players.count() + 2 * self.lw_players.frameWidth()
@@ -580,21 +582,21 @@ class PodWidget(QWidget):
             self,
             triggered=self.bench_players
 
-        ))
+        )) # type: ignore
         pop_menu.addAction(QAction(
             'Assign game loss'
             if n_selected == 1
             else 'Assign game losses',
             self,
             triggered=self.assign_game_loss
-        ))
+        )) # type: ignore
         pop_menu.addSeparator()
         pop_menu.addAction(
             QAction(
                 'Delete pod',
                 self,
                 triggered=self.delete_pod
-            ))
+            )) # type: ignore
 
         # rename_player_action.triggered.connect(self.lva_rename_player)
         pop_menu.exec(self.ui.lw_players.mapToGlobal(position))
