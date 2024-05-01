@@ -20,8 +20,10 @@ class TestTournamentPodSizing(unittest.TestCase):
 
     def test_correct_pod_sizing_43_nobye(self):
         t = Tournament(
-            pod_sizes=[4, 3],
-            allow_bye=False,
+            TournamentConfiguration(
+                pod_sizes=[4, 3],
+                allow_bye=False,
+            )
         )
 
         pod_sizes = {
@@ -53,8 +55,10 @@ class TestTournamentPodSizing(unittest.TestCase):
 
     def test_correct_pod_sizing_4_bye(self):
         t = Tournament(
-            pod_sizes=[4],
-            allow_bye=True,
+            TournamentConfiguration(
+                pod_sizes=[4],
+                allow_bye=True,
+            )
         )
         pod_sizes = (
             (0,  [], 0),
@@ -90,8 +94,10 @@ class TestTournamentPodSizing(unittest.TestCase):
 
     def test_correct_pod_sizing_4_nobye(self):
         t = Tournament(
-            pod_sizes=[4],
-            allow_bye=False,
+            TournamentConfiguration(
+                pod_sizes=[4],
+                allow_bye=False,
+            )
         )
 
         pod_sizes = (
@@ -129,12 +135,15 @@ class TestTournamentPodSizing(unittest.TestCase):
 
 class TestScoring(unittest.TestCase):
     def setUp(self) -> None:
+
         self.t = Tournament(
-            pod_sizes=[4],
-            allow_bye=True,
-            bye_points=4,
-            win_points=4,
-            draw_points=1,
+            TournamentConfiguration(
+                pod_sizes=[4],
+                allow_bye=True,
+                bye_points=4,
+                win_points=4,
+                draw_points=1,
+            )
         )
         Player.FORMATTING = ['-p', '-w', '-o']
 
@@ -159,7 +168,7 @@ class TestScoring(unittest.TestCase):
 
         self.t.manual_pod([benched, standings[0]])
         self.t.manual_pod([standings[1], standings[2]])
-        self.t.report_game_loss(self.t.round.unseated)
+        self.t.toggle_game_loss(self.t.round.unseated)
         self.t.report_win([benched, standings[0]])
 
         new_standings = self.t.get_standings()

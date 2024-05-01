@@ -92,8 +92,8 @@
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>365</width>
-             <height>358</height>
+             <width>369</width>
+             <height>350</height>
             </rect>
            </property>
            <layout class="QVBoxLayout" name="_2">
@@ -140,7 +140,7 @@
      <x>0</x>
      <y>0</y>
      <width>854</width>
-     <height>30</height>
+     <height>22</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -156,6 +156,7 @@
     <property name="title">
      <string>Edit</string>
     </property>
+    <addaction name="actionTour_config"/>
     <addaction name="actionLoad_state"/>
     <addaction name="actionLoad_players"/>
    </widget>
@@ -182,6 +183,9 @@
    <property name="text">
     <string>Open...</string>
    </property>
+   <property name="shortcut">
+    <string>Ctrl+O</string>
+   </property>
   </action>
   <action name="actionExit">
    <property name="text">
@@ -203,7 +207,10 @@
   </action>
   <action name="actionSave_As">
    <property name="text">
-    <string>Save As..</string>
+    <string>Save As...</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Shift+S</string>
    </property>
   </action>
   <action name="actionReset_UI">
@@ -229,6 +236,11 @@
   <action name="actionLoad_players">
    <property name="text">
     <string>Load players</string>
+   </property>
+  </action>
+  <action name="actionTour_config">
+   <property name="text">
+    <string>Configuration</string>
    </property>
   </action>
  </widget>

@@ -237,6 +237,7 @@ class TournamentAction:
     '''Serializable action that will be stored in tournament log and can be restored
     '''
     ACTIONS = []
+    STATE = []
     LOGF = None
     DEFAULT_LOGF = 'logs/default.log'
 
@@ -270,6 +271,8 @@ class TournamentAction:
 
     @classmethod
     def store(cls):
+        if not cls.LOGF:
+            cls.LOGF = cls.DEFAULT_LOGF
         if cls.LOGF:
             with open(cls.LOGF, 'wb') as f:
                 pickle.dump(cls.ACTIONS, f)
@@ -298,13 +301,22 @@ class TournamentAction:
         return ret_str
 
 
-class Tournament:
-    # CONFIGURATION
-    # Logic: Points is primary sorting key,
-    # then opponent winrate, - CHANGE - moved this upwards and added dummy opponents with 33% winrate
-    # then number of opponents beaten,
-    # then ID - this last one is to ensure deterministic sorting in case of equal values (start of tournament for example)
-    def RANKING(_, x):
+class TournamentConfiguration:
+    def __init__(self, **kwargs):
+        self.pod_sizes = kwargs.get('pod_sizes', [4, 3])
+        self.allow_bye = kwargs.get('allow_bye', False)
+        self.win_points = kwargs.get('win_points', 5)
+        self.bye_points = kwargs.get('bye_points', 2)
+        self.draw_points = kwargs.get('draw_points', 1)
+        self.snake_pods = kwargs.get('snake_pods', False)
+        self.n_rounds = kwargs.get('n_rounds', 5)
+        self.max_byes = kwargs.get('max_byes', 2)
+
+    @property
+    def min_pod_size(self):
+        return min(self.pod_sizes)
+
+    def ranking(_, x):
         return (
                 x.points,
                 x.games_played,
@@ -314,7 +326,7 @@ class Tournament:
                 -x.ID
         )
 
-    def MATCHING(_, x):
+    def scoring(_, x):
         return (
             -x.games_played,
             x.points,
@@ -322,40 +334,37 @@ class Tournament:
             x.opponent_winrate
         )
 
-    POD_SIZES = [4, 3]
 
-    ALLOW_BYE = False
+class Tournament:
+    # CONFIGURATION
+    # Logic: Points is primary sorting key,
+    # then opponent winrate, - CHANGE - moved this upwards and added dummy opponents with 33% winrate
+    # then number of opponents beaten,
+    # then ID - this last one is to ensure deterministic sorting in case of equal values (start of tournament for example)
 
-    WIN_POINTS = 5
-    BYE_POINTS = 5
-    DRAW_POINTS = 1
-
-    SNAKE_PODS = False
-
-    N_ROUNDS = 5
-
-    def __init__(self,
-                 pod_sizes=POD_SIZES,
-                 allow_bye=ALLOW_BYE,
-                 win_points=WIN_POINTS,
-                 draw_points=DRAW_POINTS,
-                 bye_points=BYE_POINTS,
-                 ):
-        self.__class__.set_pod_sizes(pod_sizes)
-        self.__class__.set_allow_bye(allow_bye)
-        self.__class__.set_scoring([win_points, draw_points, bye_points])
-
+    def __init__(self, config:TournamentConfiguration=TournamentConfiguration()):
         self.rounds = list()
         self.players = list()
         self.dropped = list()
+
+        self.TC = config
 
         self.round = None
 
     # TOURNAMENT ACTIONS
     # IMPORTANT: No nested tournament actions
 
+    @property
+    def TC(self):
+        return self._TC
+
+    @TC.setter
     @TournamentAction.action
-    def add_player(self, names=[]):
+    def TC(self, config):
+        self._TC = config
+
+    @TournamentAction.action
+    def add_player(self, names=None):
         new_players = []
         if not isinstance(names, list):
             names = [names]
@@ -513,6 +522,7 @@ class Tournament:
                     player.name, old_pod), level=Log.Level.INFO)
             if player.pod != pod:
                 if pod.add_player(player, manual=manual):
+                    player.game_loss = False
                     Log.log('Added player {} to {}'.format(
                         player.name, pod.name), level=Log.Level.INFO)
                 else:
@@ -527,14 +537,20 @@ class Tournament:
             self.remove_player_from_pod(player)
 
     @TournamentAction.action
-    def report_game_loss(self, players: list[Player] = []):
+    def toggle_game_loss(self, players: list[Player] = []):
         if not isinstance(players, list):
             players = [players]
         for player in players:
-            player.game_loss = True
-            self.remove_player_from_pod(player)
-            Log.log('{} assigned a game loss.'.format(
-                player.name), level=Log.Level.INFO)
+            player.game_loss = not player.game_loss
+            if player.game_loss:
+                if player.pod is not None:
+                    self.remove_player_from_pod(player)
+                Log.log('{} assigned a game loss.'.format(
+                    player.name), level=Log.Level.INFO)
+            else:
+                Log.log('{} game loss removed.'.format(
+                    player.name), level=Log.Level.INFO)
+
 
     @TournamentAction.action
     def delete_pod(self, pod: Pod):
@@ -550,23 +566,26 @@ class Tournament:
         return None
 
     def get_pod_sizes(self, n):
-        for pod_size in self.POD_SIZES:
-            if n-pod_size == 0:
-                # or n-pod_size < self.MIN_POD_SIZE and self.ALLOW_BYE and pod_size == self.POD_SIZES[-1]:
+        for pod_size in self.TC.pod_sizes:
+            rem = n-pod_size
+            if rem < 0:
+                continue
+            if rem == 0:
                 return [pod_size]
-            if n-pod_size < self.MIN_POD_SIZE and pod_size == self.POD_SIZES[-1]:
-                if self.ALLOW_BYE and n-pod_size > 0:
+            if rem < self.TC.min_pod_size:
+                if self.TC.allow_bye and rem <= self.TC.max_byes:
                     return [pod_size]
-                return None
-            if n-pod_size >= self.MIN_POD_SIZE:
-                tail = self.get_pod_sizes(n-pod_size)
+                elif pod_size == self.TC.pod_sizes[-1]:
+                    return None
+            if rem >= self.TC.min_pod_size:
+                tail = self.get_pod_sizes(rem)
                 if tail is not None:
                     return [pod_size] + tail
         return None
 
     # MISC ACTIONS
 
-    def show_pods(self, tokens=[]):
+    def show_pods(self):
         if self.round and self.round.pods:
             self.round.print_pods()
         else:
@@ -581,7 +600,7 @@ class Tournament:
         order = Player.SORT_ORDER
         Player.SORT_METHOD = SORT_METHOD.RANK
         Player.SORT_ORDER = SORT_ORDER.ASCENDING
-        standings = sorted(self.players, key=self.RANKING, reverse=True)
+        standings = sorted(self.players, key=self.TC.ranking, reverse=True)
         Player.SORT_METHOD = method
         Player.SORT_ORDER = order
         return standings
@@ -628,33 +647,6 @@ class Tournament:
         elif style == Export.Format.DISCORD:
             Log.log('Log not saved - DISCORD not implemented.'.format(
                 fdir), level=Log.Level.WARNING)
-
-    # PROPS AND CLASSMETHODS
-
-    @classmethod
-    def set_allow_bye(cls, allow_bye):
-        cls.ALLOW_BYE = allow_bye
-
-    @classmethod
-    def set_pod_sizes(cls, sizes):
-        cls.POD_SIZES = sizes
-
-    @classmethod
-    def set_scoring(cls, scoring: list):
-        cls.WIN_POINTS, cls.DRAW_POINTS, cls.BYE_POINTS = scoring
-
-    @classmethod
-    def set_snake_pods(cls, snake_pods: bool):
-        cls.SNAKE_PODS = snake_pods
-
-    @classmethod
-    def set_n_rounds(cls, n_rounds: int):
-        cls.N_ROUNDS = n_rounds
-
-    @classmethod
-    @property
-    def MIN_POD_SIZE(cls):
-        return min(cls.POD_SIZES)
 
 
 class Player:
@@ -802,6 +794,8 @@ class Player:
         return b
 
     def __repr__(self, tokens=None):
+        if len(self.tour.players) == 0:
+            return ''
         if not tokens:
             tokens = self.FORMATTING
         parser_player = argparse.ArgumentParser()
@@ -1014,11 +1008,11 @@ class Round:
         n_plyr = len(remaining)
 
         pod_sizes = self.tour.get_pod_sizes(n_plyr)
-        bye_count = n_plyr - sum(pod_sizes)
         if pod_sizes is None:
             Log.log('Can not make pods.', level=Log.Level.WARNING)
             return None
 
+        bye_count = n_plyr - sum(pod_sizes)
         pods = []
         for size in pod_sizes:
             pod = Pod(self, self.next_pod_id(), cap=size)
@@ -1031,7 +1025,7 @@ class Round:
                 for _ in range(pod.cap):
                     pod.add_player(remaining.pop(0))
 
-        elif self.tour.SNAKE_PODS and self.seq == 1:
+        elif self.tour.TC.snake_pods and self.seq == 1:
             ranking = lambda x: (x.points, x.unique_opponents)
             remaining = sorted(remaining, key=ranking, reverse=True)
             bucket_order = sorted(list(set([ranking(p) for p in remaining])), reverse=True)
@@ -1071,10 +1065,10 @@ class Round:
                 pod.update_player_history(p)
 
         #self.players = deepcopy(self.players)
-        if self.unseated and self.tour.ALLOW_BYE:
+        if self.unseated and self.tour.TC.allow_bye:
             for p in self.unseated:
                 Log.log('bye "{}"'.format(p.name))
-                p.points += self.tour.BYE_POINTS
+                p.points += self.tour.TC.bye_points
                 p.byes += 1
                 p.pods.append(None)
         for p in [p for p in self.tour.players if p.game_loss]:
@@ -1096,7 +1090,7 @@ class Round:
                 continue
 
             if not pod.done:
-                player.points = player.points + self.tour.WIN_POINTS
+                player.points = player.points + self.tour.TC.win_points
 
                 pod.won = player
                 pod.done = True
@@ -1108,7 +1102,7 @@ class Round:
         for player in players:
             pod = player.pod
 
-            player.points = player.points + self.tour.DRAW_POINTS
+            player.points = player.points + self.tour.TC.draw_points
 
             pod.draw.append(player)
             pod.done = True

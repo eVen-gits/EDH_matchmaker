@@ -12,7 +12,7 @@ from PyQt6.QtWidgets import *
 from PyQt6.QtWidgets import QListWidgetItem
 
 from src.core import (ID, SORT_METHOD, SORT_ORDER, Export, Log, Player, Pod,
-                  Tournament, TournamentAction)
+                  Tournament, TournamentAction, TournamentConfiguration)
 
 
 class UILog:
@@ -102,6 +102,7 @@ class MainWindow(QMainWindow):
             lambda *_: self.random_results())
 
         self.ui.actionNew_tour.triggered.connect(self.new_tour)
+        self.ui.actionTour_config.triggered.connect(self.edit_tour)
         self.ui.actionLoad_state.triggered.connect(self.load_state)
         self.ui.actionLoad_tour.triggered.connect(self.load_tour)
         self.ui.actionSave_As.triggered.connect(self.save_as)
@@ -147,7 +148,7 @@ class MainWindow(QMainWindow):
                     for pod in self.core.round.pods
                 ])
 
-                if self.core.ALLOW_BYE:
+                if self.core.TC.allow_bye:
                     export_str += '\n\nByes:\n' + '\n:'.join([
                         "\t{}\t| pts: {}".format(p.name, p.points)
                         for p in self.core.round.unseated
@@ -235,12 +236,12 @@ class MainWindow(QMainWindow):
                     'Create pod',
                     self,
                     triggered=lambda: self.lva_manual_pod()
-                ))
+                )) # type: ignore
             pop_menu.addAction(QAction(
-                'Game loss',
+                'Toggle game loss',
                 self,
                 triggered=lambda: self.lva_game_loss()
-            ))
+            )) # type: ignore
         pop_menu.exec(self.ui.lv_players.mapToGlobal(position))
 
     def lva_remove_player(self):
@@ -282,19 +283,19 @@ class MainWindow(QMainWindow):
             for item in self.ui.lv_players.selectedItems()
         ]
         ok = self.confirm(
-            'Give game loss to: {}?'.format(
+            'Toggle game loss for: {}?'.format(
                 ', '.join([p.name for p in players])),
-            'Confirm game loss'
+            'Confirm game loss status'
         )
         if ok:
-            self.report_game_loss(players)
+            self.toggle_game_loss(players)
 
     @UILog.with_status
-    def report_game_loss(self, players: list[Player]):
+    def toggle_game_loss(self, players: list[Player]):
         if not isinstance(players, list):
             players = [players]
 
-        self.core.report_game_loss(players)
+        self.core.toggle_game_loss(players)
         self.ui_update_player_list()
         self.ui_update_pods()
 
@@ -459,7 +460,11 @@ class MainWindow(QMainWindow):
             TournamentAction.store()
 
     def new_tour(self):
-        NewTournamentDialog.show_dialog(self)
+        TournamentConfigDialog.show_dialog(self)
+        self.restore_ui()
+
+    def edit_tour(self):
+        TournamentConfigDialog.show_edit_dialog(self)
         self.restore_ui()
 
     def load_tour(self):
@@ -618,7 +623,7 @@ class PodWidget(QWidget):
             'Confirm game loss penalty'
         )
         if ok:
-            self.app.report_game_loss(players)
+            self.app.toggle_game_loss(players)
 
 
 class LogLoaderDialog(QDialog):
@@ -668,21 +673,26 @@ class LogLoaderDialog(QDialog):
         return None
 
 
-class NewTournamentDialog(QDialog):
+class TournamentConfigDialog(QDialog):
     def __init__(self, parent=None):
         QDialog.__init__(self, parent)
         self.core = parent.core
 
-        self.ui = uic.loadUi('./ui/NewTournamentDialog.ui', self)
+        self.reset = True
+
+        self.ui = uic.loadUi('./ui/TournamentConfigDialog.ui', self)
 
         self.cb_allow_bye.stateChanged.connect(self.ui.sb_bye.setEnabled)
+        self.cb_allow_bye.stateChanged.connect(self.ui.sb_max_byes.setEnabled)
         self.pb_browse.clicked.connect(self.select_log_location)
         self.pb_add_psize.clicked.connect(self.add_psize)
         self.pb_remove_psize.clicked.connect(self.remove_psize)
-        self.lw_pod_sizes.itemChanged.connect(self.check_pod_sizes)
         self.pb_confirm.clicked.connect(self.apply_choices)
 
+        self.lw_pod_sizes.itemChanged.connect(self.check_pod_sizes)
+
         self.restore_ui()
+
 
     def check_pod_sizes(self):
         items = [
@@ -692,7 +702,7 @@ class NewTournamentDialog(QDialog):
         ]
         for item in items:
             try:
-                int(item.text())
+                item.setData(Qt.ItemDataRole.UserRole, int(item.text()))
             except ValueError:
                 self.lw_pod_sizes.takeItem(self.lw_pod_sizes.row(item))
 
@@ -745,17 +755,18 @@ class NewTournamentDialog(QDialog):
 
     def restore_ui(self):
         # Load current pod sizes
-        for psize in Tournament.POD_SIZES:
+        for psize in self.core.TC.pod_sizes:
             self.create_psize_widget(psize)
         # Load and set bye option
-        self.cb_allow_bye.setChecked(Tournament.ALLOW_BYE)
+        self.cb_allow_bye.setChecked(self.core.TC.allow_bye)
         self.check_pod_sizes()
         # Load and set scoring
-        self.sb_win.setValue(Tournament.WIN_POINTS)
-        self.sb_draw.setValue(Tournament.DRAW_POINTS)
-        self.sb_bye.setValue(Tournament.BYE_POINTS)
-        self.sb_nRounds.setValue(Tournament.N_ROUNDS)
-        self.cb_snakePods.setChecked(Tournament.SNAKE_PODS)
+        self.sb_win.setValue(self.core.TC.win_points)
+        self.sb_draw.setValue(self.core.TC.draw_points)
+        self.sb_bye.setValue(self.core.TC.bye_points)
+        self.sb_nRounds.setValue(self.core.TC.n_rounds)
+        self.cb_snakePods.setChecked(self.core.TC.snake_pods)
+        self.sb_max_byes.setValue(self.core.TC.max_byes)
 
         if TournamentAction.LOGF:
             self.ui.le_log_location.setText(TournamentAction.LOGF)
@@ -764,21 +775,34 @@ class NewTournamentDialog(QDialog):
                 os.path.abspath(TournamentAction.DEFAULT_LOGF))
 
     def apply_choices(self):
-        self.parent().core = Tournament()
-        TournamentAction.LOGF = self.ui.le_log_location.text()
-        TournamentAction.reset()
-        Tournament.ALLOW_BYE = self.cb_allow_bye.isChecked()
-        Tournament.WIN_POINTS = self.sb_win.value()
-        Tournament.DRAW_POINTS = self.sb_draw.value()
-        Tournament.BYE_POINTS = self.sb_bye.value()
-        Tournament.POD_SIZES = self.get_psizes()
-        Tournament.N_ROUNDS = self.sb_nRounds.value()
-        Tournament.SNAKE_PODS = self.cb_snakePods.isChecked()
+        if self.reset:
+            self.parent().core = Tournament()
+            TournamentAction.LOGF = self.ui.le_log_location.text()
+            TournamentAction.reset()
+
+        TC = TournamentConfiguration(
+            allow_bye = self.cb_allow_bye.isChecked(),
+            win_points = self.sb_win.value(),
+            draw_points = self.sb_draw.value(),
+            bye_points = self.sb_bye.value(),
+            pod_sizes = self.get_psizes(),
+            n_rounds = self.sb_nRounds.value(),
+            snake_pods = self.cb_snakePods.isChecked(),
+            max_byes = self.sb_max_byes.value()
+        )
+        self.parent().core.TC = TC
         self.close()
 
     @staticmethod
     def show_dialog(parent=None):
-        dlg = NewTournamentDialog(parent)
+        dlg = TournamentConfigDialog(parent)
+        dlg.show()
+        result = dlg.exec()
+
+    @staticmethod
+    def show_edit_dialog(parent=None):
+        dlg = TournamentConfigDialog(parent)
+        dlg.reset = False
         dlg.show()
         result = dlg.exec()
 
@@ -885,27 +909,34 @@ if __name__ == '__main__':
     parser.add_argument('-S', '--snake', dest='snake', action='store_true', default=False)
     parser.add_argument('-r', '--rounds', dest='rounds', type=int, default=None,
                         help='Set the number of rounds for the tournament.')
+    parser.add_argument('-o', '--open', dest='open', type=str, default=None,
+                        help='Open a log file.')
     subparsers = parser.add_subparsers()
     args, unknown = parser.parse_known_args()
 
     app = QApplication(sys.argv)
 
-    core = Tournament()
+    if args.open:
+        TournamentAction.load(args.open)
+        core = TournamentAction.ACTIONS[-1].after
+    else:
+        core = Tournament()
+
     if args.pod_sizes:
-        Tournament.set_pod_sizes(args.pod_sizes)
+        core.TC.pod_sizes = args.pod_sizes
     if args.allow_bye:
-        Tournament.set_allow_bye(True)
+        core.TC.allow_bye = True
     if args.scoring:
-        Tournament.set_scoring(args.scoring)
+        core.TC.scoring(args.scoring)
     if args.number_of_mock_players:
         core.add_player([
             names.get_full_name()
             for i in range(args.number_of_mock_players)
         ])
     if args.snake:
-        Tournament.set_snake_pods(True)
+        core.TC.snake_pods = True
     if args.rounds:
-        Tournament.set_n_rounds(args.rounds)
+        core.TC.n_rounds = args.rounds
 
     # for i in range(7):
     #   core.make_pods()
