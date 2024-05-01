@@ -4,3 +4,4 @@ PyQt6
 names
 tqdm
 numpy
+qt-material
