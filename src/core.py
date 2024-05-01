@@ -237,7 +237,6 @@ class TournamentAction:
     '''Serializable action that will be stored in tournament log and can be restored
     '''
     ACTIONS = []
-    STATE = []
     LOGF = None
     DEFAULT_LOGF = 'logs/default.log'
 

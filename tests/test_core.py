@@ -58,6 +58,7 @@ class TestTournamentPodSizing(unittest.TestCase):
             TournamentConfiguration(
                 pod_sizes=[4],
                 allow_bye=True,
+                max_byes=3,
             )
         )
         pod_sizes = (
@@ -121,6 +122,47 @@ class TestTournamentPodSizing(unittest.TestCase):
             (17, [], 17),
             (18, [], 18),
             (19, [], 19),
+            (20, [4, 4, 4, 4, 4], 0),
+        )
+        for n, expected_sizes, bench in pod_sizes:
+            with self.subTest(n=str(n).zfill(2)):
+                t.make_pods()
+                sizes = [p.p_count for p in t.round.pods]
+                self.assertListEqual(sizes, expected_sizes)
+                self.assertEqual(len(t.round.unseated), bench)
+                t.reset_pods()
+                t.add_player(names.get_full_name())
+
+    def test_correct_pod_sizing_43_max_2_bye(self):
+        t = Tournament(
+            TournamentConfiguration(
+                pod_sizes=[4, 3],
+                allow_bye=True,
+                max_byes=2,
+            )
+        )
+
+        pod_sizes = (
+            (0,  [], 0),
+            (1,  [], 1),
+            (2,  [], 2),
+            (3,  [3], 0),
+            (4,  [4], 0),
+            (5,  [4], 1),
+            (6,  [4], 2),
+            (7,  [4, 3], 0),
+            (8,  [4, 4], 0),
+            (9,  [4, 4], 1),
+            (10, [4, 4], 2),
+            (11, [4, 4, 3], 0),
+            (12, [4, 4, 4], 0),
+            (13, [4, 4, 4], 1),
+            (14, [4, 4, 4], 2),
+            (15, [4, 4, 4, 3], 0),
+            (16, [4, 4, 4, 4], 0),
+            (17, [4, 4, 4, 4], 1),
+            (18, [4, 4, 4, 4], 2),
+            (19, [4, 4, 4, 4, 3], 0),
             (20, [4, 4, 4, 4, 4], 0),
         )
         for n, expected_sizes, bench in pod_sizes:
