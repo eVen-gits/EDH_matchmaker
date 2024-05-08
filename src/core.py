@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import inspect
 import math
 import os
 import pickle
@@ -270,7 +269,7 @@ class TournamentAction:
 
     @classmethod
     def store(cls):
-        if not cls.LOGF:
+        if cls.LOGF is None:
             cls.LOGF = cls.DEFAULT_LOGF
         if cls.LOGF:
             with open(cls.LOGF, 'wb') as f:
@@ -333,6 +332,11 @@ class TournamentConfiguration:
             x.opponent_winrate
         )
 
+    def __repr__(self):
+        return "Tour. cfg:" + '|'.join([
+            '{}:{}'.format(key, val)
+            for key, val in self.__dict__.items()
+        ])
 
 class Tournament:
     # CONFIGURATION
@@ -345,10 +349,10 @@ class Tournament:
         self.rounds = list()
         self.players = list()
         self.dropped = list()
-
-        self.TC = config
-
         self.round = None
+
+        # Direct setting - don't want to overwrite old log file
+        self._TC = config
 
     # TOURNAMENT ACTIONS
     # IMPORTANT: No nested tournament actions
@@ -497,7 +501,7 @@ class Tournament:
             return
         if self.round.pods is not None:
             for pod in [x for x in self.round.pods if not x.done]:
-                draw_or_win = random.random() < 0.8
+                draw_or_win = random.random() < 0.85
                 if draw_or_win:
                     player = random.sample(pod.players, 1)[0]
                     Log.log('won "{}"'.format(player.name))
@@ -508,6 +512,7 @@ class Tournament:
                     Log.log('draw {}'.format(
                         ' '.join(['"{}"'.format(p.name) for p in players])))
                     self.round.draw([p for p in players])
+        pass
 
     @TournamentAction.action
     def move_player_to_pod(self, pod: Pod, players: list[Player] = [], manual=False):
@@ -768,8 +773,8 @@ class Player:
         elif self.SORT_METHOD == SORT_METHOD.NAME:
             b = self.name > other.name
         elif self.SORT_METHOD == SORT_METHOD.RANK:
-            my_score = Tournament.RANKING(None, self)
-            other_score = Tournament.RANKING(None, other)
+            my_score = self.tour.TC.ranking(self)
+            other_score = self.tour.TC.ranking(other)
             b = None
             for i in range(len(my_score)):
                 if my_score[i] != other_score[i]:
@@ -783,8 +788,8 @@ class Player:
         elif self.SORT_METHOD == SORT_METHOD.NAME:
             b = self.name < other.name
         elif self.SORT_METHOD == SORT_METHOD.RANK:
-            my_score = Tournament.RANKING(None, self)
-            other_score = Tournament.RANKING(None, other)
+            my_score = self.tour.TC.ranking(self)
+            other_score = self.tour.TC.ranking(other)
             b = None
             for i in range(len(my_score)):
                 if my_score[i] != other_score[i]:
@@ -882,13 +887,18 @@ class Pod:
         if self.p_count >= self.cap:
             # Average seating positions
             average_positions = [p.average_seat for p in self.players]
-            if not all(average_positions):
+            n = len(average_positions)
+
+            if not any(average_positions):
                 random.shuffle(self.players)
                 return True
+            nonzero_avg = sum(average_positions) / len([x for x in average_positions if x > 0])
+            for i, x in enumerate(average_positions):
+                if x == 0:
+                    average_positions[i] = nonzero_avg
 
-            n = len(average_positions)
             # Calculate inverse averages
-            inverse_averages = [pos / max(average_positions) for pos in average_positions]
+            inverse_averages = [(pos / max(average_positions))**5 for pos in average_positions]
 
             # Normalize to get probabilities
             probabilities = [inv / sum(inverse_averages) for inv in inverse_averages]
@@ -1025,7 +1035,7 @@ class Round:
                     pod.add_player(remaining.pop(0))
 
         elif self.tour.TC.snake_pods and self.seq == 1:
-            ranking = lambda x: (x.points, x.unique_opponents)
+            ranking = lambda x: (x.points, -x.unique_opponents)
             remaining = sorted(remaining, key=ranking, reverse=True)
             bucket_order = sorted(list(set([ranking(p) for p in remaining])), reverse=True)
             buckets = {k: [p for p in remaining if ranking(p) == k] for k in bucket_order}
@@ -1037,6 +1047,8 @@ class Round:
                 for p in buckets[b]:
                     ok = False
                     if b == bucket_order[-1] and p in buckets[b][-1:-bye_count-1:-1]:
+                        ok = True
+                    if sum(pod_sizes) == sum(len(pod_x.players) for pod_x in pods):
                         ok = True
                     while not ok:
                         ok = pods[i % len(pods)].add_player(p)

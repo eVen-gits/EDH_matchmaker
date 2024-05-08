@@ -74,6 +74,7 @@ class MainWindow(QMainWindow):
         QMainWindow.__init__(self)
         self.core = core if core else Tournament()
 
+        '''TODO: Custom theme
         extra = {
 
             # Button colors
@@ -95,7 +96,8 @@ class MainWindow(QMainWindow):
 
         }
 
-        #apply_stylesheet(app, theme='dark_amber.xml', extra=extra, css_file='ui/custom_theme.css')
+        apply_stylesheet(app, theme='dark_amber.xml', extra=extra, css_file='ui/custom_theme.css')
+        '''
 
         self.setWindowTitle("EDH matchmaker")
 
@@ -704,7 +706,7 @@ class LogLoaderDialog(QDialog):
 class TournamentConfigDialog(QDialog):
     def __init__(self, parent=None):
         QDialog.__init__(self, parent)
-        self.core = parent.core
+        self.core: Tournament = parent.core
 
         self.reset = True
 
@@ -946,6 +948,8 @@ if __name__ == '__main__':
 
     if args.open:
         TournamentAction.load(args.open)
+        core = TournamentAction.ACTIONS[-1].after
+    elif TournamentAction.load():
         core = TournamentAction.ACTIONS[-1].after
     else:
         core = Tournament()
