@@ -338,6 +338,7 @@ class TournamentConfiguration:
             for key, val in self.__dict__.items()
         ])
 
+
 class Tournament:
     # CONFIGURATION
     # Logic: Points is primary sorting key,
@@ -1042,8 +1043,13 @@ class Round:
             for b in buckets.values():
                 random.shuffle(b)
 
-            for b in bucket_order:
-                i = 0
+            for order_idx, b in enumerate(bucket_order):
+                if (
+                    order_idx == 0 #if not first bucket
+                    or b[0] != bucket_order[order_idx-1][0] #and not same points as previous bucket
+                ):
+                    i = 0
+
                 for p in buckets[b]:
                     ok = False
                     if b == bucket_order[-1] and p in buckets[b][-1:-bye_count-1:-1]:

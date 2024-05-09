@@ -179,6 +179,9 @@
     <layout class="QHBoxLayout" name="horizontalLayout_6">
      <item>
       <widget class="QLabel" name="label">
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
        <property name="text">
         <string>Number of rounds</string>
        </property>
@@ -208,12 +211,11 @@
       <widget class="QCheckBox" name="cb_snakePods">
        <property name="font">
         <font>
-         <weight>75</weight>
-         <bold>true</bold>
+         <pointsize>10</pointsize>
         </font>
        </property>
        <property name="text">
-        <string>Snake pods</string>
+        <string notr="true">Snake pods</string>
        </property>
       </widget>
      </item>
