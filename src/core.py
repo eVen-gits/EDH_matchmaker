@@ -15,22 +15,23 @@ import numpy as np
 import names
 
 
-class Export:
+class StandingsExport:
     __instance = None
+    AUTOMATIC = False
 
     @staticmethod
     def instance():
         """ Static access method. """
-        if Export.__instance == None:
-            Export()
-        return Export.__instance
+        if StandingsExport.__instance == None:
+            StandingsExport()
+        return StandingsExport.__instance
 
     def __init__(self):
         """ Virtually private constructor. """
-        if Export.__instance != None:
+        if StandingsExport.__instance != None:
             raise Exception("This class is a singleton!")
         else:
-            Export.__instance = self
+            StandingsExport.__instance = self
 
     class Field(Enum):
         STANDING = 0  # Standing
@@ -50,6 +51,23 @@ class Export:
         TXT = 0
         CSV = 1
         DISCORD = 2
+
+    @staticmethod
+    def set_auto_export(state:bool):
+        StandingsExport.instance().AUTOMATIC = state
+
+    @classmethod
+    def auto_export(cls, func):
+        def wrapper(self, *original_args, **original_kwargs):
+            ret = func(self, *original_args, **original_kwargs)
+            if cls.instance().AUTOMATIC:
+                self.export(
+                    fdir=StandingsExport.dir,
+                    fields=StandingsExport.fields,
+                    style=StandingsExport.format
+                )
+            return ret
+        return wrapper
 
     info = {
         Field.STANDING: Json2Obj({
@@ -256,6 +274,7 @@ class TournamentAction:
 
     @classmethod
     def action(cls, func):
+        @StandingsExport.auto_export
         def wrapper(self, *original_args, **original_kwargs):
             before = deepcopy(self)
             ret = func(self, *original_args, **original_kwargs)
@@ -620,24 +639,24 @@ class Tournament:
     def export(
         self,
         fdir: str,
-        fields: list[Export.Field] = Export.DEFAULT_FIELDS,
-        style: Export.Format = Export.Format.TXT,
+        fields: list[StandingsExport.Field] = StandingsExport.DEFAULT_FIELDS,
+        style: StandingsExport.Format = StandingsExport.Format.TXT,
     ):
         standings = self.get_standings()
-        lines = [[Export.info[f].name for f in fields]]
+        lines = [[StandingsExport.info[f].name for f in fields]]
         lines += [
             [
-                (Export.info[f].format).format(
-                    Export.info[f].getter(p)
-                    if Export.info[f].denom is None
-                    else Export.info[f].getter(p) * Export.info[f].denom
+                (StandingsExport.info[f].format).format(
+                    StandingsExport.info[f].getter(p)
+                    if StandingsExport.info[f].denom is None
+                    else StandingsExport.info[f].getter(p) * StandingsExport.info[f].denom
                 )
                 for f
                 in fields
             ]
             for p in standings
         ]
-        if style == Export.Format.TXT:
+        if style == StandingsExport.Format.TXT:
             col_len = [0] * len(fields)
             for col in range(len(fields)):
                 for line in lines:
@@ -653,10 +672,10 @@ class Tournament:
             self.export_str(fdir, lines)
             Log.log('Log saved: {}.'.format(
                 fdir), level=Log.Level.INFO)
-        elif style == Export.Format.CSV:
+        elif style == StandingsExport.Format.CSV:
             Log.log('Log not saved - CSV not implemented.'.format(
                 fdir), level=Log.Level.WARNING)
-        elif style == Export.Format.DISCORD:
+        elif style == StandingsExport.Format.DISCORD:
             Log.log('Log not saved - DISCORD not implemented.'.format(
                 fdir), level=Log.Level.WARNING)
 

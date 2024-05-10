@@ -11,7 +11,7 @@ from PyQt6.QtGui import *
 from PyQt6.QtWidgets import *
 from PyQt6.QtWidgets import QListWidgetItem
 
-from src.core import (ID, SORT_METHOD, SORT_ORDER, Export, Log, Player, Pod,
+from src.core import (ID, SORT_METHOD, SORT_ORDER, StandingsExport, Log, Player, Pod,
                   Tournament, TournamentAction, TournamentConfiguration)
 
 # from PySide2 import QtWidgets
@@ -721,6 +721,10 @@ class TournamentConfigDialog(QDialog):
 
         self.lw_pod_sizes.itemChanged.connect(self.check_pod_sizes)
 
+        self.ui.cb_auto_export.stateChanged.connect(
+            lambda: StandingsExport.instance().set_auto_export(self.ui.cb_auto_export.isChecked())
+        )
+
         self.restore_ui()
 
 
@@ -852,16 +856,20 @@ class ExportStandingsDialog(QDialog):
         self.ui.pb_remove.clicked.connect(self.remove_field)
         self.ui.pb_export.clicked.connect(self.export)
 
+        self.ui.cb_auto_export.stateChanged.connect(
+            lambda: StandingsExport.instance().set_auto_export(self.ui.cb_auto_export.isChecked())
+        )
+
     def update_export_format(self, idx):
         data = self.ui.cb_format.itemData(idx)
-        Export.instance().format = data
+        StandingsExport.instance().format = data
 
     def restore_ui(self):
-        self.ui.le_export_dir.setText(Export.instance().dir)
+        self.ui.le_export_dir.setText(StandingsExport.instance().dir)
 
-        for f in Export.Field:
-            info = Export.instance().info[f]
-            if f in Export.instance().fields:
+        for f in StandingsExport.Field:
+            info = StandingsExport.instance().info[f]
+            if f in StandingsExport.instance().fields:
                 item = QListWidgetItem(
                     '{} ({})'.format(info.name, info.description))
                 item.setData(Qt.ItemDataRole.UserRole, f)
@@ -869,15 +877,15 @@ class ExportStandingsDialog(QDialog):
             else:
                 self.ui.cb_fields.addItem(info.name, userData=f)
 
-        for s in Export.Format:
+        for s in StandingsExport.Format:
             self.ui.cb_format.addItem(s.name, userData=s)
 
         self.ui.cb_format.setCurrentIndex(
-            self.ui.cb_format.findData(Export.instance().format))
+            self.ui.cb_format.findData(StandingsExport.instance().format))
 
     def add_field(self):
         f = self.ui.cb_fields.currentData(Qt.ItemDataRole.UserRole)
-        info = Export.instance().info[f]
+        info = StandingsExport.instance().info[f]
         self.ui.cb_fields.removeItem(self.ui.cb_fields.currentIndex())
         item = QListWidgetItem('{} ({})'.format(info.name, info.description))
         item.setData(Qt.ItemDataRole.UserRole, f)
@@ -886,7 +894,7 @@ class ExportStandingsDialog(QDialog):
     def remove_field(self):
         item = self.ui.lw_fields.currentItem()
         f = item.data(Qt.ItemDataRole.UserRole)
-        info = Export.instance().info[f]
+        info = StandingsExport.instance().info[f]
         self.ui.cb_fields.addItem(info.name, userData=f)
         self.ui.lw_fields.takeItem(self.ui.lw_fields.row(item))
 
@@ -894,27 +902,27 @@ class ExportStandingsDialog(QDialog):
         file, ext = QFileDialog.getSaveFileName(
             caption="Specify standings location...",
             filter='*{}'.format(
-                Export.instance().ext[Export.instance().format]),
+                StandingsExport.instance().ext[StandingsExport.instance().format]),
             initialFilter='*{}'.format(
-                Export.instance().ext[Export.instance().format]),
-            directory=os.path.dirname(Export.instance().dir)
+                StandingsExport.instance().ext[StandingsExport.instance().format]),
+            directory=os.path.dirname(StandingsExport.instance().dir)
         )
         if file:
             if not file.endswith(ext.replace('*', '')):
                 file = ext.replace('*', '{}').format(file)
             self.ui.le_export_dir.setText(file)
-            Export.instance().dir = file
+            StandingsExport.instance().dir = file
 
     def export(self):
-        Export.instance().fields = [
+        StandingsExport.instance().fields = [
             self.ui.lw_fields.item(i).data(Qt.ItemDataRole.UserRole)
             for i
             in range(self.ui.lw_fields.count())
         ]
         self.core.export(
             self.ui.le_export_dir.text(),
-            Export.instance().fields,
-            Export.instance().format
+            StandingsExport.instance().fields,
+            StandingsExport.instance().format
         )
         self.close()
 

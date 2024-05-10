@@ -52,6 +52,13 @@
        </item>
       </layout>
      </item>
+     <item>
+      <widget class="QCheckBox" name="cb_auto_export">
+       <property name="text">
+        <string>Automatic pod/standings export</string>
+       </property>
+      </widget>
+     </item>
     </layout>
    </item>
    <item>
