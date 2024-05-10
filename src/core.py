@@ -556,7 +556,6 @@ class Tournament:
                 Log.log('{} game loss removed.'.format(
                     player.name), level=Log.Level.INFO)
 
-
     @TournamentAction.action
     def delete_pod(self, pod: Pod):
         if self.round:
@@ -571,6 +570,7 @@ class Tournament:
         return None
 
     def get_pod_sizes(self, n):
+        #tails = {}
         for pod_size in self.TC.pod_sizes:
             rem = n-pod_size
             if rem < 0:
@@ -583,9 +583,16 @@ class Tournament:
                 elif pod_size == self.TC.pod_sizes[-1]:
                     return None
             if rem >= self.TC.min_pod_size:
+                #This following code prefers smaller pods over byes
+                #tails[(rem, pod_size)] = self.get_pod_sizes(rem)
+                #if tails[(rem, pod_size)] is not None:
+                #    if sum(tails[(rem, pod_size)]) == rem:
+                #        return sorted([pod_size] + tails[(rem, pod_size)], reverse=True)
                 tail = self.get_pod_sizes(rem)
                 if tail is not None:
                     return [pod_size] + tail
+
+
         return None
 
     # MISC ACTIONS
@@ -1081,7 +1088,6 @@ class Round:
             for p in pod.players:
                 pod.update_player_history(p)
 
-        #self.players = deepcopy(self.players)
         if self.unseated and self.tour.TC.allow_bye:
             for p in self.unseated:
                 Log.log('bye "{}"'.format(p.name))

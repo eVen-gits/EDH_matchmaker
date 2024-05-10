@@ -3,6 +3,7 @@ import unittest
 from src.core import *
 import names
 import random
+TournamentAction.LOGF = False #type: ignore
 
 
 class TestPlayer(unittest.TestCase):
@@ -25,6 +26,7 @@ class TestTournamentPodSizing(unittest.TestCase):
                 allow_bye=False,
             )
         )
+
 
         pod_sizes = {
             0: None,
@@ -188,6 +190,7 @@ class TestScoring(unittest.TestCase):
             )
         )
         Player.FORMATTING = ['-p', '-w', '-o']
+
 
     def test_bye_scoring(self):
         self.t.add_player([
