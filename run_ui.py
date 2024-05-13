@@ -723,7 +723,6 @@ class TournamentConfigDialog(QDialog):
 
         self.restore_ui()
 
-
     def check_pod_sizes(self):
         items = [
             self.lw_pod_sizes.item(i)
@@ -877,6 +876,8 @@ class ExportStandingsDialog(QDialog):
 
     def add_field(self):
         f = self.ui.cb_fields.currentData(Qt.ItemDataRole.UserRole)
+        if f is None:
+            return
         info = Export.instance().info[f]
         self.ui.cb_fields.removeItem(self.ui.cb_fields.currentIndex())
         item = QListWidgetItem('{} ({})'.format(info.name, info.description))
