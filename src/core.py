@@ -291,6 +291,8 @@ class TournamentAction:
         if cls.LOGF is None:
             cls.LOGF = cls.DEFAULT_LOGF
         if cls.LOGF:
+            if not os.path.exists(os.path.dirname(cls.LOGF)):
+                os.makedirs(os.path.dirname(cls.LOGF))
             with open(cls.LOGF, 'wb') as f:
                 pickle.dump(cls.ACTIONS, f)
 
@@ -623,6 +625,8 @@ class Tournament:
             Log.log('No pods currently created.')
 
     def export_str(self, fdir, str):
+        if not os.path.exists(os.path.dirname(fdir)):
+            os.makedirs(os.path.dirname(fdir))
         with open(fdir, 'w', encoding='utf-8') as f:
             f.writelines(str)
 
