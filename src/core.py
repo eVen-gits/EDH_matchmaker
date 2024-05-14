@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import *
 
 import argparse
 import math
@@ -16,23 +17,6 @@ import names
 
 
 class StandingsExport:
-    __instance = None
-    AUTOMATIC = False
-
-    @staticmethod
-    def instance():
-        """ Static access method. """
-        if StandingsExport.__instance == None:
-            StandingsExport()
-        return StandingsExport.__instance
-
-    def __init__(self):
-        """ Virtually private constructor. """
-        if StandingsExport.__instance != None:
-            raise Exception("This class is a singleton!")
-        else:
-            StandingsExport.__instance = self
-
     class Field(Enum):
         STANDING = 0  # Standing
         ID = 1  # Player ID
@@ -51,23 +35,6 @@ class StandingsExport:
         TXT = 0
         CSV = 1
         DISCORD = 2
-
-    @staticmethod
-    def set_auto_export(state:bool):
-        StandingsExport.instance().AUTOMATIC = state
-
-    @classmethod
-    def auto_export(cls, func):
-        def wrapper(self, *original_args, **original_kwargs):
-            ret = func(self, *original_args, **original_kwargs)
-            if cls.instance().AUTOMATIC:
-                self.export(
-                    fdir=StandingsExport.dir,
-                    fields=StandingsExport.fields,
-                    style=StandingsExport.format
-                )
-            return ret
-        return wrapper
 
     info = {
         Field.STANDING: Json2Obj({
@@ -172,9 +139,29 @@ class StandingsExport:
         Field.AVG_SEAT,
     ]
 
-    fields = [f for f in DEFAULT_FIELDS]
-    format = Format.TXT
-    dir = './logs/standings' + ext[format]
+    def __init__(self, fields=None, format:Format=Format.TXT, dir:Union[str,None]=None):
+        if fields is None:
+            self.fields = self.DEFAULT_FIELDS
+        else:
+            self.fields = fields
+        self.format = format
+        if dir is None:
+            self.dir = './logs/standings' + self.ext[self.format]
+        else:
+            self.dir = dir
+
+    @classmethod
+    def auto_export(cls, func):
+        def wrapper(self:Tournament, *original_args, **original_kwargs):
+            ret = func(self, *original_args, **original_kwargs)
+            if self.TC.auto_export:
+                self.export(
+                    fdir=self.TC.standings_export.dir,
+                    fields=self.TC.standings_export.fields,
+                    style=self.TC.standings_export.format,
+                )
+            return ret
+        return wrapper
 
 
 class SORT_METHOD(Enum):
@@ -257,7 +244,7 @@ class TournamentAction:
     LOGF = None
     DEFAULT_LOGF = 'logs/default.log'
 
-    def __init__(self, before, ret, after, func_name, *nargs, **kwargs):
+    def __init__(self, before:Tournament, ret, after:Tournament, func_name, *nargs, **kwargs):
         self.before = before
         self.ret = ret
         self.after = after
@@ -330,6 +317,8 @@ class TournamentConfiguration:
         self.snake_pods = kwargs.get('snake_pods', False)
         self.n_rounds = kwargs.get('n_rounds', 5)
         self.max_byes = kwargs.get('max_byes', 2)
+        self.auto_export = kwargs.get('auto_export', False)
+        self.standings_export = kwargs.get('standings_export', StandingsExport())
 
     @property
     def min_pod_size(self):
@@ -367,7 +356,9 @@ class Tournament:
     # then number of opponents beaten,
     # then ID - this last one is to ensure deterministic sorting in case of equal values (start of tournament for example)
 
-    def __init__(self, config:TournamentConfiguration=TournamentConfiguration()):
+    def __init__(self, config:TournamentConfiguration=None): #type: ignore
+        if config is None:
+            config = TournamentConfiguration()
         self.rounds = list()
         self.players = list()
         self.dropped = list()
@@ -788,7 +779,6 @@ class Player:
             record_sequence.count('L'),
             record_sequence.count('D'),
         ))
-
 
     def evaluate_pod(self, pod):
         score = 0

@@ -711,19 +711,15 @@ class TournamentConfigDialog(QDialog):
         self.reset = True
 
         self.ui = uic.loadUi('./ui/TournamentConfigDialog.ui', self)
+        assert self.ui is not None
 
-        self.cb_allow_bye.stateChanged.connect(self.ui.sb_bye.setEnabled)
-        self.cb_allow_bye.stateChanged.connect(self.ui.sb_max_byes.setEnabled)
-        self.pb_browse.clicked.connect(self.select_log_location)
-        self.pb_add_psize.clicked.connect(self.add_psize)
-        self.pb_remove_psize.clicked.connect(self.remove_psize)
-        self.pb_confirm.clicked.connect(self.apply_choices)
-
-        self.lw_pod_sizes.itemChanged.connect(self.check_pod_sizes)
-
-        self.ui.cb_auto_export.stateChanged.connect(
-            lambda: StandingsExport.instance().set_auto_export(self.ui.cb_auto_export.isChecked())
-        )
+        self.ui.cb_allow_bye.stateChanged.connect(self.ui.sb_bye.setEnabled)
+        self.ui.cb_allow_bye.stateChanged.connect(self.ui.sb_max_byes.setEnabled)
+        self.ui.pb_browse.clicked.connect(self.select_log_location)
+        self.ui.pb_add_psize.clicked.connect(self.add_psize)
+        self.ui.pb_remove_psize.clicked.connect(self.remove_psize)
+        self.ui.pb_confirm.clicked.connect(self.apply_choices)
+        self.ui.lw_pod_sizes.itemChanged.connect(self.check_pod_sizes)
 
         self.restore_ui()
 
@@ -800,6 +796,7 @@ class TournamentConfigDialog(QDialog):
         self.sb_nRounds.setValue(self.core.TC.n_rounds)
         self.cb_snakePods.setChecked(self.core.TC.snake_pods)
         self.sb_max_byes.setValue(self.core.TC.max_byes)
+        self.ui.cb_auto_export.setChecked(self.core.TC.auto_export)
 
         if TournamentAction.LOGF:
             self.ui.le_log_location.setText(TournamentAction.LOGF)
@@ -821,7 +818,8 @@ class TournamentConfigDialog(QDialog):
             pod_sizes = self.get_psizes(),
             n_rounds = self.sb_nRounds.value(),
             snake_pods = self.cb_snakePods.isChecked(),
-            max_byes = self.sb_max_byes.value()
+            max_byes = self.sb_max_byes.value(),
+            auto_export = self.cb_auto_export.isChecked(),
         )
         self.parent().core.TC = TC
         self.close()
@@ -845,6 +843,7 @@ class ExportStandingsDialog(QDialog):
         QDialog.__init__(self, parent)
         self.core = parent.core
         self.ui = uic.loadUi('./ui/ExportDialog.ui', self)
+        assert self.ui is not None
 
         self.restore_ui()
 
@@ -855,20 +854,17 @@ class ExportStandingsDialog(QDialog):
         self.ui.pb_remove.clicked.connect(self.remove_field)
         self.ui.pb_export.clicked.connect(self.export)
 
-        self.ui.cb_auto_export.stateChanged.connect(
-            lambda: StandingsExport.instance().set_auto_export(self.ui.cb_auto_export.isChecked())
-        )
-
     def update_export_format(self, idx):
         data = self.ui.cb_format.itemData(idx)
-        StandingsExport.instance().format = data
+        #StandingsExport.instance().format = data
+        self.core.TC.standings_export.format = data
 
     def restore_ui(self):
-        self.ui.le_export_dir.setText(StandingsExport.instance().dir)
+        self.ui.le_export_dir.setText(self.core.TC.standings_export.dir)
 
         for f in StandingsExport.Field:
-            info = StandingsExport.instance().info[f]
-            if f in StandingsExport.instance().fields:
+            info = self.core.TC.standings_export.info[f]
+            if f in self.core.TC.standings_export.fields:
                 item = QListWidgetItem(
                     '{} ({})'.format(info.name, info.description))
                 item.setData(Qt.ItemDataRole.UserRole, f)
@@ -880,13 +876,13 @@ class ExportStandingsDialog(QDialog):
             self.ui.cb_format.addItem(s.name, userData=s)
 
         self.ui.cb_format.setCurrentIndex(
-            self.ui.cb_format.findData(StandingsExport.instance().format))
+            self.ui.cb_format.findData(self.core.TC.standings_export.format))
 
     def add_field(self):
         f = self.ui.cb_fields.currentData(Qt.ItemDataRole.UserRole)
         if f is None:
             return
-        info = StandingsExport.instance().info[f]
+        info = self.core.TC.standings_export.info[f]
         self.ui.cb_fields.removeItem(self.ui.cb_fields.currentIndex())
         item = QListWidgetItem('{} ({})'.format(info.name, info.description))
         item.setData(Qt.ItemDataRole.UserRole, f)
@@ -895,7 +891,7 @@ class ExportStandingsDialog(QDialog):
     def remove_field(self):
         item = self.ui.lw_fields.currentItem()
         f = item.data(Qt.ItemDataRole.UserRole)
-        info = StandingsExport.instance().info[f]
+        info = self.core.TC.standings_export.info[f]
         self.ui.cb_fields.addItem(info.name, userData=f)
         self.ui.lw_fields.takeItem(self.ui.lw_fields.row(item))
 
@@ -903,27 +899,31 @@ class ExportStandingsDialog(QDialog):
         file, ext = QFileDialog.getSaveFileName(
             caption="Specify standings location...",
             filter='*{}'.format(
-                StandingsExport.instance().ext[StandingsExport.instance().format]),
+                self.core.TC.standings_export.ext[self.core.TC.standings_export.format]),
             initialFilter='*{}'.format(
-                StandingsExport.instance().ext[StandingsExport.instance().format]),
-            directory=os.path.dirname(StandingsExport.instance().dir)
+                self.core.TC.standings_export.ext[self.core.TC.standings_export.format]),
+            directory=os.path.dirname(self.core.TC.standings_export.dir)
         )
         if file:
             if not file.endswith(ext.replace('*', '')):
                 file = ext.replace('*', '{}').format(file)
             self.ui.le_export_dir.setText(file)
-            StandingsExport.instance().dir = file
+            self.core.TC.standings_export.dir = file
 
     def export(self):
-        StandingsExport.instance().fields = [
+        self.core.TC.standings_export.format = self.ui.cb_format.currentData()
+        self.core.TC.standings_export.fields = [
             self.ui.lw_fields.item(i).data(Qt.ItemDataRole.UserRole)
             for i
             in range(self.ui.lw_fields.count())
         ]
+        self.core.TC.standings_export.dir = self.ui.le_export_dir.text()
+        self.core.TC = self.core.TC
+
         self.core.export(
             self.ui.le_export_dir.text(),
-            StandingsExport.instance().fields,
-            StandingsExport.instance().format
+            self.core.TC.standings_export.fields,
+            self.core.TC.standings_export.format
         )
         self.close()
 
