@@ -12,7 +12,6 @@ from datetime import datetime
 from enum import Enum
 from src.misc import Json2Obj
 import numpy as np
-
 import names
 
 
@@ -21,7 +20,7 @@ class StandingsExport:
         STANDING = 0  # Standing
         ID = 1  # Player ID
         NAME = 2  # Player name
-        RECORD = 3 # Record
+        RECORD = 3  # Record
         POINTS = 4  # Number of points
         WINS = 5  # Number of wins
         OPPONENTSBEATEN = 6  # Number of opponents beaten
@@ -139,7 +138,7 @@ class StandingsExport:
         Field.AVG_SEAT,
     ]
 
-    def __init__(self, fields=None, format:Format=Format.TXT, dir:Union[str,None]=None):
+    def __init__(self, fields=None, format: Format = Format.TXT, dir: Union[str, None] = None):
         if fields is None:
             self.fields = self.DEFAULT_FIELDS
         else:
@@ -152,7 +151,7 @@ class StandingsExport:
 
     @classmethod
     def auto_export(cls, func):
-        def wrapper(self:Tournament, *original_args, **original_kwargs):
+        def wrapper(self: Tournament, *original_args, **original_kwargs):
             ret = func(self, *original_args, **original_kwargs)
             if self.TC.auto_export:
                 self.export(
@@ -244,7 +243,7 @@ class TournamentAction:
     LOGF = None
     DEFAULT_LOGF = 'logs/default.log'
 
-    def __init__(self, before:Tournament, ret, after:Tournament, func_name, *nargs, **kwargs):
+    def __init__(self, before: Tournament, ret, after: Tournament, func_name, *nargs, **kwargs):
         self.before = before
         self.ret = ret
         self.after = after
@@ -318,7 +317,8 @@ class TournamentConfiguration:
         self.n_rounds = kwargs.get('n_rounds', 5)
         self.max_byes = kwargs.get('max_byes', 2)
         self.auto_export = kwargs.get('auto_export', False)
-        self.standings_export = kwargs.get('standings_export', StandingsExport())
+        self.standings_export = kwargs.get(
+            'standings_export', StandingsExport())
 
     @property
     def min_pod_size(self):
@@ -326,12 +326,12 @@ class TournamentConfiguration:
 
     def ranking(_, x):
         return (
-                x.points,
-                x.games_played,
-                np.round(x.opponent_winrate, 2),
-                x.n_opponents_beaten,
-                x.average_seat,
-                -x.ID
+            x.points,
+            x.games_played,
+            np.round(x.opponent_winrate, 2),
+            x.n_opponents_beaten,
+            x.average_seat,
+            -x.ID
         )
 
     def matching(_, x):
@@ -356,7 +356,7 @@ class Tournament:
     # then number of opponents beaten,
     # then ID - this last one is to ensure deterministic sorting in case of equal values (start of tournament for example)
 
-    def __init__(self, config:TournamentConfiguration=None): #type: ignore
+    def __init__(self, config: TournamentConfiguration = None):  # type: ignore
         if config is None:
             config = TournamentConfiguration()
         self.rounds = list()
@@ -582,7 +582,7 @@ class Tournament:
         return None
 
     def get_pod_sizes(self, n):
-        #tails = {}
+        # tails = {}
         for pod_size in self.TC.pod_sizes:
             rem = n-pod_size
             if rem < 0:
@@ -595,15 +595,14 @@ class Tournament:
                 elif pod_size == self.TC.pod_sizes[-1]:
                     return None
             if rem >= self.TC.min_pod_size:
-                #This following code prefers smaller pods over byes
-                #tails[(rem, pod_size)] = self.get_pod_sizes(rem)
-                #if tails[(rem, pod_size)] is not None:
+                # This following code prefers smaller pods over byes
+                # tails[(rem, pod_size)] = self.get_pod_sizes(rem)
+                # if tails[(rem, pod_size)] is not None:
                 #    if sum(tails[(rem, pod_size)]) == rem:
                 #        return sorted([pod_size] + tails[(rem, pod_size)], reverse=True)
                 tail = self.get_pod_sizes(rem)
                 if tail is not None:
                     return [pod_size] + tail
-
 
         return None
 
@@ -665,8 +664,8 @@ class Tournament:
             lines = '\n'.join([' | '.join(line) for line in lines])
 
             self.export_str(fdir, lines)
-            Log.log('Log saved: {}.'.format(
-                fdir), level=Log.Level.INFO)
+            # Log.log('Log saved: {}.'.format(
+            #    fdir), level=Log.Level.INFO)
         elif style == StandingsExport.Format.CSV:
             Log.log('Log not saved - CSV not implemented.'.format(
                 fdir), level=Log.Level.WARNING)
@@ -700,7 +699,7 @@ class Player:
         return sum([
             p.players.index(self)+1
             for p in self.pods
-            if p is not None
+            if isinstance(p, Pod)
         ])/len(self.pods)
 
     @property
@@ -755,23 +754,32 @@ class Player:
 
     @property
     def record(self) -> str:
-        if len(self.tour.rounds) < 1:
-            return ''
-        total_rounds = len(self.tour.rounds)
+        total_rounds = len(self.tour.rounds) + (1 if self.tour.round else 0)
         seq = [' '] * total_rounds
-        for round, pod in enumerate(self.pods):
-            if pod is None:
+        for round, pod in enumerate(self.pods + ([self.pod] if self.tour.round else [])):
+            if pod is Round.Result.BYE:
                 seq[round] = 'B'
-            elif pod.won is not None:
-                if pod.won is self:
-                    seq[round] = 'W'
-                else:
+            elif pod is Round.Result.LOSS:
+                seq[round] = 'L'
+            elif pod is None:
+                if self.game_loss:
                     seq[round] = 'L'
-            else:
-                if self in pod.draw:
-                    seq[round] = 'D'
                 else:
-                    seq[round] = 'L'
+                    seq[round] = 'B'
+            elif isinstance(pod, Pod):
+                if pod.done:
+                    if pod.won is not None:
+                        if pod.won is self:
+                            seq[round] = 'W'
+                        else:
+                            seq[round] = 'L'
+                    else:
+                        if self in pod.draw:
+                            seq[round] = 'D'
+                        else:
+                            seq[round] = 'L'
+                else:
+                    seq[round] = '_'
         record_sequence = ''.join(seq)
         return ('{} ({}/{}/{})'.format(
             record_sequence.ljust(total_rounds),
@@ -849,13 +857,13 @@ class Player:
         '''parser_player.add_argument(
             '-s', '--spaces',
             dest='spaces', type=int, default=0)'''
-        #parser.add_argument('-n', '--notplayed',    dest='np', action='store_true')
+        # parser.add_argument('-n', '--notplayed',    dest='np', action='store_true')
 
         try:
             args, unknown = parser_player.parse_known_args(tokens)
         except:
-            #args = None
-            #OUTPUT_BUFFER.append('Invalid argumets')
+            # args = None
+            # OUTPUT_BUFFER.append('Invalid argumets')
             pass
 
         fields = list()
@@ -866,7 +874,8 @@ class Player:
         if args.standing:
             fields.append('#{:>{}}'.format(self.standing, tsize))
         if args.id:
-            fields.append('[{:>{}}] {}'.format(self.ID, tsize, self.name.ljust(pname_size)))
+            fields.append('[{:>{}}] {}'.format(
+                self.ID, tsize, self.name.ljust(pname_size)))
         else:
             fields.append(self.name.ljust(pname_size))
         if args.p:
@@ -879,7 +888,7 @@ class Player:
             fields.append('uniq: {}'.format(self.unique_opponents))
         # if args.np:
         #    fields.append(''.format())
-        #OUTPUT_BUFFER.append('\t{}'.format(' | '.join(fields)))
+        # OUTPUT_BUFFER.append('\t{}'.format(' | '.join(fields)))
 
         return ' | '.join(fields)
 
@@ -913,20 +922,25 @@ class Pod:
             if not any(average_positions):
                 random.shuffle(self.players)
                 return True
-            nonzero_avg = sum(average_positions) / len([x for x in average_positions if x > 0])
+            nonzero_avg = sum(average_positions) / \
+                len([x for x in average_positions if x > 0])
             for i, x in enumerate(average_positions):
                 if x == 0:
                     average_positions[i] = nonzero_avg
 
             # Calculate inverse averages
-            inverse_averages = [(pos / max(average_positions))**5 for pos in average_positions]
+            inverse_averages = [(pos / max(average_positions))
+                                ** 5 for pos in average_positions]
 
             # Normalize to get probabilities
-            probabilities = [inv / sum(inverse_averages) for inv in inverse_averages]
+            probabilities = [inv / sum(inverse_averages)
+                             for inv in inverse_averages]
 
             # Generate random seat assignment based on probabilities
-            seat_assignment = np.random.choice(range(1, n+1, 1), size=n, replace=False, p=probabilities)
-            self.players = [p for _, p in sorted(zip(seat_assignment, self.players))]
+            seat_assignment = np.random.choice(
+                range(1, n+1, 1), size=n, replace=False, p=probabilities)
+            self.players = [p for _, p in sorted(
+                zip(seat_assignment, self.players))]
             pass
         return True
 
@@ -986,11 +1000,17 @@ class Pod:
 
 
 class Round:
+    class Result(Enum):
+        DRAW = 0
+        WIN = 1
+        BYE = -1
+        LOSS = -2
+
     def __init__(self, seq, tour: Tournament):
         self.tour = tour
         self.seq = seq
         self.pods = []
-        #self.players = None
+        # self.players = None
         self.concluded = False
 
     def next_pod_id(self):
@@ -1056,17 +1076,20 @@ class Round:
                     pod.add_player(remaining.pop(0))
 
         elif self.tour.TC.snake_pods and self.seq == 1:
-            ranking = lambda x: (x.points, -x.unique_opponents)
+            def ranking(x): return (x.points, -x.unique_opponents)
             remaining = sorted(remaining, key=ranking, reverse=True)
-            bucket_order = sorted(list(set([ranking(p) for p in remaining])), reverse=True)
-            buckets = {k: [p for p in remaining if ranking(p) == k] for k in bucket_order}
+            bucket_order = sorted(
+                list(set([ranking(p) for p in remaining])), reverse=True)
+            buckets = {k: [p for p in remaining if ranking(
+                p) == k] for k in bucket_order}
             for b in buckets.values():
                 random.shuffle(b)
 
             for order_idx, b in enumerate(bucket_order):
                 if (
-                    order_idx == 0 #if not first bucket
-                    or b[0] != bucket_order[order_idx-1][0] #and not same points as previous bucket
+                    order_idx == 0  # if not first bucket
+                    # and not same points as previous bucket
+                    or b[0] != bucket_order[order_idx-1][0]
                 ):
                     i = 0
 
@@ -1079,7 +1102,7 @@ class Round:
                     while not ok:
                         ok = pods[i % len(pods)].add_player(p)
                         i += 1
-                    #pods[i % len(pods)].add_player(p)
+                    # pods[i % len(pods)].add_player(p)
 
             pass
         else:
@@ -1087,7 +1110,6 @@ class Round:
                 pod_scores = [p.evaluate_pod(pod) for pod in pods]
                 index = pod_scores.index(max(pod_scores))
                 pods[index].add_player(p)
-
 
         self.print_pods()
 
@@ -1106,10 +1128,11 @@ class Round:
                 Log.log('bye "{}"'.format(p.name))
                 p.points += self.tour.TC.bye_points
                 p.byes += 1
-                p.pods.append(None)
+                p.pods.append(Round.Result.BYE)
         for p in [p for p in self.tour.players if p.game_loss]:
             p.games_played += 1
             p.game_loss = False
+            p.pods.append(Round.Result.LOSS)
         self.tour.rounds.append(self)
         self.concluded = True
         Log.log('{}{}{}'.format(
