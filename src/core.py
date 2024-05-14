@@ -261,6 +261,7 @@ class TournamentAction:
     @classmethod
     def action(cls, func):
         @StandingsExport.auto_export
+        @Tournament.auto_export_pods
         def wrapper(self, *original_args, **original_kwargs):
             before = deepcopy(self)
             ret = func(self, *original_args, **original_kwargs)
@@ -608,11 +609,38 @@ class Tournament:
 
     # MISC ACTIONS
 
+    @classmethod
+    def auto_export_pods(cls, func):
+        def wrapper(self: Tournament, *original_args, **original_kwargs):
+            ret = func(self, *original_args, **original_kwargs)
+            if self.TC.auto_export:
+                file = TournamentAction.LOGF
+                if file:
+                    if not file.endswith('.txt'):
+                        file = ext.replace('*', '{}').format(file)
+
+                    export_str = '\n\n'.join([
+                        pod.__repr__()
+                        for pod in self.core.round.pods
+                    ])
+
+                    if self.core.TC.allow_bye:
+                        export_str += '\n\nByes:\n' + '\n:'.join([
+                            "\t{}\t| pts: {}".format(p.name, p.points)
+                            for p in self.core.round.unseated
+                        ])
+
+                    self.core.export_str(file, export_str)
+            return ret
+        return wrapper
+
     def show_pods(self):
         if self.round and self.round.pods:
             self.round.print_pods()
         else:
             Log.log('No pods currently created.')
+
+
 
     def export_str(self, fdir, str):
         if not os.path.exists(os.path.dirname(fdir)):
