@@ -14,6 +14,57 @@ from src.misc import Json2Obj
 import numpy as np
 import names
 
+class PodsExport:
+    @classmethod
+    def auto_export(cls, func):
+        def auto_pods_export_wrapper(self: Tournament, *original_args, **original_kwargs):
+            tour_round = self.round
+            ret = func(self, *original_args, **original_kwargs)
+            tour_round = tour_round or self.round
+            if self.TC.auto_export:
+                file = TournamentAction.LOGF
+                if file and tour_round:
+                    # Export pods to a file named {tournament_name}_round_{round_number}.txt
+                    # And also export it into {log_directory}/pods.txt
+
+                    export_str = '\n\n'.join([
+                        pod.__repr__()
+                        for pod in tour_round.pods
+                    ])
+
+                    game_lost = [x for x in self.players if x.game_loss]
+                    byes = [x for x in tour_round.unseated if not x.game_loss]
+                    if len(game_lost) + len(byes) > 0:
+                        max_len = max([len(p.name) for p in game_lost + byes])
+                        if self.TC.allow_bye and byes:
+                            export_str += '\n\nByes:\n' + '\n'.join([
+                                "\t{} | pts: {}".format(p.name.ljust(max_len), p.points)
+                                for p in tour_round.unseated
+                                if not p.game_loss
+                            ])
+                        if game_lost:
+                            export_str += '\n\nGame losses:\n' + '\n'.join([
+                                "\t{} | pts: {}".format(
+                                    p.name.ljust(max_len),
+                                    p.points
+                                )
+                                for p in game_lost
+                            ])
+
+                    path = os.path.join(
+                        os.path.dirname(file),
+                        os.path.basename(file).replace('.log', ''),
+                        os.path.basename(file).replace('.log', '_R{}.txt'.format(tour_round.seq)),
+                    )
+                    if not os.path.exists(os.path.dirname(path)):
+                        os.makedirs(os.path.dirname(path))
+                    self.export_str(path, export_str)
+
+                    path = os.path.join(os.path.dirname(TournamentAction.LOGF), 'pods.txt') # type: ignore
+                    self.export_str(path, export_str)
+
+            return ret
+        return auto_pods_export_wrapper
 
 class StandingsExport:
     class Field(Enum):
@@ -151,7 +202,7 @@ class StandingsExport:
 
     @classmethod
     def auto_export(cls, func):
-        def wrapper(self: Tournament, *original_args, **original_kwargs):
+        def auto_standings_export_wrapper(self: Tournament, *original_args, **original_kwargs):
             ret = func(self, *original_args, **original_kwargs)
             if self.TC.auto_export:
                 self.export(
@@ -160,7 +211,7 @@ class StandingsExport:
                     style=self.TC.standings_export.format,
                 )
             return ret
-        return wrapper
+        return auto_standings_export_wrapper
 
 
 class SORT_METHOD(Enum):
@@ -260,8 +311,9 @@ class TournamentAction:
 
     @classmethod
     def action(cls, func):
+
         @StandingsExport.auto_export
-        @Tournament.auto_export_pods
+        @PodsExport.auto_export
         def wrapper(self, *original_args, **original_kwargs):
             before = deepcopy(self)
             ret = func(self, *original_args, **original_kwargs)
@@ -320,6 +372,7 @@ class TournamentConfiguration:
         self.auto_export = kwargs.get('auto_export', False)
         self.standings_export = kwargs.get(
             'standings_export', StandingsExport())
+
 
     @property
     def min_pod_size(self):
@@ -609,38 +662,11 @@ class Tournament:
 
     # MISC ACTIONS
 
-    @classmethod
-    def auto_export_pods(cls, func):
-        def wrapper(self: Tournament, *original_args, **original_kwargs):
-            ret = func(self, *original_args, **original_kwargs)
-            if self.TC.auto_export:
-                file = TournamentAction.LOGF
-                if file:
-                    if not file.endswith('.txt'):
-                        file = ext.replace('*', '{}').format(file)
-
-                    export_str = '\n\n'.join([
-                        pod.__repr__()
-                        for pod in self.core.round.pods
-                    ])
-
-                    if self.core.TC.allow_bye:
-                        export_str += '\n\nByes:\n' + '\n:'.join([
-                            "\t{}\t| pts: {}".format(p.name, p.points)
-                            for p in self.core.round.unseated
-                        ])
-
-                    self.core.export_str(file, export_str)
-            return ret
-        return wrapper
-
     def show_pods(self):
         if self.round and self.round.pods:
             self.round.print_pods()
         else:
             Log.log('No pods currently created.')
-
-
 
     def export_str(self, fdir, str):
         if not os.path.exists(os.path.dirname(fdir)):
@@ -1013,14 +1039,13 @@ class Pod:
             # self.score,
             '\n\t'.join(
                 [
-                    '{}: [{}] {}\t'.format(
-                        i,
+                    '[{}] {}\t'.format(
                         '  ' if not self.done else
                         'W' if p == self.won else
                         'D' if p in self.draw else
                         'L',
                         p.__repr__(['-s', str(maxlen), '-p']))
-                    for i, p in
+                    for _, p in
                     zip(range(1, self.p_count+1), self.players)
                 ]
             ))
@@ -1060,7 +1085,7 @@ class Round:
 
     @property
     def all_players_seated(self):
-        return sum([pod.p_count for pod in self.pods]) == len(self.tour.players)
+        return sum([pod.p_count for pod in self.pods]) == len([1 for x in self.tour.players if not x.game_loss])
 
     @property
     def seated(self):
