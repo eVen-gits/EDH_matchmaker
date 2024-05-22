@@ -754,7 +754,7 @@ class Player:
             p.players.index(self)+1
             for p in self.pods
             if isinstance(p, Pod)
-        ])/len(self.pods)
+        ])/len([p for p in self.pods if isinstance(p, Pod)])
 
     @property
     def standing(self):
