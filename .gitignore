@@ -8,3 +8,5 @@ players.txt
 venv/*
 *.log
 logs/
+.obsidian/
+git add .gitignore
