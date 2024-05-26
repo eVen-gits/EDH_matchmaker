@@ -30,3 +30,5 @@
 ## New functionality
 * [ ] Develop a league mode option
 * [ ] Develop a hard logic for assigning seat order
+* [ ] Export tournament log in a parsable (json?) format
+* [ ] Add git/versioning logic so that .log files containt data about commit (and appropriate commit can be loaded to inspect old data)
