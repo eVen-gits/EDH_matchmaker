@@ -74,12 +74,13 @@ class StandingsExport:
         RECORD = 3  # Record
         POINTS = 4  # Number of points
         WINS = 5  # Number of wins
-        OPPONENTSBEATEN = 6  # Number of opponents beaten
-        OPPONENTWIN = 7  # Opponents' win percentage
+        OPP_BEATEN = 6  # Number of opponents beaten
+        OPP_WINRATE = 7  # Opponents' win percentage
         UNIQUE = 8  # Number of unique opponents
         WINRATE = 9  # Winrate
         GAMES = 10  # Number of games played
-        AVG_SEAT = 11  # Average seat
+        SEAT_HISTORY = 11  # Seat record
+        AVG_SEAT = 12  # Average seat
 
     class Format(Enum):
         TXT = 0
@@ -108,7 +109,7 @@ class StandingsExport:
             'description': 'Player name',
             'getter': lambda p: p.name
         }),
-        Field.OPPONENTWIN: Json2Obj({
+        Field.OPP_WINRATE: Json2Obj({
             'name': 'opp. win %',
             'format': '{:.2f}%',
             'denom': 100,
@@ -150,19 +151,26 @@ class StandingsExport:
             'description': 'Number of games played',
             'getter': lambda p: p.games_played
         }),
-        Field.OPPONENTSBEATEN: Json2Obj({
+        Field.OPP_BEATEN: Json2Obj({
             'name': '# opp. beat',
             'format': '{:d}',
             'denom': None,
             'description': 'Number of opponents beaten',
             'getter': lambda p: p.n_opponents_beaten
         }),
+        Field.SEAT_HISTORY: Json2Obj({
+            'name': 'seat record',
+            'format': '{:s}',
+            'denom': None,
+            'description': 'Seat record',
+            'getter': lambda p: p.seat_history
+        }),
         Field.AVG_SEAT: Json2Obj({
             'name': 'avg. seat',
-            'format': '{:.2f}',
+            'format': '{:03.2f}%',
             'denom': None,
             'description': 'Average seat',
-            'getter': lambda p: p.average_seat
+            'getter': lambda p: p.average_seat*100
         }),
         Field.RECORD: Json2Obj({
             'name': 'record',
@@ -184,8 +192,9 @@ class StandingsExport:
         Field.NAME,
         Field.POINTS,
         Field.RECORD,
-        Field.OPPONENTWIN,
-        Field.OPPONENTSBEATEN,
+        Field.OPP_WINRATE,
+        Field.OPP_BEATEN,
+        Field.SEAT_HISTORY,
         Field.AVG_SEAT,
     ]
 
@@ -384,7 +393,7 @@ class TournamentConfiguration:
             x.games_played,
             np.round(x.opponent_winrate, 2),
             x.n_opponents_beaten,
-            x.average_seat,
+            -x.average_seat,
             -x.ID
         )
 
@@ -748,13 +757,32 @@ class Player:
 
     @property
     def average_seat(self):
+        """
+        Expressed in percentage
+        In a 4 pod game:
+            seat 0: 100%
+            seat 1: 66.66%
+            seat 2: 33.33%
+            seat 3: 0%
+        In a 3 pod game:
+            seat 0: 100%
+            seat 1: 50%
+            seat 2: 0%
+
+        Lower percentage means higher benefits
+        """
         if not self.pods:
             return 0
+        n_pods = len([p for p in self.pods if isinstance(p, Pod)])
+        if n_pods == 0:
+            return 0
         return sum([
-            p.players.index(self)+1
+            1 - (p.players.index(self) / (len(p.players) - 1))
+            if len(p.players) > 1
+            else 1  #If for some reason, there is a signle player in a pod (probably user error)
             for p in self.pods
             if isinstance(p, Pod)
-        ])/len([p for p in self.pods if isinstance(p, Pod)])
+        ])/n_pods
 
     @property
     def standing(self):
@@ -842,6 +870,20 @@ class Player:
             record_sequence.count('D'),
         ))
 
+    @property
+    def seat_history(self) -> str:
+        if sum([1 for p in self.pods if isinstance(p, Pod)]) == 0:
+            return 'N/A'
+        return ' '.join([
+            '{}/{}'.format(
+                p.players.index(self)+1, len(p.players)
+            )
+            if isinstance(p, Pod)
+            else 'N/A'
+            for p in self.pods
+
+        ])
+
     def evaluate_pod(self, pod):
         score = 0
         if pod.p_count == pod.cap:
@@ -908,6 +950,9 @@ class Player:
         parser_player.add_argument(
             '-u', '--unique',
             dest='u', action='store_true')
+        parser_player.add_argument(
+            '-s', '--average_seat',
+            dest='s', action='store_true')
         '''parser_player.add_argument(
             '-s', '--spaces',
             dest='spaces', type=int, default=0)'''
@@ -940,6 +985,8 @@ class Player:
             fields.append('o.wr.: {:.2f}'.format(self.opponent_winrate))
         if args.u:
             fields.append('uniq: {}'.format(self.unique_opponents))
+        if args.s:
+            fields.append('seat: {:02.00f}%'.format(self.average_seat*100))
         # if args.np:
         #    fields.append(''.format())
         # OUTPUT_BUFFER.append('\t{}'.format(' | '.join(fields)))
@@ -976,25 +1023,31 @@ class Pod:
             if not any(average_positions):
                 random.shuffle(self.players)
                 return True
-            nonzero_avg = sum(average_positions) / \
-                len([x for x in average_positions if x > 0])
-            for i, x in enumerate(average_positions):
-                if x == 0:
-                    average_positions[i] = nonzero_avg
 
-            # Calculate inverse averages
-            inverse_averages = [(pos / max(average_positions))
-                                ** 5 for pos in average_positions]
-
-            # Normalize to get probabilities
-            probabilities = [inv / sum(inverse_averages)
-                             for inv in inverse_averages]
+            '''distribution = [1] * n
+            for i in range(n):
+                distribution[i] += (2*(1-average_positions[i]))**3
+            #normalize
+            distribution = [x/sum(distribution) for x in distribution]
 
             # Generate random seat assignment based on probabilities
             seat_assignment = np.random.choice(
-                range(1, n+1, 1), size=n, replace=False, p=probabilities)
-            self.players = [p for _, p in sorted(
-                zip(seat_assignment, self.players))]
+                range(1, n+1, 1),
+                size=n,
+                replace=False,
+                p=distribution
+            )'''
+            #partially sort players based on seating positions
+            #those that have same average_seat should be randomly ordered
+            seat_assignment = [0] * n
+            for i in range(n):
+                seat_assignment[i] = sum([1 for x in average_positions if x < average_positions[i]]) + 1
+            #randomize players with same average_seat
+            seat_assignment = [x + random.random() for x in seat_assignment]
+            #sort players based on seat assignment
+
+
+            self.players = [p for _, p in sorted(zip(seat_assignment, self.players))]
             pass
         return True
 

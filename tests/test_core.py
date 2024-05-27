@@ -1,8 +1,9 @@
-from pydoc import plain
 import unittest
 from src.core import *
 import names
 import random
+from tqdm import tqdm
+
 TournamentAction.LOGF = False #type: ignore
 
 
@@ -176,10 +177,8 @@ class TestTournamentPodSizing(unittest.TestCase):
                 t.reset_pods()
                 t.add_player(names.get_full_name())
 
-
 class TestScoring(unittest.TestCase):
     def setUp(self) -> None:
-
         self.t = Tournament(
             TournamentConfiguration(
                 pod_sizes=[4],
@@ -205,14 +204,14 @@ class TestScoring(unittest.TestCase):
         for pod in self.t.round.pods:
             self.t.report_win(pod.players[0])
 
-        leaders = [p for p in self.t.players if p.points == 4]
+        leaders = [p for p in self.t.players if p.points == self.t.TC.win_points]
         self.assertEqual(len(leaders), 3)
-        self.assertEqual(benched.points, 4)
+        self.assertEqual(benched.points, self.t.TC.bye_points)
         standings = self.t.get_standings()
         self.assertEqual(standings[2], benched)
 
-        self.t.manual_pod([benched, standings[0]])
-        self.t.manual_pod([standings[1], standings[2]])
+        self.t.manual_pod([benched, standings[3]])
+        self.t.manual_pod([standings[0], standings[1]])
         self.t.toggle_game_loss(self.t.round.unseated)
         self.t.report_win([benched, standings[0]])
 
@@ -238,3 +237,23 @@ class TestScoring(unittest.TestCase):
 
             self.assertEqual(self.t.get_standings(), orig_standings)
 
+class TestSeatNormalization(unittest.TestCase):
+    def test_close_to_equal(self):
+        t = Tournament(
+            TournamentConfiguration(
+                pod_sizes=[4],
+                allow_bye=False,
+                snake_pods=True,
+            )
+        )
+        t.add_player([
+            names.get_full_name()
+            for _ in range(16)
+        ])
+
+        for i in tqdm(range(500)):
+            t.make_pods()
+            t.random_results()
+            pass
+
+        pass
