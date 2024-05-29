@@ -66,6 +66,7 @@ class PodsExport:
             return ret
         return auto_pods_export_wrapper
 
+
 class StandingsExport:
     class Field(Enum):
         STANDING = 0  # Standing
@@ -382,7 +383,6 @@ class TournamentConfiguration:
         self.standings_export = kwargs.get(
             'standings_export', StandingsExport())
 
-
     @property
     def min_pod_size(self):
         return min(self.pod_sizes)
@@ -576,15 +576,33 @@ class Tournament:
             )
             return
         if self.round.pods is not None:
+            global_winrates_by_seat = [
+                0.2553,
+                0.2232,
+                0.1847,
+                0.1428,
+            ]
+            #for each pod
+            #generate a random result based on global_winrates_by_seat
+            #each value corresponds to the winrate of the player in that seat
+            #the sum of percentages is less than 1, so there is a chance of a draw (1-sum(winrates))
+
             for pod in [x for x in self.round.pods if not x.done]:
-                draw_or_win = random.random() < 0.85
-                if draw_or_win:
-                    player = random.sample(pod.players, 1)[0]
-                    Log.log('won "{}"'.format(player.name))
-                    self.round.won([player])
+                #generate a random result
+                result = random.random()
+                draw = result > sum(global_winrates_by_seat)
+                if not draw:
+                    winrates = np.cumsum(global_winrates_by_seat + [1-sum(global_winrates_by_seat)])
+                    win = np.argmax([result < x for x in winrates])
+                    Log.log('won "{}"'.format(pod.players[win].name))
+                    self.round.won([pod.players[win]])
+                    #player = random.sample(pod.players, 1)[0]
+                    #Log.log('won "{}"'.format(player.name))
+                    #self.round.won([player])
                 else:
-                    players = random.sample(
-                        pod.players, random.randint(1, pod.p_count))
+                    #players = random.sample(
+                    #    pod.players, random.randint(1, pod.p_count))
+                    players = pod.players
                     Log.log('draw {}'.format(
                         ' '.join(['"{}"'.format(p.name) for p in players])))
                     self.round.draw([p for p in players])
@@ -874,7 +892,7 @@ class Player:
     def seat_history(self) -> str:
         if sum([1 for p in self.pods if isinstance(p, Pod)]) == 0:
             return 'N/A'
-        return ' '.join([
+        ret_str = ' '.join([
             '{}/{}'.format(
                 p.players.index(self)+1, len(p.players)
             )
@@ -883,6 +901,7 @@ class Player:
             for p in self.pods
 
         ])
+        return ret_str
 
     def evaluate_pod(self, pod):
         score = 0
@@ -1015,46 +1034,61 @@ class Pod:
         if self.p_count >= self.cap and self.cap and not manual:
             return False
         self.players.append(player)
-        if self.p_count >= self.cap:
-            # Average seating positions
-            average_positions = [p.average_seat for p in self.players]
-            n = len(average_positions)
-
-            if not any(average_positions):
-                random.shuffle(self.players)
-                return True
-
-            '''distribution = [1] * n
-            for i in range(n):
-                distribution[i] += (2*(1-average_positions[i]))**3
-            #normalize
-            distribution = [x/sum(distribution) for x in distribution]
-
-            # Generate random seat assignment based on probabilities
-            seat_assignment = np.random.choice(
-                range(1, n+1, 1),
-                size=n,
-                replace=False,
-                p=distribution
-            )'''
-            #partially sort players based on seating positions
-            #those that have same average_seat should be randomly ordered
-            seat_assignment = [0] * n
-            for i in range(n):
-                seat_assignment[i] = sum([1 for x in average_positions if x < average_positions[i]]) + 1
-            #randomize players with same average_seat
-            seat_assignment = [x + random.random() for x in seat_assignment]
-            #sort players based on seat assignment
-
-
-            self.players = [p for _, p in sorted(zip(seat_assignment, self.players))]
-            pass
         return True
+
+    @property
+    def average_seat(self) -> np.floating[Any]:
+        return np.average([p.average_seat for p in self.players])
+
+    @property
+    def balance(self) -> np.ndarray:
+        '''
+        Returns a list of count of players above 50% average seat and below 50% average seat
+        '''
+        return np.array([
+            sum([1 for p in self.players if p.average_seat > 0.5]),
+            sum([1 for p in self.players if p.average_seat < 0.5])
+        ])
+
+    def sort_players_by_avg_seat(self):
+        # Average seating positions
+        average_positions = [p.average_seat for p in self.players]
+        n = len(average_positions)
+
+        if not any(average_positions):
+            random.shuffle(self.players)
+            return True
+
+        '''distribution = [1] * n
+        for i in range(n):
+            distribution[i] += (2*(1-average_positions[i]))**3
+        #normalize
+        distribution = [x/sum(distribution) for x in distribution]
+
+        # Generate random seat assignment based on probabilities
+        seat_assignment = np.random.choice(
+            range(1, n+1, 1),
+            size=n,
+            replace=False,
+            p=distribution
+        )'''
+        #partially sort players based on seating positions
+        #those that have same average_seat should be randomly ordered
+        seat_assignment = [0] * n
+        for i in range(n):
+            seat_assignment[i] = sum([1 for x in average_positions if x < average_positions[i]]) + 1
+        #randomize players with same average_seat
+        seat_assignment = [x + random.random() for x in seat_assignment]
+        #sort players based on seat assignment
+
+
+        self.players = [p for _, p in sorted(zip(seat_assignment, self.players))]
+        pass
 
     def clear(self):
         self.players = list()
 
-    def remove_player(self, player: Player):
+    def remove_player(self, player: Player, cleanup=True):
         p = None
         '''for i in range(len(self.players)):
             pi = self.players[i]
@@ -1062,7 +1096,7 @@ class Pod:
                 p = self.players.pop(i)
                 break'''
         self.players.remove(player)
-        if self.p_count == 0:
+        if self.p_count == 0 and cleanup:
             self.round.remove_pod(self)
         return p
 
@@ -1169,25 +1203,37 @@ class Round:
             return None
 
         bye_count = n_plyr - sum(pod_sizes)
-        pods = []
+        pods:list[Pod] = []
         for size in pod_sizes:
             pod = Pod(self, self.next_pod_id(), cap=size)
             pods.append(pod)
             self.pods.append(pod)
 
+        #First round pods are completely random
         if self.seq == 0:
             random.shuffle(remaining)
             for pod in pods:
                 for _ in range(pod.cap):
                     pod.add_player(remaining.pop(0))
 
+        #Snake pods logic for 2nd round
+        #First bucket is players with most points and least unique opponents
+        #Players are then distributed in buckets based on points and unique opponents
+        #Players are then distributed in pods based on bucket order
         elif self.tour.TC.snake_pods and self.seq == 1:
-            def ranking(x): return (x.points, -x.unique_opponents)
-            remaining = sorted(remaining, key=ranking, reverse=True)
+            snake_ranking = lambda x: (x.points, -x.unique_opponents)
+            remaining = sorted(remaining, key=snake_ranking, reverse=True)
             bucket_order = sorted(
-                list(set([ranking(p) for p in remaining])), reverse=True)
-            buckets = {k: [p for p in remaining if ranking(
-                p) == k] for k in bucket_order}
+                list(set(
+                    [snake_ranking(p) for p in remaining]
+                )), reverse=True)
+            buckets = {
+                k: [
+                    p for p in remaining
+                    if snake_ranking(p) == k
+                ]
+                for k in bucket_order
+            }
             for b in buckets.values():
                 random.shuffle(b)
 
@@ -1208,7 +1254,17 @@ class Round:
                     while not ok:
                         ok = pods[i % len(pods)].add_player(p)
                         i += 1
-                    # pods[i % len(pods)].add_player(p)
+
+            #at this point, pods are created and filled with players
+            #but seating order is not yet determined
+            #swaps between pods need to be made first - your code here
+            # Attempt to swap equivalent players between pods
+
+            # Swapping equivalent players between pods to optimize seats
+
+            self.optimize_seatings()
+            for pod in pods:
+                pod.sort_players_by_avg_seat()
 
             pass
         else:
@@ -1216,8 +1272,56 @@ class Round:
                 pod_scores = [p.evaluate_pod(pod) for pod in pods]
                 index = pod_scores.index(max(pod_scores))
                 pods[index].add_player(p)
+            self.optimize_seatings()
+            for pod in pods:
+                pod.sort_players_by_avg_seat()
 
         self.print_pods()
+
+    def is_better_swap(self, p1:Player, p2:Player) -> bool:
+        old_p1_pod = p1.pod.average_seat
+        old_p2_pod = p2.pod.average_seat
+
+        new_p1_pod = np.average([p.average_seat for p in p1.pod.players if p != p1] + [p2.average_seat])
+        new_p2_pod = np.average([p.average_seat for p in p2.pod.players if p != p2] + [p1.average_seat])
+
+        current_value = np.average(np.abs(0.5 - old_p1_pod) + np.abs(0.5 - old_p2_pod))
+        new_value = np.average(np.abs(0.5 - new_p1_pod) + np.abs(0.5 - new_p2_pod))
+
+        return new_value < current_value
+
+    def optimize_seatings(self):
+        remaining = self.unseated
+        bucket_ranking = lambda x: (x.points, -x.unique_opponents)
+        remaining = sorted(remaining, key=bucket_ranking, reverse=True)
+        bucket_order = sorted(
+            list(set(
+                [bucket_ranking(p) for p in remaining]
+            )), reverse=True)
+        buckets = {
+            k: [
+                p for p in remaining
+                if bucket_ranking(p) == k
+            ]
+            for k in bucket_order
+        }
+        for b in buckets.values():
+            for i, player1 in enumerate(b):
+                for player2 in b[i+1:]:
+                    #pod1 = next(pod for pod in pods if player1 in pod.players)
+                    #pod2 = next(pod for pod in pods if player2 in pod.players)
+                    pod1 = player1.pod
+                    pod2 = player2.pod
+                    if pod1 != pod2 and self.is_better_swap(player1, player2):
+                        # Perform swap
+                        pod1.players.remove(player1)
+                        pod2.players.remove(player2)
+                        if pod1.add_player(player2) and pod2.add_player(player1):
+                            continue
+                        else:
+                            # Rollback if the swap was not successful
+                            pod1.players.append(player1)
+                            pod2.players.append(player2)
 
     def print_pods(self):
         for p in self.pods:
