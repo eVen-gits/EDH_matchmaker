@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from src.core import *
 from tqdm import tqdm
+from faker import Faker
 
 TournamentAction.LOGF = False #type: ignore
 np.set_printoptions(formatter={'float_kind': "{:.3f}".format})
@@ -24,8 +25,9 @@ for sim_n, sim in tqdm(enumerate(range(sims)), total=sims):
             max_byes=1,
         )
     )
+    fkr = Faker()
     while len(t.players) < N:
-        t.add_player(names.get_full_name())
+        t.add_player(fkr.name())
 
     player_averages_per_sim = np.zeros([rounds, N])  # Initialize a list to store seating averages for each player in this simulation
 

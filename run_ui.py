@@ -3,7 +3,8 @@ import os
 import sys
 from enum import Enum
 
-import names
+#import names
+from faker import Faker
 from PyQt6 import uic
 from PyQt6.QtCore import *
 from PyQt6.QtGui import *
@@ -13,6 +14,7 @@ from PyQt6.QtWidgets import QListWidgetItem
 
 from src.core import (ID, SORT_METHOD, SORT_ORDER, StandingsExport, Log, Player, Pod,
                   Tournament, TournamentAction, TournamentConfiguration)
+from tqdm import tqdm
 
 # from PySide2 import QtWidgets
 # from PyQt5 import QtWidgets
@@ -64,9 +66,48 @@ class PlayerListItem(QListWidgetItem):
     def text(self, tokens=['-i', '-p']):
         return self.player.__repr__(tokens)
 
+class GeneratePlayersDialog(QDialog):
+    def __init__(self, parent=None):
+        #simple dialog containing a spinbox and confirm/cancel buttons
+        QDialog.__init__(self, parent)
+
+        # Generate elements with code
+        self.setWindowTitle("Generate players")
+        self.layout = QVBoxLayout()
+        self.setLayout(self.layout)
+
+        self.sb_nPlayers = QSpinBox()
+        self.sb_nPlayers.setRange(1, 1024)
+        self.sb_nPlayers.setValue(64)
+        self.layout.addWidget(self.sb_nPlayers)
+
+        self.pb_confirm = QPushButton('Generate')
+        self.pb_cancel = QPushButton('Cancel')
+        self.layout.addWidget(self.pb_confirm)
+        self.layout.addWidget(self.pb_cancel)
+
+        self.pb_confirm.clicked.connect(self.generate)
+        self.pb_cancel.clicked.connect(self.close)
+
+    def generate(self):
+        new_names = set([Faker().name() for _ in tqdm(range(self.sb_nPlayers.value()))])
+        while len(new_names) < self.sb_nPlayers.value():
+            new_names.add(Faker().name())
+
+        self.parent().core.add_player(list(new_names))
+        self.close()
+
+    @staticmethod
+    def show_dialog(parent=None):
+        dlg = GeneratePlayersDialog(parent=parent)
+        dlg.show()
+        result = dlg.exec()
+        parent.restore_ui()
+        return None
+
 
 class MainWindow(QMainWindow):
-    PLIST_FMT = '-n -i -p'.split()
+    PLIST_FMT = '-n -p -l'.split()
 
     def __init__(self, core: Tournament = None):
         self.file_name = None
@@ -128,6 +169,10 @@ class MainWindow(QMainWindow):
         self.ui.actionReset_UI.triggered.connect(self.restore_ui)
         self.ui.actionRandom_Results.triggered.connect(
             lambda *_: self.random_results())
+        self.ui.actionGenerate_Players.triggered.connect(
+            lambda: GeneratePlayersDialog.show_dialog(self)
+        )
+
 
         self.ui.actionNew_tour.triggered.connect(self.new_tour)
         self.ui.actionTour_config.triggered.connect(self.edit_tour)
@@ -970,8 +1015,9 @@ if __name__ == '__main__':
     if args.scoring:
         core.TC.scoring(args.scoring)
     if args.number_of_mock_players:
+        fkr = Faker()
         core.add_player([
-            names.get_full_name()
+            fkr.name()
             for i in range(args.number_of_mock_players)
         ])
     if args.snake:

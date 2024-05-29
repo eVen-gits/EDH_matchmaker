@@ -1,9 +1,11 @@
 ## Bugs
+* [ ] Deepcopy crash on very large tournaments
 * [x] Id generator doesn't get restored
 
 ## Misc improvements
 * [ ] Search function
-* [ ] Window title should show tournament name, path etc.
+* [ ] Model based item view for player list
+* [ ] Window title should show tournament name, round, log path etc.
 * [x] Automatic pairings and standings output
 * [x] Clear/Update LOG on restore_ui
 * [x] Fix B/W/L output in standings
@@ -30,6 +32,7 @@
 
 
 ## New functionality
+* [ ] Implement top cut functionality
 * [ ] Develop a league mode option
 * [ ] Export tournament log in a parsable (json?) format
 * [ ] Add git/versioning logic so that .log files containt data about commit (and appropriate commit can be loaded to inspect old data)

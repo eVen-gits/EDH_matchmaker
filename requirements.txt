@@ -1,7 +1,7 @@
 jellyfish
 names
 PyQt6
-names
 tqdm
 numpy
 qt-material
+faker

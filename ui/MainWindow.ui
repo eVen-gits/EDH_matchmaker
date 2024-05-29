@@ -166,6 +166,7 @@
     </property>
     <addaction name="actionReset_UI"/>
     <addaction name="actionRandom_Results"/>
+    <addaction name="actionGenerate_Players"/>
    </widget>
    <widget class="QMenu" name="menuExport">
     <property name="title">
@@ -241,6 +242,11 @@
   <action name="actionTour_config">
    <property name="text">
     <string>Configuration</string>
+   </property>
+  </action>
+  <action name="actionGenerate_Players">
+   <property name="text">
+    <string>Generate Players</string>
    </property>
   </action>
  </widget>

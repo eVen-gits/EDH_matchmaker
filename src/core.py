@@ -325,7 +325,7 @@ class TournamentAction:
         def wrapper(self, *original_args, **original_kwargs):
             before = deepcopy(self)
             ret = func(self, *original_args, **original_kwargs)
-            after = deepcopy(self)
+            after = deepcopy(self) #TODO: Crash
             cls.ACTIONS.append(TournamentAction(
                 before, ret, after, func.__name__, *original_args, **original_kwargs,
             ))
@@ -977,6 +977,9 @@ class Player:
         parser_player.add_argument(
             '-s', '--average_seat',
             dest='s', action='store_true')
+        parser_player.add_argument(
+            '-l', '--pod',
+            dest='pod', action='store_true')
         '''parser_player.add_argument(
             '-s', '--spaces',
             dest='spaces', type=int, default=0)'''
@@ -1001,6 +1004,17 @@ class Player:
                 self.ID, tsize, self.name.ljust(pname_size)))
         else:
             fields.append(self.name.ljust(pname_size))
+
+        if args.pod and self.tour.round:
+            max_pod_id = max([len(str(p.id)) for p in self.tour.round.pods])
+            if self.pod:
+                #find number of digits in max pod id
+                fields.append('{}'.format(
+                    f'P{str(self.pod.id).zfill(max_pod_id)}/S{self.pod.players.index(self)}' if self.pod else ''))
+            elif self.game_loss:
+                fields.append('Loss'.ljust(max_pod_id+4))
+            else:
+                fields.append('Bye'.ljust(max_pod_id+4))
         if args.p:
             fields.append('pts: {}'.format(self.points))
         if args.w:

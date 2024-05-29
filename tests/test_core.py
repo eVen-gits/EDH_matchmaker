@@ -3,6 +3,8 @@ from src.core import *
 import names
 import random
 from tqdm import tqdm
+from faker import Faker
+fkr = Faker()
 
 TournamentAction.LOGF = False #type: ignore
 
@@ -94,7 +96,7 @@ class TestTournamentPodSizing(unittest.TestCase):
                 self.assertListEqual(sizes, expected_sizes)
                 self.assertEqual(len(t.round.unseated), bench)
                 t.reset_pods()
-                t.add_player(names.get_full_name())
+                t.add_player(fkr.name())
 
     def test_correct_pod_sizing_4_nobye(self):
         t = Tournament(
@@ -134,7 +136,7 @@ class TestTournamentPodSizing(unittest.TestCase):
                 self.assertListEqual(sizes, expected_sizes)
                 self.assertEqual(len(t.round.unseated), bench)
                 t.reset_pods()
-                t.add_player(names.get_full_name())
+                t.add_player(fkr.name())
 
     def test_correct_pod_sizing_43_max_2_bye(self):
         t = Tournament(
@@ -175,7 +177,7 @@ class TestTournamentPodSizing(unittest.TestCase):
                 self.assertListEqual(sizes, expected_sizes)
                 self.assertEqual(len(t.round.unseated), bench)
                 t.reset_pods()
-                t.add_player(names.get_full_name())
+                t.add_player(fkr.name())
 
 class TestScoring(unittest.TestCase):
     def setUp(self) -> None:
@@ -193,7 +195,7 @@ class TestScoring(unittest.TestCase):
 
     def test_bye_scoring(self):
         self.t.add_player([
-            names.get_full_name()
+            fkr.name()
             for _ in range(9)
         ])
 
@@ -221,7 +223,7 @@ class TestScoring(unittest.TestCase):
 
     def test_standings_constant(self):
         self.t.add_player([
-            names.get_full_name()
+            fkr.name()
             for _ in range(32)
         ])
 
@@ -248,7 +250,7 @@ class TestSeatNormalization(unittest.TestCase):
             )
         )
         t.add_player([
-            names.get_full_name()
+            fkr.name()
             for _ in range(16)
         ])
 
