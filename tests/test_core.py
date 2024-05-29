@@ -237,6 +237,7 @@ class TestScoring(unittest.TestCase):
 
             self.assertEqual(self.t.get_standings(), orig_standings)
 
+'''#TODO: Implement this test
 class TestSeatNormalization(unittest.TestCase):
     def test_close_to_equal(self):
         t = Tournament(
@@ -256,4 +257,4 @@ class TestSeatNormalization(unittest.TestCase):
             t.random_results()
             pass
 
-        pass
+        pass'''

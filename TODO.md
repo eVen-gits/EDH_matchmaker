@@ -1,11 +1,12 @@
 ## Bugs
 * [ ] Check if seat balancing really works as intended
+* [ ] Id generator doesn't get restored
 
 ## Misc improvements
-* [x] Clear/Update LOG on restore_ui
-* [ ] Id generator doesn't get restored
 * [ ] Search function
+* [ ] Window title should show tournament name, path etc.
 * [x] Automatic pairings and standings output
+* [x] Clear/Update LOG on restore_ui
 * [x] Fix B/W/L output in standings
 
 ## Discord integration
@@ -23,12 +24,13 @@
 * [ ] Optional commander input/parsed from moxfield
 
 ## Matchmaking improvements
+* [ ] Seat normalization should not be uniform - 1+4 is not equal as 2+3
 * [ ] Improve bye awarding logic (only to bottom standings)
 * [ ] Implement a dynamic reward system (based on win/draw/loss rates which awards dynamic rewards for outcomes)
+* [x] Develop a stricter logic for assigning seat order
 
 
 ## New functionality
 * [ ] Develop a league mode option
-* [ ] Develop a hard logic for assigning seat order
 * [ ] Export tournament log in a parsable (json?) format
 * [ ] Add git/versioning logic so that .log files containt data about commit (and appropriate commit can be loaded to inspect old data)
