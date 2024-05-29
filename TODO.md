@@ -3,6 +3,7 @@
 * [x] Id generator doesn't get restored
 
 ## Misc improvements
+* [ ] Discard default.log if mismatching file format
 * [ ] Search function
 * [ ] Model based item view for player list
 * [ ] Window title should show tournament name, round, log path etc.
