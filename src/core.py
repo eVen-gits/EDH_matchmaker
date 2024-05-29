@@ -287,15 +287,12 @@ class Log:
 
 
 class ID:
-    lastID = 0
-
     def __init__(self):
-        pass
+        self._last_ID = 0
 
-    @staticmethod
-    def next():
-        ID.lastID += 1
-        return ID.lastID
+    def next(self) -> int:
+        self._last_ID += 1
+        return self._last_ID
 
 
 class TournamentAction:
@@ -350,9 +347,13 @@ class TournamentAction:
     def load(cls, logdir='logs/default.log'):
         if os.path.exists(logdir):
             cls.LOGF = logdir
-            with open(cls.LOGF, 'rb') as f:
-                cls.ACTIONS = pickle.load(f)
-            return True
+            try:
+                with open(cls.LOGF, 'rb') as f:
+                    cls.ACTIONS = pickle.load(f)
+                return True
+            except Exception as e:
+                Log.log(str(e), level=Log.Level.ERROR)
+                return False
         return False
 
     def __repr__(self, *nargs, **kwargs):
@@ -383,6 +384,7 @@ class TournamentConfiguration:
         self.auto_export = kwargs.get('auto_export', False)
         self.standings_export = kwargs.get(
             'standings_export', StandingsExport())
+        self.player_id = kwargs.get('player_id', ID())
 
     @property
     def min_pod_size(self):
@@ -594,7 +596,7 @@ class Tournament:
                 result = random.random()
                 rates = np.array(global_winrates_by_seat[0:len(pod.players)] + [draw_rate])
                 rates = rates/sum(rates)
-                draw = result > np.cumsum(rates)[-1]
+                draw = result > np.cumsum(rates)[-2]
                 if not draw:
                     win = np.argmax([result < x for x in rates])
                     Log.log('won "{}"'.format(pod.players[win].name))
@@ -768,7 +770,7 @@ class Player:
         self.name = name
         self.points = 0
         self.played = list()
-        self.ID = ID.next()
+        self.ID = tour.TC.player_id.next()
         self.games_played = 0
         self.games_won = 0
         self.opponents_beaten = set()
@@ -1385,34 +1387,3 @@ class Round:
 
         if self.done and not self.concluded:
             self.conclude()
-
-
-if __name__ == "__main__":
-    Log.PRINT = True
-    tour = Tournament()
-    loaded = TournamentAction.load()
-    if loaded:
-        tour = TournamentAction.ACTIONS[-1].after
-        for action in TournamentAction.ACTIONS:
-            print(action.func_name)
-            for p in action.after.players:
-                print('[{}]{} - {} '.format(
-                    p.ID,
-                    p.name,
-                    p.points
-                ))
-            print()
-        print()
-
-    else:
-        tour.add_player([
-            names.get_full_name()
-            for i in range(11)
-        ])
-        for i in range(2):
-            tour.make_pods()
-            tour.random_results()
-            # tour.remove_player(tour.players[0])
-
-        print()
-    # tour.show_pods()

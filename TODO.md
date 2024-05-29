@@ -1,6 +1,5 @@
 ## Bugs
-* [ ] Check if seat balancing really works as intended
-* [ ] Id generator doesn't get restored
+* [x] Id generator doesn't get restored
 
 ## Misc improvements
 * [ ] Search function

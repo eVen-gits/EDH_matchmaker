@@ -6,10 +6,9 @@ from tqdm import tqdm
 TournamentAction.LOGF = False #type: ignore
 np.set_printoptions(formatter={'float_kind': "{:.3f}".format})
 
-
-N = 18
-rounds = 5
-sims = 50
+N = 64
+rounds = 7
+sims = 500
 
 # Initialize a list to store seating averages for each player across all simulations
 all_player_seating_averages = np.zeros([sims, rounds, N])
@@ -25,12 +24,10 @@ for sim_n, sim in tqdm(enumerate(range(sims)), total=sims):
             max_byes=1,
         )
     )
-    t.add_player([
-        names.get_full_name()
-        for _ in range(N)
-    ])
+    while len(t.players) < N:
+        t.add_player(names.get_full_name())
 
-    player_averages_per_sim = np.empty([rounds, N])  # Initialize a list to store seating averages for each player in this simulation
+    player_averages_per_sim = np.zeros([rounds, N])  # Initialize a list to store seating averages for each player in this simulation
 
     for i in range(rounds):
         t.make_pods()
@@ -60,6 +57,6 @@ for i in range(rounds):
     plt.ylabel('Frequency')
 
 plt.tight_layout()
-plt.show()
+plt.show(block=True)
 
 pass
