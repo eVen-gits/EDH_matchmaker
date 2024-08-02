@@ -1,3 +1,6 @@
+from __future__ import annotations
+from faker import Faker
+
 class Json2Obj:
     def __init__(self, data):
         self.__dict__ = data
@@ -13,3 +16,10 @@ class Json2Obj:
                         self.__dict__[i].append(Json2Obj(item))
                     else:
                         self.__dict__[i].append(item)
+
+def generate_player_names(n: int) -> list[str]:
+    fkr = Faker()
+    names: set[str] = set()
+    while len(names) < n:
+        names.add(fkr.name())
+    return list(names)

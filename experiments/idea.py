@@ -74,7 +74,7 @@ if __name__ == "__main__":
     #num_players = 30
     num_rounds = 4
 
-    #player_names = [names.get_full_name() for _ in range(num_players)]
+    #player_names = [fkr.name() for _ in range(num_players)]
     #player_skill_obj = {n: 5 for n in player_names}
 
     """op_player = player_names[0]

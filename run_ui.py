@@ -1,7 +1,8 @@
+from __future__ import annotations
+
 import argparse
 import os
 import sys
-from enum import Enum
 
 #import names
 from faker import Faker
@@ -12,13 +13,14 @@ from PyQt6.QtGui import *
 from PyQt6.QtWidgets import *
 from PyQt6.QtWidgets import QListWidgetItem
 
-from src.core import (ID, SORT_METHOD, SORT_ORDER, StandingsExport, Log, Player, Pod,
+from src.core import (SORT_METHOD, SORT_ORDER, StandingsExport, Log, Player, Pod,
                   Tournament, TournamentAction, TournamentConfiguration)
-from tqdm import tqdm
+from src.misc import generate_player_names
+
 
 # from PySide2 import QtWidgets
 # from PyQt5 import QtWidgets
-from qt_material import apply_stylesheet
+#from qt_material import apply_stylesheet
 
 class UILog:
     backlog = 0
@@ -40,17 +42,17 @@ class UILog:
 
 
 class PlayerListItem(QListWidgetItem):
-    def __init__(self, player: Player, p_fmt=['-n', '-i', '-p'], parent=None):
+    def __init__(self, player: Player, p_fmt=None, parent=None):
+        if p_fmt is None:
+            p_fmt = '-n -p -l'.split()
         QListWidgetItem.__init__(self, player.__repr__(p_fmt), parent=parent)
 
         monospace_font = QFont("Monospace")  # Use the generic "Monospace" font family
         self.setFont(monospace_font)
         self.player = player
 
-    def __lt__(self, other: Player):
-        if isinstance(other, PlayerListItem):
-            return self.player.__lt__(other.player)
-        return False
+    def __lt__(self, other): 
+        return self.player.__lt__(other.player)
 
     def __gt__(self, other):
         return self.player.__gt__(other.player)
@@ -73,35 +75,34 @@ class GeneratePlayersDialog(QDialog):
 
         # Generate elements with code
         self.setWindowTitle("Generate players")
-        self.layout = QVBoxLayout()
-        self.setLayout(self.layout)
+        self.m_layout = QVBoxLayout()
+        self.setLayout(self.m_layout)
 
         self.sb_nPlayers = QSpinBox()
         self.sb_nPlayers.setRange(1, 1024)
         self.sb_nPlayers.setValue(64)
-        self.layout.addWidget(self.sb_nPlayers)
+        self.m_layout.addWidget(self.sb_nPlayers)
 
         self.pb_confirm = QPushButton('Generate')
         self.pb_cancel = QPushButton('Cancel')
-        self.layout.addWidget(self.pb_confirm)
-        self.layout.addWidget(self.pb_cancel)
+        self.m_layout.addWidget(self.pb_confirm)
+        self.m_layout.addWidget(self.pb_cancel)
 
         self.pb_confirm.clicked.connect(self.generate)
         self.pb_cancel.clicked.connect(self.close)
 
     def generate(self):
-        new_names = set([Faker().name() for _ in tqdm(range(self.sb_nPlayers.value()))])
-        while len(new_names) < self.sb_nPlayers.value():
-            new_names.add(Faker().name())
-
-        self.parent().core.add_player(list(new_names))
+        N = self.sb_nPlayers.value()
+        new_names = generate_player_names(N)
+        
+        self.parent().core.add_player(list(new_names)) # pyright: ignore
         self.close()
 
     @staticmethod
-    def show_dialog(parent=None):
+    def show_dialog(parent):
         dlg = GeneratePlayersDialog(parent=parent)
         dlg.show()
-        result = dlg.exec()
+        _ = dlg.exec()
         parent.restore_ui()
         return None
 
@@ -109,7 +110,7 @@ class GeneratePlayersDialog(QDialog):
 class MainWindow(QMainWindow):
     PLIST_FMT = '-n -p -l'.split()
 
-    def __init__(self, core: Tournament = None):
+    def __init__(self, core: Tournament):
         self.file_name = None
 
         QMainWindow.__init__(self)
@@ -384,10 +385,10 @@ class MainWindow(QMainWindow):
         self.ui_update_pods()
 
     def cb_sort_set(self, idx):
-        method, order = self.ui.cb_sort.itemData(idx)
+        method, order = self.ui.cb_sort.itemData(idx) # pyright: ignore
         Player.SORT_METHOD = method
         Player.SORT_ORDER = order
-        self.ui.lv_players.sortItems(order=PlayerListItem.SORT_ORDER())
+        self.ui.lv_players.sortItems(order=PlayerListItem.SORT_ORDER()) # pyright: ignore
         pass
 
     @UILog.with_status

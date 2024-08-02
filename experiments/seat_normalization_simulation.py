@@ -1,37 +1,40 @@
+from __future__ import annotations
+
 import matplotlib.pyplot as plt
 import numpy as np
+from src.misc import generate_player_names
 from src.core import *
 from tqdm import tqdm
-from faker import Faker
 
-TournamentAction.LOGF = False #type: ignore
+TournamentAction.LOGF = False
 np.set_printoptions(formatter={'float_kind': "{:.3f}".format})
 
-N = 64
-rounds = 7
-sims = 500
+
+N = 128
+rounds = 8
+sims = 1
 
 # Initialize a list to store seating averages for each player across all simulations
 all_player_seating_averages = np.zeros([sims, rounds, N])
 
 max_rounds_per_player = [0] * N  # Initialize a list to store the maximum number of rounds for each player
 
+names = generate_player_names(N)
+
 for sim_n, sim in tqdm(enumerate(range(sims)), total=sims):
-    t = Tournament(
-        TournamentConfiguration(
+    t: Tournament= Tournament(
+        config=TournamentConfiguration(
             pod_sizes=[4, 3],
             allow_bye=True,
             snake_pods=True,
             max_byes=1,
         )
     )
-    fkr = Faker()
-    while len(t.players) < N:
-        t.add_player(fkr.name())
+    t.add_player(list(names))
 
     player_averages_per_sim = np.zeros([rounds, N])  # Initialize a list to store seating averages for each player in this simulation
 
-    for i in range(rounds):
+    for i in tqdm(range(rounds)):
         t.make_pods()
         t.random_results()
         player_averages_per_sim[i, :] = np.array([player.average_seat for player in t.players])

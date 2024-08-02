@@ -1,19 +1,20 @@
 from __future__ import annotations
-import glob
-from typing import *
+from typing import List, Union, Callable, Any
+from typing_extensions import override
 
+import sys
 import argparse
 import math
 import os
 import pickle
 import random
-import sys
 from copy import deepcopy
 from datetime import datetime
 from enum import Enum
-from src.misc import Json2Obj
+from .misc import Json2Obj
 import numpy as np
-import names
+from tqdm import tqdm # pyright: ignore
+import json  pyright: ignore
 
 class PodsExport:
     @classmethod
@@ -23,12 +24,12 @@ class PodsExport:
             ret = func(self, *original_args, **original_kwargs)
             tour_round = tour_round or self.round
             if self.TC.auto_export:
-                file = TournamentAction.LOGF
-                if file and tour_round:
+                logf = TournamentAction.logf
+                if logf and tour_round:
                     # Export pods to a file named {tournament_name}_round_{round_number}.txt
                     # And also export it into {log_directory}/pods.txt
 
-                    export_str = '\n\n'.join([
+                    export_str: str = '\n\n'.join([
                         pod.__repr__()
                         for pod in tour_round.pods
                     ])
@@ -53,15 +54,15 @@ class PodsExport:
                             ])
 
                     path = os.path.join(
-                        os.path.dirname(file),
-                        os.path.basename(file).replace('.log', ''),
-                        os.path.basename(file).replace('.log', '_R{}.txt'.format(tour_round.seq)),
+                        os.path.dirname(logf),
+                        os.path.basename(logf).replace('.log', ''),
+                        os.path.basename(logf).replace('.log', '_R{}.txt'.format(tour_round.seq)),
                     )
                     if not os.path.exists(os.path.dirname(path)):
                         os.makedirs(os.path.dirname(path))
                     self.export_str(path, export_str)
 
-                    path = os.path.join(os.path.dirname(TournamentAction.LOGF), 'pods.txt') # type: ignore
+                    path = os.path.join(os.path.dirname(logf), 'pods.txt') 
                     self.export_str(path, export_str)
 
             return ret
@@ -88,6 +89,7 @@ class StandingsExport:
         TXT = 0
         CSV = 1
         DISCORD = 2
+        JSON = 3
 
     info = {
         Field.STANDING: Json2Obj({
@@ -216,7 +218,7 @@ class StandingsExport:
         def auto_standings_export_wrapper(self: Tournament, *original_args, **original_kwargs):
             ret = func(self, *original_args, **original_kwargs)
             if self.TC.auto_export:
-                self.export(
+                self.export_standings(
                     fdir=self.TC.standings_export.dir,
                     fields=self.TC.standings_export.fields,
                     style=self.TC.standings_export.format,
@@ -258,6 +260,7 @@ class Log:
             if self.level == Log.Level.ERROR:
                 return 'E'
 
+        @override
         def __repr__(self):
             return '{}> {}'.format(self.short(), self.msg)
 
@@ -298,8 +301,9 @@ class ID:
 class TournamentAction:
     '''Serializable action that will be stored in tournament log and can be restored
     '''
-    ACTIONS = []
-    LOGF = None
+    LOGF: Union[str, bool, None] = None
+    ACTIONS: List = []
+    logf: Union[str, None] = None
     DEFAULT_LOGF = 'logs/default.log'
 
     def __init__(self, before: Tournament, ret, after: Tournament, func_name, *nargs, **kwargs):
@@ -313,13 +317,12 @@ class TournamentAction:
         self.time = datetime.now()
 
     @classmethod
-    def reset(cls):
+    def reset(cls) -> None:
         TournamentAction.ACTIONS = []
         TournamentAction.store()
 
     @classmethod
-    def action(cls, func):
-
+    def action(cls, func) -> Callable:
         @StandingsExport.auto_export
         @PodsExport.auto_export
         def wrapper(self, *original_args, **original_kwargs):
@@ -335,20 +338,20 @@ class TournamentAction:
 
     @classmethod
     def store(cls):
-        if cls.LOGF is None:
-            cls.LOGF = cls.DEFAULT_LOGF
-        if cls.LOGF:
-            if not os.path.exists(os.path.dirname(cls.LOGF)):
-                os.makedirs(os.path.dirname(cls.LOGF))
-            with open(cls.LOGF, 'wb') as f:
+        if cls.logf is None:
+            cls.logf = cls.DEFAULT_LOGF
+        if cls.logf:
+            if not os.path.exists(os.path.dirname(cls.logf)):
+                os.makedirs(os.path.dirname(cls.logf))
+            with open(cls.logf, 'wb') as f:
                 pickle.dump(cls.ACTIONS, f)
 
     @classmethod
     def load(cls, logdir='logs/default.log'):
         if os.path.exists(logdir):
-            cls.LOGF = logdir
+            cls.logf = logdir
             try:
-                with open(cls.LOGF, 'rb') as f:
+                with open(cls.logf, 'rb') as f:
                     cls.ACTIONS = pickle.load(f)
                 return True
             except Exception as e:
@@ -356,6 +359,7 @@ class TournamentAction:
                 return False
         return False
 
+    @override
     def __repr__(self, *nargs, **kwargs):
         ret_str = (
             '{}'
@@ -365,7 +369,7 @@ class TournamentAction:
             self.func_name,
             '' if not nargs else ', '.join([str(arg) for arg in nargs]),
             '' if not kwargs else ', '.join([
-                '{}={}' for key, val in kwargs.items()
+                '{}={}' for _, _ in kwargs.items()
             ])
         )
         return ret_str
@@ -385,12 +389,23 @@ class TournamentConfiguration:
         self.standings_export = kwargs.get(
             'standings_export', StandingsExport())
         self.player_id = kwargs.get('player_id', ID())
+        self.global_wr_seats = kwargs.get('global_wr_seats', [
+            0.2553,
+            0.2232,
+            0.1847,
+            0.1428,
+        ])
 
     @property
     def min_pod_size(self):
         return min(self.pod_sizes)
 
-    def ranking(_, x):
+    @property
+    def max_pod_size(self):
+        return max(self.pod_sizes)
+
+    @staticmethod
+    def ranking(x):
         return (
             x.points,
             x.games_played,
@@ -400,7 +415,8 @@ class TournamentConfiguration:
             -x.ID
         )
 
-    def matching(_, x):
+    @staticmethod
+    def matching(x):
         return (
             -x.games_played,
             x.points,
@@ -408,10 +424,11 @@ class TournamentConfiguration:
             x.opponent_winrate
         )
 
+    @override
     def __repr__(self):
         return "Tour. cfg:" + '|'.join([
-            '{}:{}'.format(key, val)
-            for key, val in self.__dict__.items()
+            '{}:{}'.format(key, val) # pyright: ignore[reportAny]
+            for key, val in self.__dict__.items() # pyright: ignore[reportAny]
         ])
 
 
@@ -422,33 +439,45 @@ class Tournament:
     # then number of opponents beaten,
     # then ID - this last one is to ensure deterministic sorting in case of equal values (start of tournament for example)
 
-    def __init__(self, config: TournamentConfiguration = None):  # type: ignore
+    def __init__(self, config: Union[TournamentConfiguration, None] = None) :  # type: ignore
         if config is None:
             config = TournamentConfiguration()
-        self.rounds = list()
-        self.players = list()
-        self.dropped = list()
-        self.round = None
+        self.rounds: List[Round] = list()
+        self.players: List[Player] = list()
+        self.dropped: List[Player] = list()
+        self.round: Union[Round, None] = None
 
         # Direct setting - don't want to overwrite old log file
-        self._TC = config
+        self._tc = config
 
     # TOURNAMENT ACTIONS
     # IMPORTANT: No nested tournament actions
 
     @property
+    def draw_rate(self):
+        n_draws = 0
+        n_matches = 0
+        for round in self.rounds:
+            for pod in round.pods:
+                if pod.done:
+                    n_matches += 1
+                    if pod.draw:
+                        n_draws += len(pod.draw)
+        return n_draws/n_matches
+
+    @property
     def TC(self):
-        return self._TC
+        return self._tc
 
     @TC.setter
     @TournamentAction.action
     def TC(self, config):
-        self._TC = config
+        self._tc = config
 
     @TournamentAction.action
-    def add_player(self, names=None):
+    def add_player(self, names: str|list[str]|None=None):
         new_players = []
-        if not isinstance(names, list):
+        if isinstance(names, str):
             names = [names]
         for name in names:
             if name in [p.name for p in self.players]:
@@ -464,7 +493,7 @@ class Tournament:
         return new_players
 
     @TournamentAction.action
-    def remove_player(self, players: list[Player] = []):
+    def remove_player(self, players: list[Player]|Player):
         if not isinstance(players, list):
             players = [players]
         for p in players:
@@ -544,7 +573,7 @@ class Tournament:
             self.round = None
 
     @TournamentAction.action
-    def manual_pod(self, players: list[Player] = []):
+    def manual_pod(self, players: list[Player]):
         if self.round is None or self.round.concluded:
             self.round = Round(len(self.rounds), self)
         if not self.round.pods:
@@ -557,7 +586,7 @@ class Tournament:
         self.round.pods.append(pod)
 
     @TournamentAction.action
-    def report_win(self, players: list[Player] = []):
+    def report_win(self, players: list[Player]|Player):
         if self.round:
             if not isinstance(players, list):
                 players = [players]
@@ -566,7 +595,9 @@ class Tournament:
             self.round.won(players)
 
     @TournamentAction.action
-    def report_draw(self, players: list[Player] = []):
+    def report_draw(self, players: list[Player]|Player):
+        if not isinstance(players, list):
+            players = [players]
         if self.round:
             self.round.draw(players)
 
@@ -579,13 +610,7 @@ class Tournament:
             )
             return
         if self.round.pods is not None:
-            global_winrates_by_seat = [
-                0.2553,
-                0.2232,
-                0.1847,
-                0.1428,
-            ]
-            draw_rate = 1-sum(global_winrates_by_seat)
+            draw_rate = 1-sum(self.TC.global_wr_seats)
             #for each pod
             #generate a random result based on global_winrates_by_seat
             #each value corresponds to the winrate of the player in that seat
@@ -594,7 +619,7 @@ class Tournament:
             for pod in [x for x in self.round.pods if not x.done]:
                 #generate a random result
                 result = random.random()
-                rates = np.array(global_winrates_by_seat[0:len(pod.players)] + [draw_rate])
+                rates = np.array(self.TC.global_wr_seats[0:len(pod.players)] + [draw_rate])
                 rates = rates/sum(rates)
                 draw = result > np.cumsum(rates)[-2]
                 if not draw:
@@ -614,7 +639,7 @@ class Tournament:
         pass
 
     @TournamentAction.action
-    def move_player_to_pod(self, pod: Pod, players: list[Player] = [], manual=False):
+    def move_player_to_pod(self, pod: Pod, players: list[Player]|Player, manual=False):
         if not isinstance(players, list):
             players = [players]
         for player in players:
@@ -633,14 +658,14 @@ class Tournament:
                         player.name, pod.id), level=Log.Level.ERROR)
 
     @TournamentAction.action
-    def bench_players(self, players: list[Player] = []):
+    def bench_players(self, players: list[Player]|Player):
         if not isinstance(players, list):
             players = [players]
         for player in players:
             self.remove_player_from_pod(player)
 
     @TournamentAction.action
-    def toggle_game_loss(self, players: list[Player] = []):
+    def toggle_game_loss(self, players: list[Player]|Player):
         if not isinstance(players, list):
             players = [players]
         for player in players:
@@ -716,14 +741,18 @@ class Tournament:
         Player.SORT_ORDER = order
         return standings
 
-    def export(
+    def export_standings(
         self,
         fdir: str,
-        fields: list[StandingsExport.Field] = StandingsExport.DEFAULT_FIELDS,
-        style: StandingsExport.Format = StandingsExport.Format.TXT,
+        fields: list[StandingsExport.Field]|None = None,
+        style: StandingsExport.Format|None = None,
     ):
+        if fields is None:
+            fields = StandingsExport.DEFAULT_FIELDS
+        if style is None:
+            style = StandingsExport.Format.TXT
         standings = self.get_standings()
-        lines = [[StandingsExport.info[f].name for f in fields]]
+        lines = [[StandingsExport.info[f].name for f in fields]] # pyright: ignore
         lines += [
             [
                 (StandingsExport.info[f].format).format(
@@ -758,14 +787,17 @@ class Tournament:
         elif style == StandingsExport.Format.DISCORD:
             Log.log('Log not saved - DISCORD not implemented.'.format(
                 fdir), level=Log.Level.WARNING)
+        elif style == StandingsExport.Format.JSON:
+            Log.log('Log not saved - JSON not implemented.'.format(
+                fdir), level=Log.Level.WARNING)
 
 
 class Player:
-    SORT_METHOD = SORT_METHOD.ID
-    SORT_ORDER = SORT_ORDER.ASCENDING
+    SORT_METHOD: SORT_METHOD = SORT_METHOD.ID
+    SORT_ORDER: SORT_ORDER = SORT_ORDER.ASCENDING
     FORMATTING = ['-p']
 
-    def __init__(self, name, tour: Tournament):
+    def __init__(self, name:str, tour: Tournament):
         self.tour = tour
         self.name = name
         self.points = 0
@@ -781,7 +813,7 @@ class Player:
     @property
     def average_seat(self):
         """
-        Expressed in percentage
+        Expressed in percentage.
         In a 4 pod game:
             seat 0: 100%
             seat 1: 66.66%
@@ -792,20 +824,36 @@ class Player:
             seat 1: 50%
             seat 2: 0%
 
-        Lower percentage means higher benefits
+        Lower percentage means higher benefits.
+
+        We are now using a weighted average of all the pods the player has been in.
+        Weights are based on TC.global_wr_seats
         """
         if not self.pods:
             return 0.5
         n_pods = len([p for p in self.pods if isinstance(p, Pod)])
         if n_pods == 0:
             return 0.5
-        return sum([
+        score = 0
+        for pod in self.pods:
+            if isinstance(pod, Pod):
+                index = pod.players.index(self)
+                if index == 0:
+                    score += 1
+                elif index == pod.p_count - 1:
+                    continue
+                else:
+                    rates = self.tour.TC.global_wr_seats[0:pod.p_count]
+                    norm_scale = 1-(np.cumsum(rates)-rates[0])/(np.sum(rates)-rates[0])
+                    score += norm_scale[index]
+        return score/n_pods
+        '''return sum([
             1 - (p.players.index(self) / (len(p.players) - 1))
             if len(p.players) > 1
             else 1  #If for some reason, there is a signle player in a pod (probably user error)
             for p in self.pods
             if isinstance(p, Pod)
-        ])/n_pods
+        ])/n_pods'''
 
     @property
     def standing(self):
@@ -913,7 +961,9 @@ class Player:
         if pod.p_count == pod.cap:
             return -sys.maxsize
         for player in pod.players:
-            score = score - self.played.count(player) ** 2
+            score -= self.played.count(player) ** 2
+        if pod.cap < self.tour.TC.max_pod_size:
+            score -= sum([10 for p in self.pods if p.cap < self.tour.TC.max_pod_size])
         return score
 
     def __gt__(self, other):
@@ -1134,15 +1184,16 @@ class Pod:
     def name(self):
         return 'Pod {}'.format(self.id)
 
+    @override
     def __repr__(self):
         if not self.players:
             maxlen = 0
         else:
             maxlen = max([len(p.name) for p in self.players])
-        ret = 'Pod {} with {} players and seats:\n\t{}'.format(
+        ret = 'Pod {} with {}/{} players:\n\t{}'.format(
             self.id,
             self.p_count,
-            # self.score,
+            self.cap,
             '\n\t'.join(
                 [
                     '[{}] {}\t'.format(
@@ -1263,55 +1314,79 @@ class Round:
                     or b[0] != bucket_order[order_idx-1][0]
                 ):
                     i = 0
-
-                for p in buckets[b]:
+                bucket = buckets[b]
+                while len(bucket) > 0:
+                    #check if all pods full
+                    if sum(pod_sizes) == sum(len(pod_x.players) for pod_x in pods):
+                        break
                     ok = False
+
                     if b == bucket_order[-1] and p in buckets[b][-1:-bye_count-1:-1]:
                         ok = True
                     if sum(pod_sizes) == sum(len(pod_x.players) for pod_x in pods):
                         ok = True
                     while not ok:
-                        ok = pods[i % len(pods)].add_player(p)
+                        curr_pod = pods[i % len(pods)]
+                        pod_evals = [p.evaluate_pod(curr_pod) for p in bucket]
+                        index = pod_evals.index(max(pod_evals))
+                        p = bucket[index]
+                        ok = curr_pod.add_player(p)
+                        if ok:
+                            bucket.pop(index)
                         i += 1
-
-            #at this point, pods are created and filled with players
-            #but seating order is not yet determined
-            #swaps between pods need to be made first - your code here
-            # Attempt to swap equivalent players between pods
-
-            # Swapping equivalent players between pods to optimize seats
-
-            self.optimize_seatings()
-            for pod in pods:
-                pod.sort_players_by_avg_seat()
-
             pass
         else:
             for p in sorted(random.sample(remaining, len(remaining)), key=self.tour.TC.matching, reverse=True):
                 pod_scores = [p.evaluate_pod(pod) for pod in pods]
                 index = pod_scores.index(max(pod_scores))
                 pods[index].add_player(p)
+
+        #at this point, pods are created and filled with players
+        #but seating order is not yet determined
+        #swaps between pods need to be made first - your code here
+        # Attempt to swap equivalent players between pods
+
+        # Swapping equivalent players between pods to optimize seats
+        '''if self.seq != 0:
             self.optimize_seatings()
             for pod in pods:
                 pod.sort_players_by_avg_seat()
-
+            pass'''
+        for pod in pods:
+            pod.sort_players_by_avg_seat()
         self.sort_pods()
         self.print_pods()
 
     def sort_pods(self):
-        self.pods = sorted(self.pods, key=lambda x: sum([p.points for p in x.players]), reverse=True)
+        self.pods = sorted(self.pods, key=lambda x: (len(x.players), np.average([p.points for p in x.players])), reverse=True)
 
     def is_better_swap(self, p1:Player, p2:Player) -> bool:
-        old_p1_pod = p1.pod.average_seat
-        old_p2_pod = p2.pod.average_seat
+        # criteria 1:
+        # if the swap results in a lower average seat for both players
+        current_p1_pod = p1.pod.average_seat
+        current_p2_pod = p2.pod.average_seat
 
         new_p1_pod = np.average([p.average_seat for p in p1.pod.players if p != p1] + [p2.average_seat])
         new_p2_pod = np.average([p.average_seat for p in p2.pod.players if p != p2] + [p1.average_seat])
 
-        current_value = np.average(np.abs(0.5 - old_p1_pod) + np.abs(0.5 - old_p2_pod))
+        current_value = np.average(np.abs(0.5 - current_p1_pod) + np.abs(0.5 - current_p2_pod))
         new_value = np.average(np.abs(0.5 - new_p1_pod) + np.abs(0.5 - new_p2_pod))
 
-        return new_value < current_value
+        if new_value > current_value:
+            return False
+        # criteria 2:
+        # if the swap doesn't introduce more rematches
+        current_p1_rematches = len([p for p in p1.played if p in p2.pod.players])
+        current_p2_rematches = len([p for p in p2.played if p in p1.pod.players])
+
+        new_p1_rematches = len([p for p in p1.played if p in p2.pod.players if p != p2])
+        new_p2_rematches = len([p for p in p2.played if p in p1.pod.players if p != p1])
+
+        rematch_difference = (new_p1_rematches + new_p2_rematches) - (current_p1_rematches + current_p2_rematches)
+        if rematch_difference > 0:
+            return False
+
+        return True
 
     def optimize_seatings(self):
         remaining = self.seated
@@ -1372,7 +1447,9 @@ class Round:
             30*'*', '\nRound completed!\n', 30*'*',), Log.Level.INFO)
         self.tour.round = None
 
-    def won(self, players: list[Player] = []):
+    def won(self, players: list[Player]|Player):
+        if not isinstance(players, list):
+            players = [players]
         for player in players:
             pod = player.pod
 
@@ -1390,7 +1467,9 @@ class Round:
             if self.done:
                 self.conclude()
 
-    def draw(self, players: list[Player] = []):
+    def draw(self, players: list[Player]|Player):
+        if not isinstance(players, list):
+            players = [players]
         for player in players:
             pod = player.pod
 

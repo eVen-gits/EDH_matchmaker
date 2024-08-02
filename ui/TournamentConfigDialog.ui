@@ -134,7 +134,7 @@
          <item>
           <widget class="QLabel" name="label_6">
            <property name="text">
-            <string>Bye bts</string>
+            <string>Bye pts</string>
            </property>
           </widget>
          </item>
