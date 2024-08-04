@@ -11,10 +11,13 @@ import random
 from copy import deepcopy
 from datetime import datetime
 from enum import Enum
+
+from .interface import ITournament, IPlayer, IPod, IRound
 from .misc import Json2Obj
 import numpy as np
 from tqdm import tqdm # pyright: ignore
 import json # pyright: ignore
+from .pairing_logic.examples import PairingRandom, PairingSnake, PairingDefault # pyright: ignore
 
 class PodsExport:
     @classmethod
@@ -62,7 +65,7 @@ class PodsExport:
                         os.makedirs(os.path.dirname(path))
                     self.export_str(path, export_str)
 
-                    path = os.path.join(os.path.dirname(logf), 'pods.txt') 
+                    path = os.path.join(os.path.dirname(logf), 'pods.txt')
                     self.export_str(path, export_str)
 
             return ret
@@ -432,7 +435,7 @@ class TournamentConfiguration:
         ])
 
 
-class Tournament:
+class Tournament(ITournament):
     # CONFIGURATION
     # Logic: Points is primary sorting key,
     # then opponent winrate, - CHANGE - moved this upwards and added dummy opponents with 33% winrate
@@ -526,12 +529,48 @@ class Tournament:
             Log.log('\tRenamed player {} to {}'.format(
                 player.name, new_name), level=Log.Level.INFO)
 
+    def get_pod_sizes(self, n):
+        # tails = {}
+        for pod_size in self.TC.pod_sizes:
+            rem = n-pod_size
+            if rem < 0:
+                continue
+            if rem == 0:
+                return [pod_size]
+            if rem < self.TC.min_pod_size:
+                if self.TC.allow_bye and rem <= self.TC.max_byes:
+                    return [pod_size]
+                elif pod_size == self.TC.pod_sizes[-1]:
+                    return None
+            if rem >= self.TC.min_pod_size:
+                # This following code prefers smaller pods over byes
+                # tails[(rem, pod_size)] = self.get_pod_sizes(rem)
+                # if tails[(rem, pod_size)] is not None:
+                #    if sum(tails[(rem, pod_size)]) == rem:
+                #        return sorted([pod_size] + tails[(rem, pod_size)], reverse=True)
+                tail = self.get_pod_sizes(rem)
+                if tail is not None:
+                    return [pod_size] + tail
+
+        return None
+
     @TournamentAction.action
-    def make_pods(self):
+    def create_pairings(self):
         if self.round is None or self.round.concluded:
-            self.round = Round(len(self.rounds), self)
+            seq = len(self.rounds)
+            if seq == 0:
+                logic = PairingRandom()
+            elif seq == 1 and self.TC.snake_pods:
+                logic = PairingSnake()
+            else:
+                logic = PairingDefault()
+            self.round = Round(
+                len(self.rounds),
+                logic,
+                self
+            )
         if not self.round.all_players_seated:
-            self.round.make_pods()
+            self.round.create_pairings()
         else:
             Log.log(30*'*', level=Log.Level.WARNING)
             Log.log('Please report results of following pods: {}'.format(
@@ -546,7 +585,14 @@ class Tournament:
     @TournamentAction.action
     def new_round(self):
         if not self.round or self.round.concluded:
-            self.round = Round(len(self.rounds), self)
+            seq = len(self.rounds)
+            if seq == 0:
+                logic = PairingRandom()
+            elif seq == 1 and self.TC.snake_pods:
+                logic = PairingSnake()
+            else:
+                logic = PairingDefault()
+            self.round = Round(seq, logic, self)
             return True
         else:
             if self.round.pods:
@@ -575,7 +621,14 @@ class Tournament:
     @TournamentAction.action
     def manual_pod(self, players: list[Player]):
         if self.round is None or self.round.concluded:
-            self.round = Round(len(self.rounds), self)
+            seq = len(self.rounds)
+            if seq == 0:
+                logic = PairingRandom()
+            elif seq == 1 and self.TC.snake_pods:
+                logic = PairingSnake()
+            else:
+                logic = PairingDefault()
+            self.round = Round(seq, logic, self)
         if not self.round.pods:
             self.round.pods = []
 
@@ -692,31 +745,6 @@ class Tournament:
                 player.name, pod.name), level=Log.Level.INFO)
         return None
 
-    def get_pod_sizes(self, n):
-        # tails = {}
-        for pod_size in self.TC.pod_sizes:
-            rem = n-pod_size
-            if rem < 0:
-                continue
-            if rem == 0:
-                return [pod_size]
-            if rem < self.TC.min_pod_size:
-                if self.TC.allow_bye and rem <= self.TC.max_byes:
-                    return [pod_size]
-                elif pod_size == self.TC.pod_sizes[-1]:
-                    return None
-            if rem >= self.TC.min_pod_size:
-                # This following code prefers smaller pods over byes
-                # tails[(rem, pod_size)] = self.get_pod_sizes(rem)
-                # if tails[(rem, pod_size)] is not None:
-                #    if sum(tails[(rem, pod_size)]) == rem:
-                #        return sorted([pod_size] + tails[(rem, pod_size)], reverse=True)
-                tail = self.get_pod_sizes(rem)
-                if tail is not None:
-                    return [pod_size] + tail
-
-        return None
-
     # MISC ACTIONS
 
     def show_pods(self):
@@ -791,8 +819,48 @@ class Tournament:
             Log.log('Log not saved - JSON not implemented.'.format(
                 fdir), level=Log.Level.WARNING)
 
+    def parsable_log(self) -> dict[int, dict]:
+        data = {}
+        for r in self.rounds:
+            data[r.seq] = {}
+            for p in r.pods:
+                data[r.seq][p.id] = {
+                    'players': {
+                        i: {
+                            'id': x.ID,
+                            'name': x.name,
+                            'points': x.points,
+                        }
+                        for i, x in enumerate(p.players)
+                    },
+                    'result': (
+                        [p.won.ID] if p.won else [pl.ID for pl in p.draw]
+                    )
+                }
+            data[r.seq]['bye'] = [x.ID for x in r.unseated if not x.game_loss]
+            data[r.seq]['game_loss'] = [x.ID for x in r.unseated if x.game_loss]
+            data[r.seq]['drop'] = [x.ID for x in self.dropped]
 
-class Player:
+        return data
+
+
+class TournamentLog: #TODO: Implement
+    class Format(Enum):
+        TXT = 0
+        DISCORD = 1
+        JSON = 2
+
+    def __init__(self, tournament: Tournament):
+        self.tournament = tournament
+        self.log = []
+
+    '''def construct(self):
+        players = set()
+        for round in self.tournament.rounds:
+            pass'''
+
+
+class Player(IPlayer):
     SORT_METHOD: SORT_METHOD = SORT_METHOD.ID
     SORT_ORDER: SORT_ORDER = SORT_ORDER.ASCENDING
     FORMATTING = ['-p']
@@ -910,9 +978,9 @@ class Player:
         total_rounds = len(self.tour.rounds) + (1 if self.tour.round else 0)
         seq = [' '] * total_rounds
         for round, pod in enumerate(self.pods + ([self.pod] if self.tour.round else [])):
-            if pod is Round.Result.BYE:
+            if pod is Pod.Result.BYE:
                 seq[round] = 'B'
-            elif pod is Round.Result.LOSS:
+            elif pod is Pod.Result.LOSS:
                 seq[round] = 'L'
             elif pod is None:
                 if self.game_loss:
@@ -963,7 +1031,9 @@ class Player:
         for player in pod.players:
             score -= self.played.count(player) ** 2
         if pod.cap < self.tour.TC.max_pod_size:
-            score -= sum([10 for p in self.pods if p.cap < self.tour.TC.max_pod_size])
+            for pod in self.pods:
+                if isinstance(pod, Pod):
+                    score -= sum([10 for _ in pod.players if pod.cap < self.tour.TC.max_pod_size])
         return score
 
     def __gt__(self, other):
@@ -996,6 +1066,7 @@ class Player:
                     break
         return b
 
+    @override
     def __repr__(self, tokens=None):
         if len(self.tour.players) == 0:
             return ''
@@ -1082,7 +1153,13 @@ class Player:
         return ' | '.join(fields)
 
 
-class Pod:
+class Pod(IPod):
+    class Result(Enum):
+        DRAW = 0
+        WIN = 1
+        BYE = -1
+        LOSS = -2
+
     def __init__(self, round: Round, id, cap=0):
         self.round = round
         self.players = list()
@@ -1209,18 +1286,12 @@ class Pod:
         return ret
 
 
-class Round:
-    class Result(Enum):
-        DRAW = 0
-        WIN = 1
-        BYE = -1
-        LOSS = -2
-
-    def __init__(self, seq, tour: Tournament):
+class Round(IRound):
+    def __init__(self, seq: int, pairing_logic:PairingLogic, tour: Tournament):
+        self.logic = pairing_logic
         self.tour = tour
         self.seq = seq
         self.pods = []
-        # self.players = None
         self.concluded = False
 
     def next_pod_id(self):
@@ -1263,97 +1334,21 @@ class Round:
             return True
         return False
 
-    def make_pods(self):
-        remaining = self.unseated
-        n_plyr = len(remaining)
-
-        pod_sizes = self.tour.get_pod_sizes(n_plyr)
+    def create_pods(self):
+        self.pods = []
+        pod_sizes = self.tour.get_pod_sizes(len(self.unseated))
         if pod_sizes is None:
             Log.log('Can not make pods.', level=Log.Level.WARNING)
             return None
-
-        bye_count = n_plyr - sum(pod_sizes)
         pods:list[Pod] = []
         for size in pod_sizes:
             pod = Pod(self, self.next_pod_id(), cap=size)
             pods.append(pod)
             self.pods.append(pod)
 
-        #First round pods are completely random
-        if self.seq == 0:
-            random.shuffle(remaining)
-            for pod in pods:
-                for _ in range(pod.cap):
-                    pod.add_player(remaining.pop(0))
-
-        #Snake pods logic for 2nd round
-        #First bucket is players with most points and least unique opponents
-        #Players are then distributed in buckets based on points and unique opponents
-        #Players are then distributed in pods based on bucket order
-        elif self.tour.TC.snake_pods and self.seq == 1:
-            snake_ranking = lambda x: (x.points, -x.unique_opponents)
-            remaining = sorted(remaining, key=snake_ranking, reverse=True)
-            bucket_order = sorted(
-                list(set(
-                    [snake_ranking(p) for p in remaining]
-                )), reverse=True)
-            buckets = {
-                k: [
-                    p for p in remaining
-                    if snake_ranking(p) == k
-                ]
-                for k in bucket_order
-            }
-            for b in buckets.values():
-                random.shuffle(b)
-
-            for order_idx, b in enumerate(bucket_order):
-                if (
-                    order_idx == 0  # if not first bucket
-                    # and not same points as previous bucket
-                    or b[0] != bucket_order[order_idx-1][0]
-                ):
-                    i = 0
-                bucket = buckets[b]
-                while len(bucket) > 0:
-                    #check if all pods full
-                    if sum(pod_sizes) == sum(len(pod_x.players) for pod_x in pods):
-                        break
-                    ok = False
-
-                    if b == bucket_order[-1] and p in buckets[b][-1:-bye_count-1:-1]:
-                        ok = True
-                    if sum(pod_sizes) == sum(len(pod_x.players) for pod_x in pods):
-                        ok = True
-                    while not ok:
-                        curr_pod = pods[i % len(pods)]
-                        pod_evals = [p.evaluate_pod(curr_pod) for p in bucket]
-                        index = pod_evals.index(max(pod_evals))
-                        p = bucket[index]
-                        ok = curr_pod.add_player(p)
-                        if ok:
-                            bucket.pop(index)
-                        i += 1
-            pass
-        else:
-            for p in sorted(random.sample(remaining, len(remaining)), key=self.tour.TC.matching, reverse=True):
-                pod_scores = [p.evaluate_pod(pod) for pod in pods]
-                index = pod_scores.index(max(pod_scores))
-                pods[index].add_player(p)
-
-        #at this point, pods are created and filled with players
-        #but seating order is not yet determined
-        #swaps between pods need to be made first - your code here
-        # Attempt to swap equivalent players between pods
-
-        # Swapping equivalent players between pods to optimize seats
-        '''if self.seq != 0:
-            self.optimize_seatings()
-            for pod in pods:
-                pod.sort_players_by_avg_seat()
-            pass'''
-        for pod in pods:
-            pod.sort_players_by_avg_seat()
+    def create_pairings(self):
+        self.create_pods()
+        self.logic.make_pairings(self.unseated, self.pods)
         self.sort_pods()
         self.print_pods()
 
@@ -1436,11 +1431,11 @@ class Round:
                 Log.log('bye "{}"'.format(p.name))
                 p.points += self.tour.TC.bye_points
                 p.byes += 1
-                p.pods.append(Round.Result.BYE)
+                p.pods.append(Pod.Result.BYE)
         for p in [p for p in self.tour.players if p.game_loss]:
             p.games_played += 1
             p.game_loss = False
-            p.pods.append(Round.Result.LOSS)
+            p.pods.append(Pod.Result.LOSS)
         self.tour.rounds.append(self)
         self.concluded = True
         Log.log('{}{}{}'.format(
@@ -1480,3 +1475,6 @@ class Round:
 
         if self.done and not self.concluded:
             self.conclude()
+
+
+

@@ -91,7 +91,7 @@ class TestTournamentPodSizing(unittest.TestCase):
         )
         for n, expected_sizes, bench in pod_sizes:
             with self.subTest(n=str(n).zfill(2)):
-                t.make_pods()
+                t.create_pairings()
                 sizes = [p.p_count for p in t.round.pods]
                 self.assertListEqual(sizes, expected_sizes)
                 self.assertEqual(len(t.round.unseated), bench)
@@ -131,7 +131,7 @@ class TestTournamentPodSizing(unittest.TestCase):
         )
         for n, expected_sizes, bench in pod_sizes:
             with self.subTest(n=str(n).zfill(2)):
-                t.make_pods()
+                t.create_pairings()
                 sizes = [p.p_count for p in t.round.pods]
                 self.assertListEqual(sizes, expected_sizes)
                 self.assertEqual(len(t.round.unseated), bench)
@@ -172,7 +172,7 @@ class TestTournamentPodSizing(unittest.TestCase):
         )
         for n, expected_sizes, bench in pod_sizes:
             with self.subTest(n=str(n).zfill(2)):
-                t.make_pods()
+                t.create_pairings()
                 sizes = [p.p_count for p in t.round.pods]
                 self.assertListEqual(sizes, expected_sizes)
                 self.assertEqual(len(t.round.unseated), bench)
@@ -199,7 +199,7 @@ class TestScoring(unittest.TestCase):
             for _ in range(9)
         ])
 
-        self.t.make_pods()
+        self.t.create_pairings()
 
         benched = self.t.round.unseated[0]
 
@@ -227,7 +227,7 @@ class TestScoring(unittest.TestCase):
             for _ in range(32)
         ])
 
-        self.t.make_pods()
+        self.t.create_pairings()
         for pod in self.t.round.pods:
             self.t.report_win(pod.players[0])
 
@@ -255,7 +255,7 @@ class TestSeatNormalization(unittest.TestCase):
         ])
 
         for i in tqdm(range(500)):
-            t.make_pods()
+            t.create_pairings()
             t.random_results()
             pass
 

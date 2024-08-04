@@ -51,7 +51,7 @@ class PlayerListItem(QListWidgetItem):
         self.setFont(monospace_font)
         self.player = player
 
-    def __lt__(self, other): 
+    def __lt__(self, other):
         return self.player.__lt__(other.player)
 
     def __gt__(self, other):
@@ -67,6 +67,7 @@ class PlayerListItem(QListWidgetItem):
     # overwrite
     def text(self, tokens=['-i', '-p']):
         return self.player.__repr__(tokens)
+
 
 class GeneratePlayersDialog(QDialog):
     def __init__(self, parent=None):
@@ -94,7 +95,7 @@ class GeneratePlayersDialog(QDialog):
     def generate(self):
         N = self.sb_nPlayers.value()
         new_names = generate_player_names(N)
-        
+
         self.parent().core.add_player(list(new_names)) # pyright: ignore
         self.close()
 
@@ -185,6 +186,8 @@ class MainWindow(QMainWindow):
         self.ui.actionStandings.triggered.connect(self.export_standings)
 
         self.ui.actionLoad_players.triggered.connect(self.load_players)
+
+        self.ui.actionJSON_Log.triggered.connect(lambda: print(self.core.parsable_log()))
 
         #self.ui.actionUndo.triggered.connect(self.undo)
         #self.ui.actionRedo.triggered.connect(self.redo)
@@ -410,7 +413,7 @@ class MainWindow(QMainWindow):
 
     @UILog.with_status
     def create_pods(self):
-        self.core.make_pods()
+        self.core.create_pairings()
         self.ui_clear_pods()
         self.ui_create_pods()
         self.ui_update_player_list()
