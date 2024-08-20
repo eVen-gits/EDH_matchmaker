@@ -6,7 +6,7 @@ __pycache__
 print.txt
 players.txt
 venv/*
+.venv/*
 *.log
 logs/
 .obsidian/
-git add .gitignore
