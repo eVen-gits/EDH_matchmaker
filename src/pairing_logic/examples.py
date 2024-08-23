@@ -1,15 +1,12 @@
 from __future__ import annotations
 
-from ..interface import IPlayer, IPod, ITournament, IRound
+from ..interface import IPlayer, IPod, ITournament, IRound, IPairingLogic
 
 from typing_extensions import override
 import random
 
-class PairingLogic:
-    def make_pairings(self, players: list[IPlayer], pods:list[IPod]) -> list[IPlayer]:
-        raise NotImplementedError('PairingLogic.make_pairings not implemented - use subclass')
 
-class PairingRandom(PairingLogic):
+class PairingRandom(IPairingLogic):
     @override
     def make_pairings(self, players: list[IPlayer], pods: list[IPod]) -> list[IPlayer]:
         random.shuffle(players)
@@ -19,7 +16,7 @@ class PairingRandom(PairingLogic):
 
         return players
 
-class PairingSnake(PairingLogic):
+class PairingSnake(IPairingLogic):
     #Snake pods logic for 2nd round
     #First bucket is players with most points and least unique opponents
     #Players are then distributed in buckets based on points and unique opponents
@@ -76,7 +73,7 @@ class PairingSnake(PairingLogic):
         return players
 
 
-class PairingDefault(PairingLogic):
+class PairingDefault(IPairingLogic):
     @override
     def make_pairings(self, players: list[IPlayer], pods: list[IPod]) -> list[IPlayer]:
         matching = lambda x: (
@@ -90,18 +87,18 @@ class PairingDefault(PairingLogic):
             index = pod_scores.index(max(pod_scores))
             pods[index].add_player(p)
 
+        for pod in pods:
+            pod.sort()
         return players
-#
-#    #at this point, pods are created and filled with players
-#    #but seating order is not yet determined
-#    #swaps between pods need to be made first - your code here
-#    # Attempt to swap equivalent players between pods
-#
-#    # Swapping equivalent players between pods to optimize seats
-#    '''if self.seq != 0:
-#        self.optimize_seatings()
-#        for pod in pods:
-#            pod.sort_players_by_avg_seat()
-#        pass'''
-#    for pod in pods:
-#        pod.sort_players_by_avg_seat()
+
+    #at this point, pods are created and filled with players
+    #but seating order is not yet determined
+    #swaps between pods need to be made first - your code here
+    # Attempt to swap equivalent players between pods
+
+    # Swapping equivalent players between pods to optimize seats
+    '''if self.seq != 0:
+        self.optimize_seatings()
+        for pod in pods:
+            pod.sort_players_by_avg_seat()
+        pass'''

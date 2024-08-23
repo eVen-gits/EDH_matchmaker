@@ -10,9 +10,9 @@ TournamentAction.LOGF = False
 np.set_printoptions(formatter={'float_kind': "{:.3f}".format})
 
 
-N = 128
+N = 64
 rounds = 8
-sims = 1
+sims = 5
 
 # Initialize a list to store seating averages for each player across all simulations
 all_player_seating_averages = np.zeros([sims, rounds, N])
@@ -22,7 +22,7 @@ max_rounds_per_player = [0] * N  # Initialize a list to store the maximum number
 names = generate_player_names(N)
 
 for sim_n, sim in tqdm(enumerate(range(sims)), total=sims):
-    t: Tournament= Tournament(
+    t: Tournament= Tournament(  
         config=TournamentConfiguration(
             pod_sizes=[4, 3],
             allow_bye=True,
@@ -35,7 +35,7 @@ for sim_n, sim in tqdm(enumerate(range(sims)), total=sims):
     player_averages_per_sim = np.zeros([rounds, N])  # Initialize a list to store seating averages for each player in this simulation
 
     for i in tqdm(range(rounds)):
-        t.make_pods()
+        t.create_pairings()
         t.random_results()
         player_averages_per_sim[i, :] = np.array([player.average_seat for player in t.players])
     #sort array by final average_seat values

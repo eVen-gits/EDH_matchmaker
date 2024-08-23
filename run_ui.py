@@ -187,7 +187,7 @@ class MainWindow(QMainWindow):
 
         self.ui.actionLoad_players.triggered.connect(self.load_players)
 
-        self.ui.actionJSON_Log.triggered.connect(lambda: print(self.core.parsable_log()))
+        #self.ui.actionJSON_Log.triggered.connect(lambda: print(self.core.parsable_log())) #TODO: Reimplement
 
         #self.ui.actionUndo.triggered.connect(self.undo)
         #self.ui.actionRedo.triggered.connect(self.redo)
@@ -890,7 +890,7 @@ class TournamentConfigDialog(QDialog):
 class ExportStandingsDialog(QDialog):
     def __init__(self, parent=None):
         QDialog.__init__(self, parent)
-        self.core = parent.core
+        self.core:Tournament = parent.core
         self.ui = uic.loadUi('./ui/ExportDialog.ui', self)
         assert self.ui is not None
 
@@ -969,7 +969,7 @@ class ExportStandingsDialog(QDialog):
         self.core.TC.standings_export.dir = self.ui.le_export_dir.text()
         self.core.TC = self.core.TC
 
-        self.core.export(
+        self.core.export_standings(
             self.ui.le_export_dir.text(),
             self.core.TC.standings_export.fields,
             self.core.TC.standings_export.format
