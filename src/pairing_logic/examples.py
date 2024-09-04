@@ -4,9 +4,27 @@ from ..interface import IPlayer, IPod, ITournament, IRound, IPairingLogic
 
 from typing_extensions import override
 import random
+import sys
 
+class CommonPairing(IPairingLogic):
+    def evaluate_pod(self, player: IPlayer, pod:IPod) -> int:
+        score = 0
+        if len(pod) == pod.cap:
+            return -sys.maxsize
+        for player in pod.players:
+            score -= player.played.count(player) ** 2
+        if pod.cap < player.tour.TC.max_pod_size:
+            for prev_pod in player.pods:
+                if isinstance(prev_pod, IPod):
+                    score -= sum([
+                        10
+                        for _
+                        in prev_pod.players
+                        if prev_pod.cap < player.tour.TC.max_pod_size
+                    ])
+        return score
 
-class PairingRandom(IPairingLogic):
+class PairingRandom(CommonPairing):
     @override
     def make_pairings(self, players: list[IPlayer], pods: list[IPod]) -> list[IPlayer]:
         random.shuffle(players)
@@ -16,7 +34,7 @@ class PairingRandom(IPairingLogic):
 
         return players
 
-class PairingSnake(IPairingLogic):
+class PairingSnake(CommonPairing):
     #Snake pods logic for 2nd round
     #First bucket is players with most points and least unique opponents
     #Players are then distributed in buckets based on points and unique opponents
@@ -63,7 +81,7 @@ class PairingSnake(IPairingLogic):
                     ok = True
                 while not ok:
                     curr_pod = pods[i % len(pods)]
-                    pod_evals = [p.evaluate_pod(curr_pod) for p in bucket]
+                    pod_evals = [self.evaluate_pod(p, curr_pod) for p in bucket]
                     index = pod_evals.index(max(pod_evals))
                     p = bucket[index]
                     ok = curr_pod.add_player(p)
@@ -72,8 +90,7 @@ class PairingSnake(IPairingLogic):
                     i += 1
         return players
 
-
-class PairingDefault(IPairingLogic):
+class PairingDefault(CommonPairing):
     @override
     def make_pairings(self, players: list[IPlayer], pods: list[IPod]) -> list[IPlayer]:
         matching = lambda x: (
@@ -83,7 +100,7 @@ class PairingDefault(IPairingLogic):
             x.opponent_winrate
         )
         for p in sorted(random.sample(players, len(players)), key=matching, reverse=True):
-            pod_scores = [p.evaluate_pod(pod) for pod in pods]
+            pod_scores = [self.evaluate_pod(p, pod) for pod in pods]
             index = pod_scores.index(max(pod_scores))
             pods[index].add_player(p)
 

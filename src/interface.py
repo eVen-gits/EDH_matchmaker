@@ -2,7 +2,6 @@ from __future__ import annotations
 from enum import IntEnum
 from typing import Sequence
 
-
 class IPlayer:
     class EResult(IntEnum):
         LOSS = 0
@@ -17,9 +16,15 @@ class IPlayer:
         self.points: int|float = -1
         self.pods: list[IPod|IPlayer.EResult] = list()
         self.rounds: list[IRound] = list()
+        self.played: list[IPlayer] = list()
+        self.tour: ITournament
 
 class ITournament:
-    pass
+    def __init__(self):
+        pass
+
+    def TC(self):
+        raise NotImplementedError()
 
 class IPod:
     class EResult(IntEnum):
@@ -38,6 +43,9 @@ class IPod:
 
     def sort(self):
         raise NotImplementedError()
+
+    def __len__(self):
+        return len(self.players)
 
 class IRound:
     def __init__(self):

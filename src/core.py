@@ -684,7 +684,7 @@ class Tournament(ITournament):
                     #self.round.won([player])
                 else:
                     #players = random.sample(
-                    #    pod.players, random.randint(1, pod.p_count))
+                    #    pod.players, random.randint(1, len(pod)))
                     players = pod.players
                     Log.log('draw {}'.format(
                         ' '.join(['"{}"'.format(p.name) for p in players])))
@@ -908,10 +908,10 @@ class Player(IPlayer):
                 index = pod.players.index(self)
                 if index == 0:
                     score += 1
-                elif index == pod.p_count - 1:
+                elif index == len(pod) - 1:
                     continue
                 else:
-                    rates = self.tour.TC.global_wr_seats[0:pod.p_count]
+                    rates = self.tour.TC.global_wr_seats[0:len(pod)]
                     norm_scale = 1-(np.cumsum(rates)-rates[0])/(np.sum(rates)-rates[0])
                     score += norm_scale[index]
         return score/n_pods
@@ -1027,18 +1027,6 @@ class Player(IPlayer):
 
         ])
         return ret_str
-
-    def evaluate_pod(self, pod):
-        score = 0
-        if pod.p_count == pod.cap:
-            return -sys.maxsize
-        for player in pod.players:
-            score -= self.played.count(player) ** 2
-        if pod.cap < self.tour.TC.max_pod_size:
-            for pod in self.pods:
-                if isinstance(pod, Pod):
-                    score -= sum([10 for _ in pod.players if pod.cap < self.tour.TC.max_pod_size])
-        return score
 
     def __gt__(self, other):
         b = False
@@ -1165,15 +1153,11 @@ class Pod(IPod):
         self.draw: list[Player] = list()
         self.pods: None|list[Pod] = None
 
-    @property
-    def p_count(self):
-        return len(self.players)
-
     @override
     def add_player(self, player: Player, manual=False) -> bool:
         if player.pod:
             player.pod.remove_player(player)
-        if self.p_count >= self.cap and self.cap and not manual:
+        if len(self) >= self.cap and self.cap and not manual:
             return False
         self.players.append(player)
         return True
@@ -1236,7 +1220,7 @@ class Pod(IPod):
         except ValueError:
             return None
         p = self.players.pop(idx)
-        if self.p_count == 0 and cleanup:
+        if len(self) == 0 and cleanup:
             self.round.remove_pod(self)
         return p
 
@@ -1263,7 +1247,7 @@ class Pod(IPod):
             maxlen = max([len(p.name) for p in self.players])
         ret = 'Pod {} with {}/{} players:\n\t{}'.format(
             self.id,
-            self.p_count,
+            len(self),
             self.cap,
             '\n\t'.join(
                 [
@@ -1274,7 +1258,7 @@ class Pod(IPod):
                         'L',
                         p.__repr__(['-s', str(maxlen), '-p']))
                     for _, p in
-                    zip(range(1, self.p_count+1), self.players)
+                    zip(range(1, len(self)+1), self.players)
                 ]
             ))
         return ret
@@ -1287,7 +1271,6 @@ class Round(IRound):
         self.seq = seq
         self.logic = pairing_logic
         self.tour = tour
-
 
     def next_pod_id(self):
         i = 0
@@ -1310,7 +1293,7 @@ class Round(IRound):
     def all_players_seated(self):
         pod_sizes = self.tour.get_pod_sizes(len([p for p in self.tour.players if not p.game_loss]))
         if pod_sizes is not None:
-            return sum([pod.p_count for pod in self.pods]) == sum(pod_sizes)
+            return sum([len(pod) for pod in self.pods]) == sum(pod_sizes)
 
     @property
     def seated(self):

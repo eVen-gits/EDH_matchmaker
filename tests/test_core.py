@@ -19,7 +19,6 @@ class TestPlayer(unittest.TestCase):
             with self.subTest(name=name):
                 p = Player(name, self.t)
 
-
 class TestTournamentPodSizing(unittest.TestCase):
 
     def test_correct_pod_sizing_43_nobye(self):
@@ -92,7 +91,8 @@ class TestTournamentPodSizing(unittest.TestCase):
         for n, expected_sizes, bench in pod_sizes:
             with self.subTest(n=str(n).zfill(2)):
                 t.create_pairings()
-                sizes = [p.p_count for p in t.round.pods]
+                assert t.round is not None
+                sizes = [len(p) for p in t.round.pods]
                 self.assertListEqual(sizes, expected_sizes)
                 self.assertEqual(len(t.round.unseated), bench)
                 t.reset_pods()
@@ -132,7 +132,8 @@ class TestTournamentPodSizing(unittest.TestCase):
         for n, expected_sizes, bench in pod_sizes:
             with self.subTest(n=str(n).zfill(2)):
                 t.create_pairings()
-                sizes = [p.p_count for p in t.round.pods]
+                assert t.round is not None
+                sizes = [len(p) for p in t.round.pods]
                 self.assertListEqual(sizes, expected_sizes)
                 self.assertEqual(len(t.round.unseated), bench)
                 t.reset_pods()
@@ -173,7 +174,8 @@ class TestTournamentPodSizing(unittest.TestCase):
         for n, expected_sizes, bench in pod_sizes:
             with self.subTest(n=str(n).zfill(2)):
                 t.create_pairings()
-                sizes = [p.p_count for p in t.round.pods]
+                assert t.round is not None
+                sizes = [len(p) for p in t.round.pods]
                 self.assertListEqual(sizes, expected_sizes)
                 self.assertEqual(len(t.round.unseated), bench)
                 t.reset_pods()
@@ -192,7 +194,6 @@ class TestScoring(unittest.TestCase):
         )
         Player.FORMATTING = ['-p', '-w', '-o']
 
-
     def test_bye_scoring(self):
         self.t.add_player([
             fkr.name()
@@ -201,6 +202,7 @@ class TestScoring(unittest.TestCase):
 
         self.t.create_pairings()
 
+        assert self.t.round is not None
         benched = self.t.round.unseated[0]
 
         for pod in self.t.round.pods:
@@ -228,6 +230,7 @@ class TestScoring(unittest.TestCase):
         ])
 
         self.t.create_pairings()
+        assert self.t.round is not None
         for pod in self.t.round.pods:
             self.t.report_win(pod.players[0])
 

@@ -22,7 +22,7 @@ max_rounds_per_player = [0] * N  # Initialize a list to store the maximum number
 names = generate_player_names(N)
 
 for sim_n, sim in tqdm(enumerate(range(sims)), total=sims):
-    t: Tournament= Tournament(  
+    t: Tournament= Tournament(
         config=TournamentConfiguration(
             pod_sizes=[4, 3],
             allow_bye=True,
