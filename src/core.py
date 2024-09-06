@@ -1,6 +1,4 @@
 from __future__ import annotations
-from re import I
-from telnetlib import IP
 from typing import List, Sequence, Union, Callable, Any
 from typing_extensions import override
 
@@ -875,6 +873,7 @@ class Player(IPlayer):
         self.name = name
         self.points = 0
         self.ID = tour.TC.player_id.next()
+        self.opponents_beaten = set()
 
     @property
     def players_beaten(self) -> list[Player]:
@@ -1445,6 +1444,54 @@ class Round(IRound):
 
         if self.done and not self.concluded:
             self.conclude()
+
+    def conclude(self):
+        for pod in self.pods:
+           for p in pod.players:
+               p.pods.append(pod)
+
+        for p in self.unseated:
+            if p.result == Player.EResult.LOSS:
+                p.pods.append(Player.EResult.LOSS)
+            elif self.tour.TC.allow_bye:
+                p.points += self.tour.TC.bye_points
+                p.result = Player.EResult.BYE
+                p.pods.append(Player.EResult.BYE)
+
+        self.tour.rounds.append(self)
+        self.concluded = datetime.now()
+        self.players = deepcopy(self.players)
+        Log.log('{}{}{}'.format(
+            30*'*', '\nRound completed!\n', 30*'*',), Log.Level.INFO)
+        self.tour.round = None
+        for p in self.tour.players:
+            p.location = IPlayer.ELocation.UNSEATED
+            p.result = IPlayer.EResult.PENDING
+        pass
+
+    def conclude(self):
+        for pod in self.pods:
+           for p in pod.players:
+               p.pods.append(pod)
+
+        for p in self.unseated:
+            if p.result == Player.EResult.LOSS:
+                p.pods.append(Player.EResult.LOSS)
+            elif self.tour.TC.allow_bye:
+                p.points += self.tour.TC.bye_points
+                p.result = Player.EResult.BYE
+                p.pods.append(Player.EResult.BYE)
+
+        self.tour.rounds.append(self)
+        self.concluded = datetime.now()
+        self.players = deepcopy(self.players)
+        Log.log('{}{}{}'.format(
+            30*'*', '\nRound completed!\n', 30*'*',), Log.Level.INFO)
+        self.tour.round = None
+        for p in self.tour.players:
+            p.location = IPlayer.ELocation.UNSEATED
+            p.result = IPlayer.EResult.PENDING
+        pass
 
     def conclude(self):
         for pod in self.pods:

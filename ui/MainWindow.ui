@@ -174,6 +174,7 @@
     </property>
     <addaction name="actionPods"/>
     <addaction name="actionStandings"/>
+    <addaction name="actionJSON_Log"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
@@ -247,6 +248,11 @@
   <action name="actionGenerate_Players">
    <property name="text">
     <string>Generate Players</string>
+   </property>
+  </action>
+  <action name="actionJSON_Log">
+   <property name="text">
+    <string>JSON Log</string>
    </property>
   </action>
  </widget>
