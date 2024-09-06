@@ -29,7 +29,7 @@ class PairingRandom(CommonPairing):
     def make_pairings(self, players: list[IPlayer], pods: list[IPod]) -> list[IPlayer]:
         random.shuffle(players)
         for pod in pods:
-            for _ in range(pod.cap):
+            for _ in range(pod.cap - len(pod)):
                 pod.add_player(players.pop(0))
 
         return players
@@ -44,7 +44,7 @@ class PairingSnake(CommonPairing):
     def make_pairings(self, players: list[IPlayer], pods: list[IPod]) -> list[IPlayer]:
         pod_sizes = [pod.cap for pod in pods]
         bye_count = len(players) - sum(pod_sizes)
-        snake_ranking = lambda x: (x.points, -x.unique_opponents)
+        snake_ranking = lambda x: (x.points, -x.played)
         players = sorted(players, key=snake_ranking, reverse=True)
         bucket_order = sorted(
             list(set(
@@ -94,12 +94,12 @@ class PairingDefault(CommonPairing):
     @override
     def make_pairings(self, players: list[IPlayer], pods: list[IPod]) -> list[IPlayer]:
         matching = lambda x: (
-            -x.games_played,
+            -len(x.games),
             x.points,
-            -x.unique_opponents,
+            -len(x.played),
             x.opponent_winrate
         )
-        for p in sorted(random.sample(players, len(players)), key=matching, reverse=True):
+        for p in sorted(random.sample(players, sum([pod.cap - len(pod) for pod in pods])), key=matching, reverse=True):
             pod_scores = [self.evaluate_pod(p, pod) for pod in pods]
             index = pod_scores.index(max(pod_scores))
             pods[index].add_player(p)

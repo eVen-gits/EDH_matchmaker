@@ -1,8 +1,15 @@
 from __future__ import annotations
+from abc import ABC, abstractmethod
 from enum import IntEnum
 from typing import Sequence
+from datetime import datetime
 
 class IPlayer:
+    class ELocation(IntEnum):
+        UNSEATED = 0
+        SEATED = 1
+        DROPPED = 2
+
     class EResult(IntEnum):
         LOSS = 0
         DRAW = 1
@@ -16,14 +23,24 @@ class IPlayer:
         self.points: int|float = -1
         self.pods: list[IPod|IPlayer.EResult] = list()
         self.rounds: list[IRound] = list()
-        self.played: list[IPlayer] = list()
+        self.played: list[IPlayer]
         self.tour: ITournament
+        self.location: IPlayer.ELocation = IPlayer.ELocation.UNSEATED
+        self.result: IPlayer.EResult = IPlayer.EResult.PENDING
+
+        self.byes: int
+        self.wins: int
+
 
 class ITournament:
     def __init__(self):
-        pass
+        self.players: list[IPlayer] = list()
+        self.rounds: list[IRound] = list()
+        self.round: IRound|None = None
+        self.TC: ITournamentConfiguration
 
-    def TC(self):
+
+    def get_pod_sizes(self, n:int) -> list[int]:
         raise NotImplementedError()
 
 class IPod:
@@ -38,11 +55,17 @@ class IPod:
         self.cap: int = 0
         self.done: bool = False
 
-    def add_player(self, player: IPlayer) -> bool:
-        raise NotImplementedError()
-
+    @abstractmethod
     def sort(self):
-        raise NotImplementedError()
+        pass
+
+    @abstractmethod
+    def add_player(self, player: IPlayer):
+        pass
+
+    @abstractmethod
+    def remove_player(self, player: IPlayer):
+        pass
 
     def __len__(self):
         return len(self.players)
@@ -50,9 +73,20 @@ class IPod:
 class IRound:
     def __init__(self):
         self.seq:int = -1
+        self.tour: ITournament
+        self.players: list[IPlayer] = list()
+        self.logic: IPairingLogic
         self.pods: list[IPod] = list()
-        self.concluded: bool = False
+        self.concluded: bool|datetime = False
 
 class IPairingLogic:
     def make_pairings(self, players: Sequence[IPlayer], pods:Sequence[IPod]) -> Sequence[IPlayer]:
         raise NotImplementedError('PairingLogic.make_pairings not implemented - use subclass')
+
+class ITournamentConfiguration:
+    def __init__(self, **kwargs):
+        self.allow_bye: bool
+        self.min_pod_size: int
+        self.max_pod_size: int
+        self.ranking: tuple[float]
+        self.matching: tuple[float]

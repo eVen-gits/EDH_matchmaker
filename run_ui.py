@@ -13,6 +13,7 @@ from PyQt6.QtGui import *
 from PyQt6.QtWidgets import *
 from PyQt6.QtWidgets import QListWidgetItem
 
+from src.interface import *
 from src.core import (SORT_METHOD, SORT_ORDER, StandingsExport, Log, Player, Pod,
                   Tournament, TournamentAction, TournamentConfiguration)
 from src.misc import generate_player_names
@@ -473,7 +474,7 @@ class MainWindow(QMainWindow):
             if data.seated:
                 item.setBackground(self.seated_color)
                 #item.setData(1, "background-color: {QTMATERIAL_PRIMARYCOLOR};")
-            elif data.game_loss:
+            elif data.result == Player.EResult.LOSS:
                 item.setBackground(self.game_loss_color)
             else:
                 item.setBackground(self.unseated_color)
@@ -486,7 +487,7 @@ class MainWindow(QMainWindow):
             list_item.setData(Qt.ItemDataRole.UserRole, p)
             if p.seated:
                 list_item.setBackground(self.seated_color)
-            elif p.game_loss:
+            elif p.result == IPlayer.EResult.LOSS:
                 list_item.setBackground(self.game_loss_color)
             else:
                 list_item.setBackground(self.unseated_color)
