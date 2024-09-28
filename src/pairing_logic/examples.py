@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Sequence
 
 from ..interface import IPlayer, IPod, ITournament, IRound, IPairingLogic
 
@@ -11,8 +12,8 @@ class CommonPairing(IPairingLogic):
         score = 0
         if len(pod) == pod.cap:
             return -sys.maxsize
-        for player in pod.players:
-            score -= player.played.count(player) ** 2
+        for p in pod.players:
+            score -= player.played.count(p) ** 2
         if pod.cap < player.tour.TC.max_pod_size:
             for prev_pod in player.pods:
                 if isinstance(prev_pod, IPod):
@@ -26,7 +27,7 @@ class CommonPairing(IPairingLogic):
 
 class PairingRandom(CommonPairing):
     @override
-    def make_pairings(self, players: list[IPlayer], pods: list[IPod]) -> list[IPlayer]:
+    def make_pairings(self, players: Sequence[IPlayer], pods: Sequence[IPod]) -> Sequence[IPlayer]:
         random.shuffle(players)
         for pod in pods:
             for _ in range(pod.cap - len(pod)):
@@ -41,10 +42,10 @@ class PairingSnake(CommonPairing):
     #Players are then distributed in pods based on bucket order
     #elif self.tour.TC.snake_pods and self.seq == 1:
     @override
-    def make_pairings(self, players: list[IPlayer], pods: list[IPod]) -> list[IPlayer]:
+    def make_pairings(self, players: Sequence[IPlayer], pods: Sequence[IPod]) -> Sequence[IPlayer]:
         pod_sizes = [pod.cap for pod in pods]
         bye_count = len(players) - sum(pod_sizes)
-        snake_ranking = lambda x: (x.points, -x.played)
+        snake_ranking = lambda x: (x.points, -len(x.played))
         players = sorted(players, key=snake_ranking, reverse=True)
         bucket_order = sorted(
             list(set(
@@ -92,7 +93,7 @@ class PairingSnake(CommonPairing):
 
 class PairingDefault(CommonPairing):
     @override
-    def make_pairings(self, players: list[IPlayer], pods: list[IPod]) -> list[IPlayer]:
+    def make_pairings(self, players: Sequence[IPlayer], pods: Sequence[IPod]) -> Sequence[IPlayer]:
         matching = lambda x: (
             -len(x.games),
             x.points,

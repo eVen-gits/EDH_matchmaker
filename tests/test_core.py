@@ -6,7 +6,7 @@ from tqdm import tqdm
 from faker import Faker
 fkr = Faker()
 
-TournamentAction.LOGF = False #type: ignore
+TournamentAction.logf = False #type: ignore
 
 
 class TestPlayer(unittest.TestCase):

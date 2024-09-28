@@ -1301,7 +1301,10 @@ class Round(IRound):
         n_players_to_play = seated + len(self.unseated)
         if n_players_to_play == 0:
             return False
-        return sum(self.tour.get_pod_sizes(n_players_to_play)) == seated
+        if not (pod_sizes:=self.tour.get_pod_sizes(n_players_to_play)):
+            return True
+        else:
+            return sum(pod_sizes) == seated
 
     @property
     def seated(self) -> list[Player|IPlayer]:
