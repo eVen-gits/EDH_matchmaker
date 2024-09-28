@@ -37,10 +37,12 @@ class ITournament:
         self.players: list[IPlayer] = list()
         self.rounds: list[IRound] = list()
         self.round: IRound|None = None
-        self.TC: ITournamentConfiguration
 
+    def get_pod_sizes(self, n:int) -> Sequence[int]|None:
+        pass
 
-    def get_pod_sizes(self, n:int) -> list[int]:
+    @property
+    def TC(self) -> ITournamentConfiguration:
         raise NotImplementedError()
 
 class IPod:
