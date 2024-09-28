@@ -23,6 +23,7 @@ class ITournament:
     def __init__(self):
         pass
 
+    @property
     def TC(self):
         raise NotImplementedError()
 
