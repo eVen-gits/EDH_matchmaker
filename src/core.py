@@ -618,18 +618,11 @@ class Tournament(ITournament):
     @TournamentAction.action
     def manual_pod(self, players: list[Player]):
         if self.round is None or self.round.concluded:
-            seq = len(self.rounds)
-            if seq == 0:
-                logic = PairingRandom()
-            elif seq == 1 and self.TC.snake_pods:
-                logic = PairingSnake()
-            else:
-                logic = PairingDefault()
-            self.round = Round(seq, logic, self)
-        if not self.round.pods:
-            self.round.pods = []
-
-        pod = Pod(self.round, len(self.round.pods))
+           if not self.new_round():
+                return
+        assert isinstance(self.round, Round)
+        cap = min(self.TC.max_pod_size, len(self.round.unseated))
+        pod = Pod(self.round, len(self.round.pods), cap=cap)
 
         for player in players:
             pod.add_player(player)
@@ -1338,7 +1331,6 @@ class Round(IRound):
             pods.append(pod)
             self.pods.append(pod)
         return pods
-
 
     def create_pairings(self):
         self.create_pods()

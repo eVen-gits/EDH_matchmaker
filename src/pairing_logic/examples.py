@@ -28,10 +28,13 @@ class CommonPairing(IPairingLogic):
 class PairingRandom(CommonPairing):
     @override
     def make_pairings(self, players: Sequence[IPlayer], pods: Sequence[IPod]) -> Sequence[IPlayer]:
-        random.shuffle(players)
+        player_order = [p for p in players]
+        random.shuffle(player_order)
         for pod in pods:
             for _ in range(pod.cap - len(pod)):
-                pod.add_player(players.pop(0))
+                p = player_order[0]
+                if pod.add_player(p):
+                    player_order.pop(0)
 
         return players
 
@@ -100,7 +103,12 @@ class PairingDefault(CommonPairing):
             -len(x.played),
             x.opponent_winrate
         )
-        for p in sorted(random.sample(players, sum([pod.cap - len(pod) for pod in pods])), key=matching, reverse=True):
+        for p in sorted(
+            random.sample(
+                players,
+                sum([pod.cap - len(pod) for pod in pods])
+            ), key=matching, reverse=True
+        ):
             pod_scores = [self.evaluate_pod(p, pod) for pod in pods]
             index = pod_scores.index(max(pod_scores))
             pods[index].add_player(p)
