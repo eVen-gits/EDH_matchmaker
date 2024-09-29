@@ -20,6 +20,9 @@ from tqdm import tqdm # pyright: ignore
 import json # pyright: ignore
 from .pairing_logic.examples import PairingRandom, PairingSnake, PairingDefault
 
+import sys
+sys.setrecursionlimit(100000)  # Increase recursion limit
+
 class PodsExport:
     @classmethod
     def auto_export(cls, func):
@@ -329,9 +332,9 @@ class TournamentAction:
         @StandingsExport.auto_export
         @PodsExport.auto_export
         def wrapper(self, *original_args, **original_kwargs):
-            before = deepcopy(self)
+            before = deepcopy(self, memo={})
             ret = func(self, *original_args, **original_kwargs)
-            after = deepcopy(self) #TODO: Crash
+            after = deepcopy(self, memo={}) #TODO: Crash
             cls.ACTIONS.append(TournamentAction(
                 before, ret, after, func.__name__, *original_args, **original_kwargs,
             ))

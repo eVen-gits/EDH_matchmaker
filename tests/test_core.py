@@ -242,6 +242,50 @@ class TestScoring(unittest.TestCase):
 
             self.assertEqual(self.t.get_standings(), orig_standings)
 
+class TestLarge(unittest.TestCase):
+
+    def test_many_players(self):
+        tour_sizes = [
+            2**i for i in range(5, 13)
+        ]
+        n_rounds = 5
+
+        for n in tour_sizes:
+            with self.subTest(n=str(n).zfill(2)):
+                t = Tournament(
+                    TournamentConfiguration(
+                        pod_sizes=[4, 3],
+                        allow_bye=False,
+                        snake_pods=True,
+                    )
+                )
+                t.add_player([
+                    fkr.name()
+                    for _ in range(n)
+                ])
+                for _ in range(n_rounds):
+                    t.create_pairings()
+                    t.random_results()
+
+    def test_many_rounds(self):
+        tour_size = 256
+        n_rounds = 10
+
+        t = Tournament(
+            TournamentConfiguration(
+                pod_sizes=[4, 3],
+                allow_bye=False,
+                snake_pods=True,
+            )
+        )
+        t.add_player([
+            fkr.name()
+            for _ in range(tour_size)
+        ])
+        for i in range(n_rounds):
+            with self.subTest(n=str(i+1).zfill(2)):
+                t.create_pairings()
+                t.random_results()
 '''#TODO: Implement this test
 class TestSeatNormalization(unittest.TestCase):
     def test_close_to_equal(self):
