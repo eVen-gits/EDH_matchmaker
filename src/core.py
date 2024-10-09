@@ -21,8 +21,9 @@ from tqdm import tqdm # pyright: ignore
 import json # pyright: ignore
 from .pairing_logic.examples import PairingRandom, PairingSnake, PairingDefault
 
+
 import sys
-sys.setrecursionlimit(100000)  # Increase recursion limit
+sys.setrecursionlimit(5000)  # Increase recursion limit
 
 class PodsExport:
     @classmethod
@@ -74,6 +75,7 @@ class PodsExport:
 
             return ret
         return auto_pods_export_wrapper
+
 
 class StandingsExport:
     class Field(Enum):
@@ -437,6 +439,7 @@ class Tournament(ITournament):
     # then ID - this last one is to ensure deterministic sorting in case of equal values (start of tournament for example)
 
     def __init__(self, config: Union[TournamentConfiguration, None] = None) :  # type: ignore
+        TournamentAction.reset()
         if config is None:
             config = TournamentConfiguration()
         self.rounds: list[Round] = list()
@@ -872,7 +875,6 @@ class Player(IPlayer):
         self.name = name
         self.points = 0
         self.ID = tour.TC.player_id.next()
-        self.opponents_beaten = set()
 
     @property
     def players_beaten(self) -> list[Player]:
@@ -1157,6 +1159,7 @@ class Player(IPlayer):
         # OUTPUT_BUFFER.append('\t{}'.format(' | '.join(fields)))
 
         return ' | '.join(fields)
+
 
 class Pod(IPod):
     def __init__(self, round: Round, id, cap=0):
