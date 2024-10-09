@@ -2,24 +2,24 @@
     "include": [
       "src"
     ],
-  
+
     "exclude": [
       "**/node_modules",
       "**/__pycache__",
       "src/experimental",
       "src/typestubs"
     ],
-  
+
     "ignore": [
       "src/oldstuff"
     ],
-  
+
     "defineConstant": {
       "DEBUG": true
     },
-  
+
     "stubPath": "src/stubs",
-  
+
     "reportMissingImports": true,
     "reportMissingTypeStubs": false,
     "reportMissingParameterType": false,
@@ -35,12 +35,14 @@
     "reportIgnoreCommentWithoutRule": false,
     "reportAny": false,
     "reportFunctionMemberAccess": false,
-  
+    "reportIncompatibleMethodOverride": false,
+    "reportIncompatibleVariableOverride": false,
+
     "pythonVersion": "3.6",
     "pythonPlatform": "Linux",
-  
+
     "executionEnvironments": [
-      {
+        {
         "root": "src/web",
         "pythonVersion": "3.5",
         "pythonPlatform": "Windows",

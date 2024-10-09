@@ -1,4 +1,4 @@
-## Bugs
+ ## Bugs
 * [ ] Deepcopy crash on very large tournaments
 * [x] Id generator doesn't get restored
 

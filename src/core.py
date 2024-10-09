@@ -1,4 +1,5 @@
 from __future__ import annotations
+from re import I
 from telnetlib import IP
 from typing import List, Sequence, Union, Callable, Any
 from typing_extensions import override
@@ -31,7 +32,7 @@ class PodsExport:
             ret = func(self, *original_args, **original_kwargs)
             tour_round = tour_round or self.round
             if self.TC.auto_export:
-                logf = TournamentAction.logf
+                logf = TournamentAction.LOGF
                 if logf and tour_round:
                     # Export pods to a file named {tournament_name}_round_{round_number}.txt
                     # And also export it into {log_directory}/pods.txt
@@ -73,7 +74,6 @@ class PodsExport:
 
             return ret
         return auto_pods_export_wrapper
-
 
 class StandingsExport:
     class Field(Enum):
@@ -307,9 +307,8 @@ class ID:
 class TournamentAction:
     '''Serializable action that will be stored in tournament log and can be restored
     '''
-    LOGF: Union[str, bool, None] = None
     ACTIONS: List = []
-    logf: Union[str, None] = None
+    LOGF: bool|str|None = None
     DEFAULT_LOGF = 'logs/default.log'
 
     def __init__(self, before: Tournament, ret, after: Tournament, func_name, *nargs, **kwargs):
@@ -344,20 +343,20 @@ class TournamentAction:
 
     @classmethod
     def store(cls):
-        if cls.logf is None:
-            cls.logf = cls.DEFAULT_LOGF
-        if cls.logf:
-            if not os.path.exists(os.path.dirname(cls.logf)):
-                os.makedirs(os.path.dirname(cls.logf))
-            with open(cls.logf, 'wb') as f:
+        if cls.LOGF is None:
+            cls.LOGF = cls.DEFAULT_LOGF
+        if cls.LOGF:
+            if not os.path.exists(os.path.dirname(cls.LOGF)):
+                os.makedirs(os.path.dirname(cls.LOGF))
+            with open(cls.LOGF, 'wb') as f:
                 pickle.dump(cls.ACTIONS, f)
 
     @classmethod
     def load(cls, logdir='logs/default.log'):
         if os.path.exists(logdir):
-            cls.logf = logdir
+            cls.LOGF = logdir
             try:
-                with open(cls.logf, 'rb') as f:
+                with open(cls.LOGF, 'rb') as f:
                     cls.ACTIONS = pickle.load(f)
                 return True
             except Exception as e:
@@ -867,7 +866,7 @@ class Player(IPlayer):
     SORT_ORDER: SORT_ORDER = SORT_ORDER.ASCENDING
     FORMATTING = ['-p']
 
-    def __init__(self, name:str, tour: Tournament):
+    def __init__(self, name:str, tour: Tournament|ITournament):
         super().__init__()
         self.tour = tour
         self.name = name
@@ -1159,7 +1158,6 @@ class Player(IPlayer):
 
         return ' | '.join(fields)
 
-
 class Pod(IPod):
     def __init__(self, round: Round, id, cap=0):
         super().__init__()
@@ -1295,7 +1293,7 @@ class Round(IRound):
     def all_players_seated(self):
         seated = len(self.seated)
         n_players_to_play = seated + len(self.unseated)
-        if n_players_to_play == 0:
+        if self.tour.get_pod_sizes(n_players_to_play) is None:
             return False
         if not (pod_sizes:=self.tour.get_pod_sizes(n_players_to_play)):
             return True
