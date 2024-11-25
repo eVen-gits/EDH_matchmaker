@@ -31,9 +31,8 @@ class IPlayer:
         self.byes: int
         self.wins: int
 
-
 class ITournament:
-    def __init__(self):
+    def __init__(self, config: ITournamentConfiguration | None = None):
         self.players: list[IPlayer] = list()
         self.rounds: list[IRound] = list()
         self.round: IRound|None = None
