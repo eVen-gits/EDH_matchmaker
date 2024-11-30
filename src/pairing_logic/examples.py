@@ -145,18 +145,4 @@ class PairingDefault(CommonPairing):
             index = pod_scores.index(max(pod_scores))
             pods[index].add_player(p)
 
-        for pod in pods:
-            pod.sort()
         return players
-
-    #at this point, pods are created and filled with players
-    #but seating order is not yet determined
-    #swaps between pods need to be made first - your code here
-    # Attempt to swap equivalent players between pods
-
-    # Swapping equivalent players between pods to optimize seats
-    '''if self.seq != 0:
-        self.optimize_seatings()
-        for pod in pods:
-            pod.sort_players_by_avg_seat()
-        pass'''

@@ -566,6 +566,8 @@ class Tournament(ITournament):
             )
         if not self.round.all_players_seated:
             self.round.create_pairings()
+            for pod in self.pods:
+                pod.sort()
         else:
             Log.log(30*'*', level=Log.Level.WARNING)
             Log.log('Please report results of following pods: {}'.format(
@@ -1345,67 +1347,6 @@ class Round(IRound):
 
     def sort_pods(self):
         self.pods[:] = sorted(self.pods, key=lambda x: (len(x.players), np.average([p.points for p in x.players])), reverse=True)
-
-    def is_better_swap(self, p1:Player, p2:Player) -> bool:
-        # criteria 1:
-        # if the swap results in a lower average seat for both players
-        current_p1_pod = p1.pod.average_seat
-        current_p2_pod = p2.pod.average_seat
-
-        new_p1_pod = np.average([p.average_seat for p in p1.pod.players if p != p1] + [p2.average_seat])
-        new_p2_pod = np.average([p.average_seat for p in p2.pod.players if p != p2] + [p1.average_seat])
-
-        current_value = np.average(np.abs(0.5 - current_p1_pod) + np.abs(0.5 - current_p2_pod))
-        new_value = np.average(np.abs(0.5 - new_p1_pod) + np.abs(0.5 - new_p2_pod))
-
-        if new_value > current_value:
-            return False
-        # criteria 2:
-        # if the swap doesn't introduce more rematches
-        current_p1_rematches = len([p for p in p1.played if p in p2.pod.players])
-        current_p2_rematches = len([p for p in p2.played if p in p1.pod.players])
-
-        new_p1_rematches = len([p for p in p1.played if p in p2.pod.players if p != p2])
-        new_p2_rematches = len([p for p in p2.played if p in p1.pod.players if p != p1])
-
-        rematch_difference = (new_p1_rematches + new_p2_rematches) - (current_p1_rematches + current_p2_rematches)
-        if rematch_difference > 0:
-            return False
-
-        return True
-
-    def optimize_seatings(self):
-        remaining = self.seated
-        bucket_ranking = lambda x: (x.points, -x.played)
-        remaining = sorted(remaining, key=bucket_ranking, reverse=True)
-        bucket_order = sorted(
-            list(set(
-                [bucket_ranking(p) for p in remaining]
-            )), reverse=True)
-        buckets = {
-            k: [
-                p for p in remaining
-                if bucket_ranking(p) == k
-            ]
-            for k in bucket_order
-        }
-        for b in buckets.values():
-            for i, player1 in enumerate(b):
-                for player2 in b[i+1:]:
-                    #pod1 = next(pod for pod in pods if player1 in pod.players)
-                    #pod2 = next(pod for pod in pods if player2 in pod.players)
-                    pod1 = player1.pod
-                    pod2 = player2.pod
-                    if pod1 != pod2 and self.is_better_swap(player1, player2):
-                        # Perform swap
-                        pod1.players.remove(player1)
-                        pod2.players.remove(player2)
-                        if pod1.add_player(player2) and pod2.add_player(player1):
-                            continue
-                        else:
-                            # Rollback if the swap was not successful
-                            pod1.players.append(player1)
-                            pod2.players.append(player2)
 
     def print_pods(self):
         for p in self.pods:
