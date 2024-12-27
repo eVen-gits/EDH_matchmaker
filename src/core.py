@@ -566,7 +566,7 @@ class Tournament(ITournament):
             )
         if not self.round.all_players_seated:
             self.round.create_pairings()
-            for pod in self.pods:
+            for pod in self.tour.pods:
                 pod.sort()
         else:
             Log.log(30*'*', level=Log.Level.WARNING)
