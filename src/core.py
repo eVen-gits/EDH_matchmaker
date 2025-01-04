@@ -18,7 +18,7 @@ import numpy as np
 from tqdm import tqdm # pyright: ignore
 import json # pyright: ignore
 from .pairing_logic.examples import PairingRandom, PairingSnake, PairingDefault
-
+import uuid
 
 import sys
 sys.setrecursionlimit(5000)  # Increase recursion limit
@@ -300,8 +300,9 @@ class ID:
         self._last_ID = 0
 
     def next(self) -> int:
-        self._last_ID += 1
-        return self._last_ID
+        #self._last_ID += 1
+        #return self._last_ID
+        return uuid.uuid4()
 
 
 class TournamentAction:
@@ -358,6 +359,8 @@ class TournamentAction:
             try:
                 with open(cls.LOGF, 'rb') as f:
                     cls.ACTIONS = pickle.load(f)
+                if not cls.ACTIONS:
+                    return False
                 return True
             except Exception as e:
                 Log.log(str(e), level=Log.Level.ERROR)
@@ -418,7 +421,7 @@ class TournamentConfiguration(ITournamentConfiguration):
             np.round(x.opponent_winrate, 2),
             len(x.players_beaten),
             -x.average_seat,
-            -x.ID
+            -int(x.ID.int)
         )
 
     @override
