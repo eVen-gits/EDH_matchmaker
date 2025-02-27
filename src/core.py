@@ -418,10 +418,10 @@ class TournamentConfiguration(ITournamentConfiguration):
         return (
             x.points,
             len(x.games),
-            np.round(x.opponent_winrate, 2),
+            np.round(x.opponent_winrate, 10),
             len(x.players_beaten),
             -x.average_seat,
-            -int(x.ID.int)
+            -x.ID if isinstance(x.ID, int) else -int(x.ID.int)
         )
 
     @override
