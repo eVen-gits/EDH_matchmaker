@@ -18,10 +18,10 @@ import numpy as np
 from tqdm import tqdm # pyright: ignore
 import json # pyright: ignore
 from .pairing_logic.examples import PairingRandom, PairingSnake, PairingDefault
-import uuid
+from uuid import UUID, uuid4
 
 import sys
-sys.setrecursionlimit(5000)  # Increase recursion limit
+#sys.setrecursionlimit(5000)  # Increase recursion limit
 
 class PodsExport:
     @classmethod
@@ -107,10 +107,10 @@ class StandingsExport:
         }),
         Field.ID: Json2Obj({
             'name': 'ID',
-            'format': '{:d}',
+            'format': '{:s}',
             'denom': None,
             'description': 'Player ID',
-            'getter': lambda p: p.ID
+            'getter': lambda p: p.ID.hex
         }),
         Field.NAME: Json2Obj({
             'name': 'name',
@@ -299,10 +299,10 @@ class ID:
     def __init__(self):
         self._last_ID = 0
 
-    def next(self) -> int:
+    def next(self) -> UUID:
         #self._last_ID += 1
         #return self._last_ID
-        return uuid.uuid4()
+        return uuid4()
 
 
 class TournamentAction:
@@ -332,9 +332,10 @@ class TournamentAction:
         @StandingsExport.auto_export
         @PodsExport.auto_export
         def wrapper(self, *original_args, **original_kwargs):
-            before = deepcopy(self, memo={})
+            memo = {}
+            before = deepcopy(self, memo=memo)
             ret = func(self, *original_args, **original_kwargs)
-            after = deepcopy(self, memo={}) #TODO: Crash
+            after = deepcopy(self, memo=memo)
             cls.ACTIONS.append(TournamentAction(
                 before, ret, after, func.__name__, *original_args, **original_kwargs,
             ))
@@ -868,6 +869,7 @@ class TournamentLog: #TODO: Implement
 
 
 class Player(IPlayer):
+    CACHE: dict[UUID, IPlayer] = {}
     SORT_METHOD: SORT_METHOD = SORT_METHOD.ID
     SORT_ORDER: SORT_ORDER = SORT_ORDER.ASCENDING
     FORMATTING = ['-p']
@@ -878,7 +880,15 @@ class Player(IPlayer):
         self.name = name
         self.points = 0
         self.ID = tour.TC.player_id.next()
+        self.CACHE[self.ID] = self
         self.opponents_beaten = set()
+
+    @classmethod
+    def get(cls, ID: UUID, tour: Tournament|ITournament):
+        if ID not in cls.CACHE:
+            cls.CACHE[ID] = cls('', tour)
+            cls.CACHE[ID].ID = ID
+        return cls.CACHE[ID]
 
     @property
     def players_beaten(self) -> list[Player]:
@@ -1164,17 +1174,22 @@ class Player(IPlayer):
 
         return ' | '.join(fields)
 
-
 class Pod(IPod):
     def __init__(self, round: Round, id, cap=0):
         super().__init__()
         self.id = id
         self.cap = cap
         self.players: list[Player] = list()
+        #self._players: list[UUID] = list() #TODO: make references to players
         self.round: Round = round
         self.result: Sequence[IPlayer|Player] = None
         self.won: None|Player = None
         self.draw: list[Player] = list()
+
+    #@property
+    #def players(self) -> list[Player]:
+    #    x = [Player.get(ID, self.round.tour) for ID in self._players]
+    #    return x
 
     @override
     def add_player(self, player: Player, manual=False) -> bool:
@@ -1186,6 +1201,17 @@ class Pod(IPod):
         player.location = IPlayer.ELocation.SEATED
 
         return True
+
+    def remove_player(self, player: Player, cleanup=True) -> Player|None:
+        try:
+            idx = self.players.index(player)
+        except ValueError:
+            return None
+        p = self.players.pop(idx)
+        player.location = IPlayer.ELocation.UNSEATED
+        if len(self) == 0 and cleanup:
+            self.round.remove_pod(self)
+        return player
 
     @property
     def average_seat(self) -> float:
@@ -1240,17 +1266,6 @@ class Pod(IPod):
         for p in self.players:
             p.location = IPlayer.ELocation.UNSEATED
         self.players.clear()
-
-    def remove_player(self, player: Player, cleanup=True) -> Player|None:
-        try:
-            idx = self.players.index(player)
-        except ValueError:
-            return None
-        p = self.players.pop(idx)
-        p.location = IPlayer.ELocation.UNSEATED
-        if len(self) == 0 and cleanup:
-            self.round.remove_pod(self)
-        return p
 
     @property
     def name(self):
@@ -1413,50 +1428,3 @@ class Round(IRound):
             p.result = IPlayer.EResult.PENDING
         pass
 
-    def conclude(self):
-        for pod in self.pods:
-           for p in pod.players:
-               p.pods.append(pod)
-
-        for p in self.unseated:
-            if p.result == Player.EResult.LOSS:
-                p.pods.append(Player.EResult.LOSS)
-            elif self.tour.TC.allow_bye:
-                p.points += self.tour.TC.bye_points
-                p.result = Player.EResult.BYE
-                p.pods.append(Player.EResult.BYE)
-
-        self.tour.rounds.append(self)
-        self.concluded = datetime.now()
-        self.players = deepcopy(self.players)
-        Log.log('{}{}{}'.format(
-            30*'*', '\nRound completed!\n', 30*'*',), Log.Level.INFO)
-        self.tour.round = None
-        for p in self.tour.players:
-            p.location = IPlayer.ELocation.UNSEATED
-            p.result = IPlayer.EResult.PENDING
-        pass
-
-    def conclude(self):
-        for pod in self.pods:
-           for p in pod.players:
-               p.pods.append(pod)
-
-        for p in self.unseated:
-            if p.result == Player.EResult.LOSS:
-                p.pods.append(Player.EResult.LOSS)
-            elif self.tour.TC.allow_bye:
-                p.points += self.tour.TC.bye_points
-                p.result = Player.EResult.BYE
-                p.pods.append(Player.EResult.BYE)
-
-        self.tour.rounds.append(self)
-        self.concluded = datetime.now()
-        self.players = deepcopy(self.players)
-        Log.log('{}{}{}'.format(
-            30*'*', '\nRound completed!\n', 30*'*',), Log.Level.INFO)
-        self.tour.round = None
-        for p in self.tour.players:
-            p.location = IPlayer.ELocation.UNSEATED
-            p.result = IPlayer.EResult.PENDING
-        pass
