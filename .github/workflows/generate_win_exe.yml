@@ -2,6 +2,8 @@ name: Generate Windows executable
 on:
   workflow_dispatch:
   push:
+    tags:
+      - "v*"  # Run only when a new version tag (e.g., v1.0.0) is pushed
 
 jobs:
   gen-exe:
@@ -27,3 +29,9 @@ jobs:
         with:
           name: EDH_matchmaker
           path: EDH_matchmaker.exe
+      - name: Upload executable to GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: EDH_matchmaker.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
