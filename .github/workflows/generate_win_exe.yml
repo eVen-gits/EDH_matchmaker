@@ -1,4 +1,5 @@
-name: Generate Windows executable
+name: Generate Windows Executable
+
 on:
   workflow_dispatch:
   push:
@@ -10,28 +11,43 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
+      # Get the version tag (e.g., v1.0.0)
+      - name: Get version
+        id: get_version
+        run: echo "VERSION=${{ github.ref_name }}" >> $GITHUB_ENV
+
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.13'
-      - name: Install requirements
+          python-version: '3.11'
+
+      - name: Install dependencies
         run: pip install -r requirements.txt
-      - name: Install additional dependencies
+
+      - name: Install PyInstaller
         run: pip install PyInstaller
+
       - name: Generate executable
-        run: pyinstaller --onefile --hide-console hide-early --name "EDH_matchmaker" --icon=media/icon.ico -p . run_ui.py
-      - name: Remove build files and move the executable to root
+        run: pyinstaller --onefile --noconsole --name "EDH_matchmaker" --icon=media/icon.ico run_ui.py
+
+      - name: Prepare release folder
         run: |
-          rm -r build
-          rm EDH_matchmaker.spec
-          mv dist/EDH_matchmaker.exe .
-      # TODO: only keep files needed for executable to work
-      - uses: actions/upload-artifact@v4
+          mkdir release
+          move dist\EDH_matchmaker.exe release\
+
+      # Zip the source code and the compiled EXE together
+      - name: Create release ZIP (source + EXE)
+        run: powershell Compress-Archive -Path .\* -DestinationPath "EDH_matchmaker_${{ env.VERSION }}.zip" -Force
+
+      - name: Upload artifact (for debugging)
+        uses: actions/upload-artifact@v4
         with:
           name: EDH_matchmaker
-          path: EDH_matchmaker.exe
-      - name: Upload executable to GitHub Release
+          path: EDH_matchmaker_${{ env.VERSION }}.zip
+
+      - name: Upload ZIP to GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          files: EDH_matchmaker.exe
+          files: EDH_matchmaker_${{ env.VERSION }}.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
