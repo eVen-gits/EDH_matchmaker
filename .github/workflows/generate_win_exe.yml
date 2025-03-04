@@ -18,7 +18,7 @@ jobs:
       - name: Install additional dependencies
         run: pip install PyInstaller
       - name: Generate executable
-        run: pyinstaller --onefile --noconsole --name "EDH_matchmaker" --icon=media/icon.ico --add-data "media;media" --add-data "ui;ui" -p . run_ui.py
+        run: pyinstaller --onefile --name "EDH_matchmaker" --icon=media/icon.ico --add-data "ui\\;ui" run_ui.py
       - name: Remove build files and move the executable to root
         run: |
           rm -r build

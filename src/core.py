@@ -1174,6 +1174,7 @@ class Player(IPlayer):
 
         return ' | '.join(fields)
 
+
 class Pod(IPod):
     def __init__(self, round: Round, id, cap=0):
         super().__init__()
