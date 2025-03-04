@@ -1,8 +1,9 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from enum import IntEnum
-from typing import Sequence
+from typing import Sequence, Callable
 from datetime import datetime
+from uuid import UUID
 
 class IPlayer:
     class ELocation(IntEnum):
@@ -55,6 +56,7 @@ class IPod:
         self.players: list[IPlayer] = list()
         self.cap: int = 0
         self.done: bool = False
+        self.winner: None|IPlayer = None
 
     @abstractmethod
     def sort(self):
@@ -91,3 +93,4 @@ class ITournamentConfiguration:
         self.max_pod_size: int
         self.ranking: tuple[float]
         self.matching: tuple[float]
+        self.player_id: Callable[[], UUID]
