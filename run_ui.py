@@ -1005,6 +1005,14 @@ if __name__ == '__main__':
 
     app = QApplication(sys.argv)
 
+    # Define a monospaced font
+    monospace_font = QFont("Courier New")  # Common monospaced font
+    monospace_font.setStyleHint(QFont.StyleHint.Monospace)  # Ensure it's monospaced
+    monospace_font.setPointSize(12)  # Set font size
+
+    # Apply the font globally
+    app.setFont(monospace_font)
+
     if args.open:
         TournamentAction.load(args.open)
         core = TournamentAction.ACTIONS[-1].after
