@@ -6,3 +6,4 @@ numpy
 qt-material
 faker
 typing_extensions
+python-dotenv

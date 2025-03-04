@@ -175,6 +175,7 @@
     <addaction name="actionPods"/>
     <addaction name="actionStandings"/>
     <addaction name="actionJSON_Log"/>
+    <addaction name="actionPodsOnline"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
@@ -233,6 +234,11 @@
   <action name="actionPods">
    <property name="text">
     <string>Pods</string>
+   </property>
+  </action>
+    <action name="actionPodsOnline">
+   <property name="text">
+    <string>Pods Online (beta)</string>
    </property>
   </action>
   <action name="actionLoad_players">

@@ -3,6 +3,14 @@ from __future__ import annotations
 import argparse
 import os
 import sys
+import requests
+from dotenv import load_dotenv
+
+# Load configuration from .env file
+load_dotenv()
+
+EXPORT_ONLINE_API_URL = os.getenv("EXPORT_ONLINE_API_URL")
+EXPORT_ONLINE_API_KEY = os.getenv("EXPORT_ONLINE_API_KEY")
 
 #import names
 from faker import Faker
@@ -183,6 +191,7 @@ class MainWindow(QMainWindow):
         self.ui.actionLoad_tour.triggered.connect(self.load_tour)
         self.ui.actionSave_As.triggered.connect(self.save_as)
 
+        self.ui.actionPodsOnline.triggered.connect(self.export_pods_online)
         self.ui.actionPods.triggered.connect(self.export_pods)
         self.ui.actionStandings.triggered.connect(self.export_standings)
 
@@ -212,6 +221,41 @@ class MainWindow(QMainWindow):
 
     def export_standings(self):
         ExportStandingsDialog.show_dialog(self)
+
+    def export_pods_online(self):
+        if self.core.round:
+            export_str = '\n\n'.join([
+                pod.__repr__()
+                for pod in self.core.round.pods
+            ])
+
+            if self.core.TC.allow_bye:
+                export_str += '\n\nByes:\n' + '\n:'.join([
+                    "\t{}\t| pts: {}".format(p.name, p.points)
+                    for p in self.core.round.unseated
+                ])
+
+            if not EXPORT_ONLINE_API_KEY or not EXPORT_ONLINE_API_URL:
+                print("Error: EXPORT_ONLINE_API_URL or EXPORT_ONLINE_API_KEY not set in the environment variables.")
+                return
+
+            # Send as POST request to the Express app with authentication
+            headers = {
+                "x-api-key": EXPORT_ONLINE_API_KEY
+            }
+            # Send as POST request to the Express app
+            try:
+                response = requests.post(
+                    EXPORT_ONLINE_API_URL,
+                    data={"textData": export_str},
+                    headers=headers
+                )
+                if response.status_code == 200:
+                    print("Data successfully sent to the server!")
+                else:
+                    print(f"Failed to send data. Status code: {response.status_code}")
+            except Exception as e:
+                print(f"An error occurred while sending data: {e}")
 
     def export_pods(self):
         if self.core.round:
