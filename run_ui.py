@@ -195,6 +195,9 @@ class MainWindow(QMainWindow):
 
         self.restore_ui()
 
+        icon = QIcon('media/icon.ico')
+        self.setWindowIcon(icon)
+
     def load_players(self):
         file, ext = QFileDialog.getOpenFileName(
             caption='Select text file with players to load...',
