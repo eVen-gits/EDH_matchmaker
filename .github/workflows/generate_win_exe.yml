@@ -1,0 +1,29 @@
+name: Generate Windows executable
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  gen-exe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13' 
+      - name: Install requirements
+        run: pip install -r requirements.txt
+      - name: Install additional dependencies
+        run: pip install PyInstaller
+      - name: Generate executable
+        run: pyinstaller --onefile --hide-console hide-early --name "EDH_matchmaker" --icon=media/icon.ico -p . run_ui.py
+      - name: Remove build files and move the executable to root
+        run: |
+          rm -r build
+          rm EDH_matchmaker.spec
+          mv dist/EDH_matchmaker.exe .
+      # TODO: only keep files needed for executable to work
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EDH_matchmaker
+          path: .
