@@ -19,28 +19,27 @@ jobs:
           python-version: '3.12'
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          python -m venv venv
+          venv\Scripts\activate
+          pip install --no-cache-dir -r requirements.txt
 
       - name: Install PyInstaller
-        run: pip install pyinstaller
+        run: |
+          venv\Scripts\activate
+          pip install --no-cache-dir pyinstaller
 
-      - name: Generate executable
+      - name: Generate executable (Python interpreter + dependencies only)
         shell: pwsh
         run: |
-          pyinstaller --onefile --name "EDH_matchmaker" --icon=media/icon.ico run_ui.py
-          pyinstaller --onefile --name "EDH_matchmaker" --icon=media/icon.ico -p . run_ui.py
+          venv\Scripts\activate
+          pyinstaller --onedir --name "EDH_matchmaker" --icon=media/icon.ico --clean --noupx --paths=. --hidden-import=src --hidden-import=ui --hidden-import=experiments --hidden-import=tests run_ui.py
 
-      - name: Sign the executable with Sigstore
-        uses: sigstore/sigstore-action@v1
-        with:
-          path: dist/EDH_matchmaker.exe
-          key_type: "cosign"
-
-      - name: Remove build files and move the executable to root
+      - name: Remove unnecessary build files and move exe to root
         run: |
           rm -r build
           rm EDH_matchmaker.spec
-          mv dist/EDH_matchmaker.exe .
+          mv dist/EDH_matchmaker/* .
 
       - name: Package repository into a zip file
         run: |
@@ -52,7 +51,7 @@ jobs:
           name: EDH_matchmaker_package
           path: EDH_matchmaker_${{ github.ref_name }}.zip
 
-  create-release:
+  publish-release:
     needs: gen-exe
     runs-on: ubuntu-latest
     steps:
