@@ -27,14 +27,7 @@ jobs:
       - name: Generate executable
         shell: pwsh
         run: |
-          pyinstaller --onefile --name "EDH_matchmaker" --icon=media/icon.ico run_ui.py
           pyinstaller --onefile --name "EDH_matchmaker" --icon=media/icon.ico -p . run_ui.py
-
-      - name: Sign the executable with Sigstore
-        uses: sigstore/sigstore-action@v1
-        with:
-          path: dist/EDH_matchmaker.exe
-          key_type: "cosign"
 
       - name: Remove build files and move the executable to root
         run: |
@@ -52,7 +45,7 @@ jobs:
           name: EDH_matchmaker_package
           path: EDH_matchmaker_${{ github.ref_name }}.zip
 
-  create-release:
+  publish-release:
     needs: gen-exe
     runs-on: ubuntu-latest
     steps:
