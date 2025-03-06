@@ -20,6 +20,14 @@ import json # pyright: ignore
 from .pairing_logic.examples import PairingRandom, PairingSnake, PairingDefault
 from uuid import UUID, uuid4
 
+from dotenv import load_dotenv
+
+# Load configuration from .env file
+load_dotenv()
+
+EXPORT_ONLINE_API_URL = os.getenv("EXPORT_ONLINE_API_URL")
+EXPORT_ONLINE_API_KEY = os.getenv("EXPORT_ONLINE_API_KEY")
+
 import sys
 #sys.setrecursionlimit(5000)  # Increase recursion limit
 
@@ -767,6 +775,52 @@ class Tournament(ITournament):
         Player.SORT_ORDER = order
         return standings
 
+    def get_pods_str(self) -> str:
+        export_str = '\n\n'.join([
+            pod.__repr__()
+            for pod in self.round.pods
+        ])
+
+        if self.TC.allow_bye:
+            export_str += '\n\nByes:\n' + '\n:'.join([
+                "\t{}\t| pts: {}".format(p.name, p.points)
+                for p in self.round.unseated
+            ])
+        return export_str
+
+    def export_pods(
+            self,
+            fdir: str,
+    ):
+        if self.round:
+            if fdir:
+                export_str = self.get_pods_str()
+                self.export_str(fdir, export_str)
+
+    def export_pods_online(self):
+        if self.round:
+            if not EXPORT_ONLINE_API_KEY or not EXPORT_ONLINE_API_URL:
+                Log.log("Error: EXPORT_ONLINE_API_URL or EXPORT_ONLINE_API_KEY not set in the environment variables.")
+                raise Exception("Error: EXPORT_ONLINE_API_URL or EXPORT_ONLINE_API_KEY not set in the environment variables.")
+
+            # Send as POST request to the Express app with authentication
+            headers = {
+                "x-api-key": EXPORT_ONLINE_API_KEY
+            }
+            # Send as POST request to the Express app
+            try:
+                response = requests.post(
+                    EXPORT_ONLINE_API_URL,
+                    data={"textData": export_str},
+                    headers=headers
+                )
+                if response.status_code == 200:
+                    Log.log("Data successfully sent to the server!")
+                else:
+                    Log.log(f"Failed to send data. Status code: {response.status_code}")
+            except Exception as e:
+                raise e
+
     def export_standings(
         self,
         fdir: str,
@@ -1173,6 +1227,7 @@ class Player(IPlayer):
         # OUTPUT_BUFFER.append('\t{}'.format(' | '.join(fields)))
 
         return ' | '.join(fields)
+
 
 class Pod(IPod):
     def __init__(self, round: Round, id, cap=0):
