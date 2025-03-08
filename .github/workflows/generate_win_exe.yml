@@ -1,4 +1,5 @@
-name: Generate Windows executable
+name: Generate Windows Executable and Package Repository
+
 on:
   workflow_dispatch:
   push:
@@ -9,23 +10,56 @@ jobs:
   gen-exe:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.13'
-      - name: Install requirements
+          python-version: '3.12'
+
+      - name: Install dependencies
         run: pip install -r requirements.txt
-      - name: Install additional dependencies
-        run: pip install PyInstaller
+
+      - name: Install PyInstaller
+        run: pip install pyinstaller
+
       - name: Generate executable
-        run: pyinstaller --onefile --noconsole --name "EDH_matchmaker" --icon=media/icon.ico --add-data "media;media" --add-data "ui;ui" -p . run_ui.py
+        shell: pwsh
+        run: |
+          pyinstaller --onefile --name "EDH_matchmaker" --icon=media/icon.ico -p . run_ui.py
+
       - name: Remove build files and move the executable to root
         run: |
           rm -r build
           rm EDH_matchmaker.spec
           mv dist/EDH_matchmaker.exe .
-      # Upload executable as an artifact
-      - uses: actions/upload-artifact@v4
+
+      - name: Package repository into a zip file
+        run: |
+          Compress-Archive -Path * -DestinationPath EDH_matchmaker_${{ github.ref_name }}.zip
+
+      - name: Upload ZIP archive as artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: EDH_matchmaker
-          path: EDH_matchmaker.exe
+          name: EDH_matchmaker_package
+          path: EDH_matchmaker_${{ github.ref_name }}.zip
+
+  publish-release:
+    needs: gen-exe
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download ZIP archive
+        uses: actions/download-artifact@v4
+        with:
+          name: EDH_matchmaker_package
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          body: "Automated release of ${{ github.ref_name }} including full repository and executable."
+          draft: false
+          prerelease: false
+          files: EDH_matchmaker_${{ github.ref_name }}.zip

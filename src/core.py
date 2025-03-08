@@ -447,6 +447,32 @@ class TournamentConfiguration(ITournamentConfiguration):
             for key, val in self.__dict__.items()
         ])
 
+#TODO: Implement
+class TournamentLog:
+    class Format(Enum):
+        TXT = 0
+        DISCORD = 1
+        JSON = 2
+
+    def __init__(self, tournament: Tournament):
+        self.tournament = tournament
+        self.log = []
+
+    def construct(self):
+        players = set()
+        log_json = {
+            "history": []
+        }
+        for i, round in enumerate(self.tournament.rounds):
+            if isinstance(round.concluded, datetime):
+                round_json = {
+                    "round": i,
+                    "timestamp": round.concluded.strftime('%Y-%m-%d %H:%M:%S'),
+                    "players": [],
+                }
+                for p in round.players:
+                    pass
+
 
 class Tournament(ITournament):
     # CONFIGURATION
@@ -910,7 +936,7 @@ class TournamentLog: #TODO: Implement
 
 
 class Player(IPlayer):
-    CACHE: dict[UUID, IPlayer] = {}
+    CACHE: dict[UUID, IPlayer|Player] = {}
     SORT_METHOD: SORT_METHOD = SORT_METHOD.ID
     SORT_ORDER: SORT_ORDER = SORT_ORDER.ASCENDING
     FORMATTING = ['-p']
@@ -920,7 +946,7 @@ class Player(IPlayer):
         self.tour = tour
         self.name = name
         self.points = 0
-        self.ID = tour.TC.player_id.next()
+        self.ID:UUID = tour.TC.player_id.next()
         self.CACHE[self.ID] = self
         self.opponents_beaten = set()
 
@@ -935,7 +961,7 @@ class Player(IPlayer):
     def players_beaten(self) -> list[Player]:
         players = set()
         for pod in self.games:
-            if pod.won is self:
+            if pod.winner is self:
                 players.update(pod.players)
         return list(players)
 
@@ -1039,7 +1065,7 @@ class Player(IPlayer):
 
     @property
     def wins(self):
-        return len([p for p in self.games if p.won is self])
+        return len([p for p in self.games if p.winner is self])
 
     @property
     def record(self) -> list[Player.EResult]:
@@ -1055,8 +1081,8 @@ class Player(IPlayer):
                     seq.append(Player.EResult.BYE)
             elif isinstance(pod, Pod):
                 if pod.done:
-                    if pod.won is not None:
-                        if pod.won is self:
+                    if pod.winner is not None:
+                        if pod.winner is self:
                             seq.append(Player.EResult.WIN)
                         else:
                             seq.append(Player.EResult.LOSS)
@@ -1216,6 +1242,7 @@ class Player(IPlayer):
         return ' | '.join(fields)
 
 
+
 class Pod(IPod):
     def __init__(self, round: Round, id, cap=0):
         super().__init__()
@@ -1224,8 +1251,8 @@ class Pod(IPod):
         self.players: list[Player] = list()
         #self._players: list[UUID] = list() #TODO: make references to players
         self.round: Round = round
-        self.result: Sequence[IPlayer|Player] = None
-        self.won: None|Player = None
+        self.result: None|Player|IPlayer|Sequence[IPlayer|Player] = None
+        self.winner: None|Player = None
         self.draw: list[Player] = list()
 
     #@property
@@ -1327,7 +1354,7 @@ class Pod(IPod):
                 [
                     '[{}] {}\t'.format(
                         '  ' if not self.done else
-                        'W' if p == self.won else
+                        'W' if p == self.winner else
                         'D' if p in self.draw else
                         'L',
                         p.__repr__(['-s', str(maxlen), '-p']))
@@ -1422,7 +1449,7 @@ class Round(IRound):
             if not pod.done:
                 player.points = player.points + self.tour.TC.win_points
 
-                pod.won = player
+                pod.winner = player
                 pod.done = True
 
             if self.done:
