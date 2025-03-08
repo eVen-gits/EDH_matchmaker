@@ -9,7 +9,7 @@ import pickle
 import random
 from copy import deepcopy
 from datetime import datetime
-from enum import Enum, IntFlag
+from enum import Enum
 
 from .interface import IPlayer, ITournament, IPod, IRound, IPairingLogic, ITournamentConfiguration
 from .misc import Json2Obj
@@ -25,9 +25,6 @@ import requests
 # Load configuration from .env file
 load_dotenv()
 
-EXPORT_ONLINE_API_URL = os.getenv("EXPORT_ONLINE_API_URL")
-EXPORT_ONLINE_API_KEY = os.getenv("EXPORT_ONLINE_API_KEY")
-
 import sys
 #sys.setrecursionlimit(5000)  # Increase recursion limit
 
@@ -38,11 +35,12 @@ class DataExport:
         CSV = 2
         JSON = 3
 
-    class Target(IntFlag):
+    class Target(Enum):
         CONSOLE = 0
         FILE = 1
         WEB = 2
         DISCORD = 3
+
 
 class PodsExport(DataExport):
     @classmethod
@@ -87,6 +85,7 @@ class PodsExport(DataExport):
                     )
                     if not os.path.exists(os.path.dirname(path)):
                         os.makedirs(os.path.dirname(path))
+
                     self.export_str(export_str, path, DataExport.Target.FILE)
 
                     path = os.path.join(os.path.dirname(logf), 'pods.txt')
@@ -447,32 +446,6 @@ class TournamentConfiguration(ITournamentConfiguration):
             for key, val in self.__dict__.items()
         ])
 
-#TODO: Implement
-class TournamentLog:
-    class Format(Enum):
-        TXT = 0
-        DISCORD = 1
-        JSON = 2
-
-    def __init__(self, tournament: Tournament):
-        self.tournament = tournament
-        self.log = []
-
-    def construct(self):
-        players = set()
-        log_json = {
-            "history": []
-        }
-        for i, round in enumerate(self.tournament.rounds):
-            if isinstance(round.concluded, datetime):
-                round_json = {
-                    "round": i,
-                    "timestamp": round.concluded.strftime('%Y-%m-%d %H:%M:%S'),
-                    "players": [],
-                }
-                for p in round.players:
-                    pass
-
 
 class Tournament(ITournament):
     # CONFIGURATION
@@ -815,7 +788,6 @@ class Tournament(ITournament):
         Player.SORT_ORDER = order
         return standings
 
-
     def get_standings_str(
             self,
             fields: list[StandingsExport.Field] = StandingsExport.DEFAULT_FIELDS,
@@ -872,25 +844,28 @@ class Tournament(ITournament):
             target_type: StandingsExport.Target,
 
     ):
-        if StandingsExport.Target.FILE in target_type:
+        if StandingsExport.Target.FILE == target_type:
             if not os.path.exists(os.path.dirname(var_export_param)):
                 os.makedirs(os.path.dirname(var_export_param))
             with open(var_export_param, 'w', encoding='utf-8') as f:
                 f.writelines(data)
 
-        if StandingsExport.Target.WEB in target_type:
-            if not EXPORT_ONLINE_API_KEY or not EXPORT_ONLINE_API_URL:
+        if StandingsExport.Target.WEB == target_type:
+            api = os.getenv("EXPORT_ONLINE_API_URL")
+            key = os.getenv("EXPORT_ONLINE_API_KEY")
+            if not key or not api:
                 Log.log("Error: EXPORT_ONLINE_API_URL or EXPORT_ONLINE_API_KEY not set in the environment variables.")
-                raise Exception("Error: EXPORT_ONLINE_API_URL or EXPORT_ONLINE_API_KEY not set in the environment variables.")
+                return
 
             # Send as POST request to the Express app with authentication
             headers = {
-                "x-api-key": EXPORT_ONLINE_API_KEY
+                "x-api-key": key
             }
             # Send as POST request to the Express app
             try:
+                assert api is not None
                 response = requests.post(
-                    EXPORT_ONLINE_API_URL,
+                    api,
                     data={"textData": data},
                     headers=headers
                 )
@@ -901,38 +876,13 @@ class Tournament(ITournament):
             except Exception as e:
                 raise e
 
-        if StandingsExport.Target.DISCORD in target_type:
+        if StandingsExport.Target.DISCORD == target_type:
             pass
 
-        if StandingsExport.Target.CONSOLE in target_type:
+        if StandingsExport.Target.CONSOLE == target_type:
             if not isinstance(var_export_param, Log.Level):
                 var_export_param = Log.Level.INFO
             Log.log(data, level=var_export_param)
-
-class TournamentLog: #TODO: Implement
-    class Format(Enum):
-        TXT = 0
-        DISCORD = 1
-        JSON = 2
-
-    def __init__(self, tournament: Tournament):
-        self.tournament = tournament
-        self.log = []
-
-    def construct(self):
-        players = set()
-        log_json = {
-            "history": []
-        }
-        for i, round in enumerate(self.tournament.rounds):
-            if isinstance(round.concluded, datetime):
-                round_json = {
-                    "round": i,
-                    "timestamp": round.concluded.strftime('%Y-%m-%d %H:%M:%S'),
-                    "players": [],
-                }
-                for p in round.players:
-                    pass
 
 
 class Player(IPlayer):
@@ -1240,7 +1190,6 @@ class Player(IPlayer):
         # OUTPUT_BUFFER.append('\t{}'.format(' | '.join(fields)))
 
         return ' | '.join(fields)
-
 
 
 class Pod(IPod):
