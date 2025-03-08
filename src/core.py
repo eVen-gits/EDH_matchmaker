@@ -2,7 +2,6 @@ from __future__ import annotations
 from typing import List, Sequence, Union, Callable, Any
 from typing_extensions import override
 
-import sys
 import argparse
 import math
 import os
@@ -10,17 +9,18 @@ import pickle
 import random
 from copy import deepcopy
 from datetime import datetime
-from enum import Enum
+from enum import Enum, IntFlag
 
 from .interface import IPlayer, ITournament, IPod, IRound, IPairingLogic, ITournamentConfiguration
 from .misc import Json2Obj
 import numpy as np
 from tqdm import tqdm # pyright: ignore
-import json # pyright: ignore
 from .pairing_logic.examples import PairingRandom, PairingSnake, PairingDefault
 from uuid import UUID, uuid4
 
 from dotenv import load_dotenv
+import requests
+
 
 # Load configuration from .env file
 load_dotenv()
@@ -31,7 +31,20 @@ EXPORT_ONLINE_API_KEY = os.getenv("EXPORT_ONLINE_API_KEY")
 import sys
 #sys.setrecursionlimit(5000)  # Increase recursion limit
 
-class PodsExport:
+class DataExport:
+    class Format(Enum):
+        PLAIN = 0
+        DISCORD = 1
+        CSV = 2
+        JSON = 3
+
+    class Target(IntFlag):
+        CONSOLE = 0
+        FILE = 1
+        WEB = 2
+        DISCORD = 3
+
+class PodsExport(DataExport):
     @classmethod
     def auto_export(cls, func):
         def auto_pods_export_wrapper(self: Tournament, *original_args, **original_kwargs):
@@ -74,16 +87,16 @@ class PodsExport:
                     )
                     if not os.path.exists(os.path.dirname(path)):
                         os.makedirs(os.path.dirname(path))
-                    self.export_str(path, export_str)
+                    self.export_str(export_str, path, DataExport.Target.FILE)
 
                     path = os.path.join(os.path.dirname(logf), 'pods.txt')
-                    self.export_str(path, export_str)
+                    self.export_str(export_str, path, DataExport.Target.FILE)
 
             return ret
         return auto_pods_export_wrapper
 
 
-class StandingsExport:
+class StandingsExport(DataExport):
     class Field(Enum):
         STANDING = 0  # Standing
         ID = 1  # Player ID
@@ -98,12 +111,6 @@ class StandingsExport:
         GAMES = 10  # Number of games played
         SEAT_HISTORY = 11  # Seat record
         AVG_SEAT = 12  # Average seat
-
-    class Format(Enum):
-        TXT = 0
-        CSV = 1
-        DISCORD = 2
-        JSON = 3
 
     info = {
         Field.STANDING: Json2Obj({
@@ -200,9 +207,9 @@ class StandingsExport:
     }
 
     ext = {
-        Format.DISCORD: '.txt',
-        Format.TXT: '.txt',
-        Format.CSV: '.csv'
+        DataExport.Format.DISCORD: '.txt',
+        DataExport.Format.PLAIN: '.txt',
+        DataExport.Format.CSV: '.csv'
     }
 
     DEFAULT_FIELDS = [
@@ -216,7 +223,7 @@ class StandingsExport:
         Field.AVG_SEAT,
     ]
 
-    def __init__(self, fields=None, format: Format = Format.TXT, dir: Union[str, None] = None):
+    def __init__(self, fields=None, format: DataExport.Format = DataExport.Format.PLAIN, dir: Union[str, None] = None):
         if fields is None:
             self.fields = self.DEFAULT_FIELDS
         else:
@@ -232,10 +239,10 @@ class StandingsExport:
         def auto_standings_export_wrapper(self: Tournament, *original_args, **original_kwargs):
             ret = func(self, *original_args, **original_kwargs)
             if self.TC.auto_export:
-                self.export_standings(
-                    fdir=self.TC.standings_export.dir,
-                    fields=self.TC.standings_export.fields,
-                    style=self.TC.standings_export.format,
+                self.export_str(
+                    self.get_standings_str(),
+                    self.TC.standings_export.dir,
+                    DataExport.Target.FILE
                 )
             return ret
         return auto_standings_export_wrapper
@@ -755,15 +762,22 @@ class Tournament(ITournament):
 
     def show_pods(self):
         if self.round and self.round.pods:
-            self.round.print_pods()
+            self.export_data(self.get_pods_str(), None, StandingsExport.Target.CONSOLE)
         else:
             Log.log('No pods currently created.')
 
-    def export_str(self, fdir, str):
-        if not os.path.exists(os.path.dirname(fdir)):
-            os.makedirs(os.path.dirname(fdir))
-        with open(fdir, 'w', encoding='utf-8') as f:
-            f.writelines(str)
+    def get_pods_str(self) -> str:
+        export_str = '\n\n'.join([
+            pod.__repr__()
+            for pod in self.round.pods
+        ])
+
+        if self.TC.allow_bye and self.round.unseated:
+            export_str += '\n\nByes:\n' + '\n:'.join([
+                "\t{}\t| pts: {}".format(p.name, p.points)
+                for p in self.round.unseated
+            ])
+        return export_str
 
     def get_standings(self) -> list[Player]:
         method = Player.SORT_METHOD
@@ -775,62 +789,13 @@ class Tournament(ITournament):
         Player.SORT_ORDER = order
         return standings
 
-    def get_pods_str(self) -> str:
-        export_str = '\n\n'.join([
-            pod.__repr__()
-            for pod in self.round.pods
-        ])
 
-        if self.TC.allow_bye:
-            export_str += '\n\nByes:\n' + '\n:'.join([
-                "\t{}\t| pts: {}".format(p.name, p.points)
-                for p in self.round.unseated
-            ])
-        return export_str
-
-    def export_pods(
+    def get_standings_str(
             self,
-            fdir: str,
-    ):
-        if self.round:
-            if fdir:
-                export_str = self.get_pods_str()
-                self.export_str(fdir, export_str)
-
-    def export_pods_online(self):
-        if self.round:
-            if not EXPORT_ONLINE_API_KEY or not EXPORT_ONLINE_API_URL:
-                Log.log("Error: EXPORT_ONLINE_API_URL or EXPORT_ONLINE_API_KEY not set in the environment variables.")
-                raise Exception("Error: EXPORT_ONLINE_API_URL or EXPORT_ONLINE_API_KEY not set in the environment variables.")
-
-            # Send as POST request to the Express app with authentication
-            headers = {
-                "x-api-key": EXPORT_ONLINE_API_KEY
-            }
-            # Send as POST request to the Express app
-            try:
-                response = requests.post(
-                    EXPORT_ONLINE_API_URL,
-                    data={"textData": export_str},
-                    headers=headers
-                )
-                if response.status_code == 200:
-                    Log.log("Data successfully sent to the server!")
-                else:
-                    Log.log(f"Failed to send data. Status code: {response.status_code}")
-            except Exception as e:
-                raise e
-
-    def export_standings(
-        self,
-        fdir: str,
-        fields: list[StandingsExport.Field]|None = None,
-        style: StandingsExport.Format|None = None,
-    ):
-        if fields is None:
-            fields = StandingsExport.DEFAULT_FIELDS
-        if style is None:
-            style = StandingsExport.Format.TXT
+            fields: list[StandingsExport.Field] = StandingsExport.DEFAULT_FIELDS,
+            style: StandingsExport.Format = StandingsExport.Format.PLAIN
+    ) -> str:
+        #fdir = os.path.join(self.TC.log_dir, 'standings.txt')
         standings = self.get_standings()
         lines = [[StandingsExport.info[f].name for f in fields]] # pyright: ignore
         lines += [
@@ -845,7 +810,7 @@ class Tournament(ITournament):
             ]
             for p in standings
         ]
-        if style == StandingsExport.Format.TXT:
+        if style == StandingsExport.Format.PLAIN:
             col_len = [0] * len(fields)
             for col in range(len(fields)):
                 for line in lines:
@@ -857,8 +822,9 @@ class Tournament(ITournament):
             # add new line at index 1
             lines.insert(1, ['-' * width for width in col_len])
             lines = '\n'.join([' | '.join(line) for line in lines])
+            return lines
 
-            self.export_str(fdir, lines)
+
             # Log.log('Log saved: {}.'.format(
             #    fdir), level=Log.Level.INFO)
         elif style == StandingsExport.Format.CSV:
@@ -871,30 +837,51 @@ class Tournament(ITournament):
             Log.log('Log not saved - JSON not implemented.'.format(
                 fdir), level=Log.Level.WARNING)
 
-    def parsable_log(self) -> dict[int, dict]:
-        data = {}
-        for r in self.rounds:
-            data[r.seq] = {}
-            for p in r.pods:
-                data[r.seq][p.id] = {
-                    'players': {
-                        i: {
-                            'id': x.ID,
-                            'name': x.name,
-                            'points': x.points,
-                        }
-                        for i, x in enumerate(p.players)
-                    },
-                    'result': (
-                        [p.won.ID] if p.won else [pl.ID for pl in p.draw]
-                    )
-                }
-            data[r.seq]['bye'] = [x.ID for x in r.unseated if not x.game_loss]
-            data[r.seq]['game_loss'] = [x.ID for x in r.unseated if x.game_loss]
-            data[r.seq]['drop'] = [x.ID for x in self.dropped]
+        raise ValueError('Invalid style: {}'.format(style))
 
-        return data
+    def export_str(
+            self,
+            data: str,
+            var_export_param: Any,
+            target_type: StandingsExport.Target,
 
+    ):
+        if StandingsExport.Target.FILE in target_type:
+            if not os.path.exists(os.path.dirname(var_export_param)):
+                os.makedirs(os.path.dirname(var_export_param))
+            with open(var_export_param, 'w', encoding='utf-8') as f:
+                f.writelines(data)
+
+        if StandingsExport.Target.WEB in target_type:
+            if not EXPORT_ONLINE_API_KEY or not EXPORT_ONLINE_API_URL:
+                Log.log("Error: EXPORT_ONLINE_API_URL or EXPORT_ONLINE_API_KEY not set in the environment variables.")
+                raise Exception("Error: EXPORT_ONLINE_API_URL or EXPORT_ONLINE_API_KEY not set in the environment variables.")
+
+            # Send as POST request to the Express app with authentication
+            headers = {
+                "x-api-key": EXPORT_ONLINE_API_KEY
+            }
+            # Send as POST request to the Express app
+            try:
+                response = requests.post(
+                    EXPORT_ONLINE_API_URL,
+                    data={"textData": data},
+                    headers=headers
+                )
+                if response.status_code == 200:
+                    Log.log("Data successfully sent to the server!")
+                else:
+                    Log.log(f"Failed to send data. Status code: {response.status_code}")
+            except Exception as e:
+                raise e
+
+        if StandingsExport.Target.DISCORD in target_type:
+            pass
+
+        if StandingsExport.Target.CONSOLE in target_type:
+            if not isinstance(var_export_param, Log.Level):
+                var_export_param = Log.Level.INFO
+            Log.log(data, level=var_export_param)
 
 class TournamentLog: #TODO: Implement
     class Format(Enum):
@@ -1357,7 +1344,7 @@ class Round(IRound):
         self.players.extend(tour.players)
         self.seq = seq
         self.logic = pairing_logic
-        self.tour = tour
+        self.tour: Tournament = tour
 
     @property
     def done(self):
@@ -1416,15 +1403,10 @@ class Round(IRound):
         ])]
         self.logic.make_pairings(self.unseated, pods)
         self.sort_pods()
-        self.print_pods()
+        Log.log(self.tour.get_pods_str(), Log.Level.INFO)
 
     def sort_pods(self):
         self.pods[:] = sorted(self.pods, key=lambda x: (len(x.players), np.average([p.points for p in x.players])), reverse=True)
-
-    def print_pods(self):
-        for p in self.pods:
-            Log.log(p)
-            Log.log('-'*80)
 
     def won(self, players: list[IPlayer|Player]|IPlayer|Player):
         if not isinstance(players, list):

@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-import requests
 
 
 #import names
@@ -187,7 +186,7 @@ class MainWindow(QMainWindow):
 
         self.ui.actionPodsOnline.triggered.connect(self.export_pods_online)
         self.ui.actionPods.triggered.connect(self.export_pods)
-        self.ui.actionStandings.triggered.connect(self.export_standings)
+        self.ui.actionStandings.triggered.connect(self.export_standings_dialog)
 
         self.ui.actionLoad_players.triggered.connect(self.load_players)
 
@@ -213,16 +212,19 @@ class MainWindow(QMainWindow):
             self.core.add_player([p.strip() for p in player_names])
             self.restore_ui()
 
-    def export_standings(self):
+    def export_standings_dialog(self):
         ExportStandingsDialog.show_dialog(self)
 
     def export_pods_online(self):
         if self.core.round:
             try:
-                self.core.export_pods_online()
+                self.core.export_str(
+                    self.core.get_pods_str(),
+                    None,
+                    StandingsExport.Target.WEB
+                )
             except Exception as e:
                 pass
-
 
     def export_pods(self):
         if self.core.round:
@@ -234,8 +236,8 @@ class MainWindow(QMainWindow):
             if file:
                 if not file.endswith(ext.replace('*', '')):
                     file = ext.replace('*', '{}').format(file)
-                self.core.export_pods(file)
-
+                pods_str = self.core.get_pods_str()
+                self.core.export_data(pods_str, file, StandingsExport.Target.FILE)
 
     def init_sort_dropdown(self):
         values = [
@@ -973,11 +975,12 @@ class ExportStandingsDialog(QDialog):
         self.core.TC.standings_export.dir = self.ui.le_export_dir.text()
         self.core.TC = self.core.TC
 
-        self.core.export_standings(
+        self.core.export_str(
+            self.core.get_standings_str(),
             self.ui.le_export_dir.text(),
-            self.core.TC.standings_export.fields,
-            self.core.TC.standings_export.format
+            StandingsExport.Target.FILE
         )
+
         self.close()
 
     @staticmethod
