@@ -11,6 +11,7 @@ from copy import deepcopy
 from datetime import datetime
 from enum import Enum
 
+from .discord_engine import DiscordPoster
 from .interface import IPlayer, ITournament, IPod, IRound, IPairingLogic, ITournamentConfiguration
 from .misc import Json2Obj
 import numpy as np
@@ -877,7 +878,8 @@ class Tournament(ITournament):
                 raise e
 
         if StandingsExport.Target.DISCORD == target_type:
-            pass
+            disc_poster = DiscordPoster()
+            disc_poster.post_message(data)
 
         if StandingsExport.Target.CONSOLE == target_type:
             if not isinstance(var_export_param, Log.Level):

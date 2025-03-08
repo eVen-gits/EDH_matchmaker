@@ -184,6 +184,7 @@ class MainWindow(QMainWindow):
         self.ui.actionLoad_tour.triggered.connect(self.load_tour)
         self.ui.actionSave_As.triggered.connect(self.save_as)
 
+        self.ui.actionPodsDiscord.triggered.connect(self.export_pods_discord)
         self.ui.actionPodsOnline.triggered.connect(self.export_pods_online)
         self.ui.actionPods.triggered.connect(self.export_pods)
         self.ui.actionStandings.triggered.connect(self.export_standings_dialog)
@@ -215,6 +216,16 @@ class MainWindow(QMainWindow):
     def export_standings_dialog(self):
         ExportStandingsDialog.show_dialog(self)
 
+    def export_pods_discord(self):
+        if self.core.round:
+            try:
+                self.core.export_str(
+                    "```\n" + self.core.get_pods_str() + "```\n",
+                    None,
+                    StandingsExport.Target.DISCORD
+                )
+            except Exception as e:
+                pass
     def export_pods_online(self):
         if self.core.round:
             try:
