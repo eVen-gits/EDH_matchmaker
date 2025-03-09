@@ -218,14 +218,30 @@ class MainWindow(QMainWindow):
 
     def export_pods_discord(self):
         if self.core.round:
+            round = self.core.round
+            self.core.export_str(
+                f"# Round {round.seq}\n",
+                None,
+                StandingsExport.Target.DISCORD
+            )
+        else:
+            round = self.core.rounds[-1]
+            self.core.export_str(
+                f"# Round {round.seq} results\n",
+                None,
+                StandingsExport.Target.DISCORD
+            )
+
+        for pod in round.pods:
             try:
                 self.core.export_str(
-                    "```\n" + self.core.get_pods_str() + "```\n",
+                    f"```\n{pod.__repr__()}\n```\n",
                     None,
                     StandingsExport.Target.DISCORD
                 )
             except Exception as e:
                 pass
+
     def export_pods_online(self):
         if self.core.round:
             try:

@@ -350,10 +350,10 @@ class TournamentAction:
         @StandingsExport.auto_export
         @PodsExport.auto_export
         def wrapper(self, *original_args, **original_kwargs):
-            memo = {}
-            before = deepcopy(self, memo=memo)
+
+            before = deepcopy(self)
             ret = func(self, *original_args, **original_kwargs)
-            after = deepcopy(self, memo=memo)
+            after = deepcopy(self)
             cls.ACTIONS.append(TournamentAction(
                 before, ret, after, func.__name__, *original_args, **original_kwargs,
             ))
@@ -763,12 +763,6 @@ class Tournament(ITournament):
 
     # MISC ACTIONS
 
-    def show_pods(self):
-        if self.round and self.round.pods:
-            self.export_data(self.get_pods_str(), None, StandingsExport.Target.CONSOLE)
-        else:
-            Log.log('No pods currently created.')
-
     def get_pods_str(self) -> str:
         export_str = '\n\n'.join([
             pod.__repr__()
@@ -886,8 +880,8 @@ class Tournament(ITournament):
             thread.start()
 
         if StandingsExport.Target.DISCORD == target_type:
-            disc_poster = DiscordPoster()
-            disc_poster.post_message(data)
+            instance = DiscordPoster().instance()
+            instance.post_message(data)
 
         if StandingsExport.Target.CONSOLE == target_type:
             if not isinstance(var_export_param, Log.Level):
@@ -1312,7 +1306,7 @@ class Pod(IPod):
             '\n\t'.join(
                 [
                     '[{}] {}\t'.format(
-                        '  ' if not self.done else
+                        ' ' if not self.done else
                         'W' if p == self.winner else
                         'D' if p in self.draw else
                         'L',
