@@ -20,6 +20,7 @@ from uuid import UUID, uuid4
 
 from dotenv import load_dotenv
 import requests
+import threading
 
 
 # Load configuration from .env file
@@ -87,6 +88,8 @@ class PodsExport(DataExport):
                         os.makedirs(os.path.dirname(path))
 
                     self.export_str(export_str, path, DataExport.Target.FILE)
+                    self.export_str(export_str, None, DataExport.Target.WEB)
+
 
                     path = os.path.join(os.path.dirname(logf), 'pods.txt')
                     self.export_str(export_str, path, DataExport.Target.FILE)
@@ -837,6 +840,22 @@ class Tournament(ITournament):
 
         raise ValueError('Invalid style: {}'.format(style))
 
+    @staticmethod
+    def send_request(api, data, headers):
+        try:
+            response = requests.post(
+                api,
+                data={"textData": data},
+                headers=headers,
+                timeout=10
+            )
+            if response.status_code == 200:
+                Log.log("Data successfully sent to the server!")
+            else:
+                Log.log(f"Failed to send data. Status code: {response.status_code}")
+        except Exception as e:
+            Log.log(f"Error sending data: {e}", level=Log.Level.ERROR)
+
     def export_str(
             self,
             data: str,
@@ -861,20 +880,9 @@ class Tournament(ITournament):
             headers = {
                 "x-api-key": key
             }
-            # Send as POST request to the Express app
-            try:
-                assert api is not None
-                response = requests.post(
-                    api,
-                    data={"textData": data},
-                    headers=headers
-                )
-                if response.status_code == 200:
-                    Log.log("Data successfully sent to the server!")
-                else:
-                    Log.log(f"Failed to send data. Status code: {response.status_code}")
-            except Exception as e:
-                raise e
+
+            thread = threading.Thread(target=self.send_request, args=(api, data, headers))
+            thread.start()
 
         if StandingsExport.Target.DISCORD == target_type:
             pass
@@ -1379,7 +1387,8 @@ class Round(IRound):
         ])]
         self.logic.make_pairings(self.unseated, pods)
         self.sort_pods()
-        Log.log(self.tour.get_pods_str(), Log.Level.INFO)
+        for pod in self.pods:
+            Log.log(pod.__repr__(), Log.Level.NONE)
 
     def sort_pods(self):
         self.pods[:] = sorted(self.pods, key=lambda x: (len(x.players), np.average([p.points for p in x.players])), reverse=True)
