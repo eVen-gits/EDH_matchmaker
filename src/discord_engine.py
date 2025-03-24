@@ -7,7 +7,6 @@ import threading
 
 load_dotenv()
 
-
 class DiscordPoster:
     _instance = None
     _lock = threading.Lock()
@@ -23,7 +22,7 @@ class DiscordPoster:
         if self._initialized:
             return
 
-        self.token = os.getenv("DISCORD_TOKEN")
+        self.token: str = os.getenv("DISCORD_TOKEN", "")
         self.guild_id = int(os.getenv("GUILD_ID", 0))
         self.channel_id = int(os.getenv("CHANNEL_ID", 0))
 
@@ -44,57 +43,81 @@ class DiscordPoster:
 
         @self.bot.event
         async def on_ready():
-            print(f"Bot connected as {self.bot.user}")
-
-            # Start background queue processor
-            if not self.queue_task:
-                self.queue_task = asyncio.create_task(self._process_queued_messages())
+            # Start queue processor inside bot's event loop
+            if not self.queue_task or self.queue_task.done():
+                self.queue_task = self.bot.loop.create_task(self._process_queued_messages())
 
         # Start bot in background thread
         self.thread = threading.Thread(target=self._run_bot_loop, daemon=True)
         self.thread.start()
 
+        self.loop_ready.wait()  # Ensure loop is ready
+
         self._initialized = True
 
     def _run_bot_loop(self):
-        """Run the bot and make its loop accessible."""
+        """Create and run the bot's event loop in a separate thread."""
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
-        self.loop_ready.set()  # Notify that loop is ready
-        self.loop.run_until_complete(self.bot.start(self.token))
+        self.loop_ready.set()  # Notify that the loop is ready
+
+        try:
+            self.loop.run_until_complete(self.bot.start(self.token))
+        except KeyboardInterrupt:
+            self.loop.run_until_complete(self.bot.close())
+        finally:
+            self.loop.close()
 
     async def _process_queued_messages(self):
-        """Continuously process queued messages forever."""
-        print("[DiscordPoster] Starting message queue processor...")
+        """Continuously process queued messages and restart on failure."""
+
         while True:
-            message = await self.message_queue.get()
-            await self._send_message(message)
-            self.message_queue.task_done()
+            try:
+                # Ensure we're in the correct event loop
+                if asyncio.get_running_loop() != self.loop:
+                    await asyncio.sleep(1)
+                    continue  # Don't process messages in the wrong loop
+
+                # Check if queue is empty before calling get()
+                if self.message_queue.empty():
+                    await asyncio.sleep(1)  # Avoid tight looping if there's nothing to process
+                    continue
+
+                message = await self.message_queue.get()
+
+                await self._send_message(message)
+                self.message_queue.task_done()
+
+            except asyncio.CancelledError:
+                break  # Exit the loop gracefully if the task is cancelled
+
+            except Exception as e:
+                await asyncio.sleep(3)  # Small delay before retrying
+
 
     async def _send_message(self, message: str):
-        """Send a message to the channel."""
+        """Send a message to the channel and return the message ID."""
         channel = self.bot.get_channel(self.channel_id)
         if channel:
-            await channel.send(message)
-            print(f"[Discord] Sent: {message}")
+            sent_message = await channel.send(message)
+            return sent_message.id
         else:
-            print("[Discord] Error: Channel not found.")
+            return None
 
     def post_message(self, message: str):
-        """
-        Thread-safe public method to queue a message.
-        """
-        #print(f"[DiscordPoster] Queuing message: {message}")
+        """Safely post a message from any thread using self.loop."""
+        if not self.loop or not self.loop.is_running():
+            return
 
-        # Wait until loop is ready
-        self.loop_ready.wait()
-
-        # Safely queue message
-        asyncio.run_coroutine_threadsafe(self.message_queue.put(message), self.loop)
+        future = asyncio.run_coroutine_threadsafe(self.message_queue.put(message), self.loop)
+        try:
+            future.result()  # Wait for completion
+        except Exception as e:
+            print(f"[DiscordPoster] Error posting message: {e}")
 
     async def close(self):
         """Gracefully shut down bot and background task."""
-        if hasattr(self, 'loop') and self.loop.is_running():
+        if self.loop and self.loop.is_running():
             await self.bot.close()
             if self.queue_task:
                 self.queue_task.cancel()

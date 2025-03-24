@@ -62,14 +62,14 @@ class PodsExport(DataExport):
                         for pod in tour_round.pods
                     ])
                     game_lost: list[IPlayer|Player] = [x for x in tour_round.players if x.result == IPlayer.EResult.LOSS]
-                    byes = [x for x in tour_round.unseated if x.location == IPlayer.ELocation.UNSEATED and x.result != IPlayer.EResult.LOSS]
+                    byes = [x for x in tour_round.unseated if x.location == IPlayer.ELocation.UNSEATED and x.result == IPlayer.EResult.BYE]
                     if len(game_lost) + len(byes) > 0:
                         max_len = max([len(p.name) for p in game_lost + byes])
                         if self.TC.allow_bye and byes:
                             export_str += '\n\nByes:\n' + '\n'.join([
                                 "\t{} | pts: {}".format(p.name.ljust(max_len), p.points)
                                 for p in tour_round.unseated
-                                if not p.result == IPlayer.EResult.LOSS
+                                if p.result == IPlayer.EResult.BYE
                             ])
                         if game_lost:
                             export_str += '\n\nGame losses:\n' + '\n'.join([
@@ -590,6 +590,9 @@ class Tournament(ITournament):
             self.round.create_pairings()
             for pod in self.round.pods:
                 pod.sort()
+            for p in self.round.unseated:
+                if p.result != IPlayer.EResult.LOSS:
+                    p.result = IPlayer.EResult.BYE
         else:
             Log.log(30*'*', level=Log.Level.WARNING)
             Log.log('Please report results of following pods: {}'.format(
@@ -635,6 +638,9 @@ class Tournament(ITournament):
     def reset_pods(self):
         if self.round:
             self.round.pods = []
+            for p in self.round.players:
+                if p.result != IPlayer.EResult.LOSS:
+                    p.result = IPlayer.EResult.PENDING
             self.round = None
             for player in self.players:
                 player.location = IPlayer.ELocation.UNSEATED
@@ -840,7 +846,7 @@ class Tournament(ITournament):
         try:
             response = requests.post(
                 api,
-                data={"textData": data},
+                json=data,
                 headers=headers,
                 timeout=10
             )
@@ -875,12 +881,17 @@ class Tournament(ITournament):
             headers = {
                 "x-api-key": key
             }
+            request_data = {
+                "title": "Tournament Update",
+                "timestamp": f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                "text": data
+            }
 
-            thread = threading.Thread(target=self.send_request, args=(api, data, headers))
+            thread = threading.Thread(target=self.send_request, args=(api, request_data, headers))
             thread.start()
 
         if StandingsExport.Target.DISCORD == target_type:
-            instance = DiscordPoster().instance()
+            instance = DiscordPoster.instance()
             instance.post_message(data)
 
         if StandingsExport.Target.CONSOLE == target_type:
@@ -1207,6 +1218,7 @@ class Pod(IPod):
         self.result: None|Player|IPlayer|Sequence[IPlayer|Player] = None
         self.winner: None|Player = None
         self.draw: list[Player] = list()
+        self.discord_message_id: None|int = None
 
     #@property
     #def players(self) -> list[Player]:
@@ -1443,6 +1455,6 @@ class Round(IRound):
         self.tour.round = None
         for p in self.tour.players:
             p.location = IPlayer.ELocation.UNSEATED
-            p.result = IPlayer.EResult.PENDING
+            #p.result = IPlayer.EResult.PENDING
         pass
 
