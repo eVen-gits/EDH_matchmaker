@@ -1041,8 +1041,8 @@ if __name__ == '__main__':
     if args.open:
         TournamentAction.load(args.open)
         core = TournamentAction.ACTIONS[-1].after
-    elif TournamentAction.load():
-        core = TournamentAction.ACTIONS[-1].after
+    #elif TournamentAction.load():
+    #    core = TournamentAction.ACTIONS[-1].after
     else:
         core = Tournament()
 

@@ -27,7 +27,7 @@ import threading
 # Load configuration from .env file
 load_dotenv()
 
-import sys
+#import sys
 #sys.setrecursionlimit(5000)  # Increase recursion limit
 
 class DataExport:
@@ -457,21 +457,56 @@ class Tournament(ITournament):
     # then opponent winrate, - CHANGE - moved this upwards and added dummy opponents with 33% winrate
     # then number of opponents beaten,
     # then ID - this last one is to ensure deterministic sorting in case of equal values (start of tournament for example)
+    CACHE: dict[UUID, ITournament|Tournament] = {}
 
     def __init__(self, config: Union[TournamentConfiguration, None] = None) :  # type: ignore
         TournamentAction.reset()
         if config is None:
             config = TournamentConfiguration()
-        self.rounds: list[Round] = list()
-        self.players: list[Player] = list()
-        self.dropped: list[Player] = list()
-        self.round: Round|None = None
+        self.ID: UUID = uuid4()
+        self.CACHE[self.ID] = self
+        self._rounds: list[UUID] = list()
+        self._players: list[UUID] = list()
+        self._dropped: list[UUID] = list()
+        self._round: UUID|None = None
 
         # Direct setting - don't want to overwrite old log file
         self._tc = config
 
     # TOURNAMENT ACTIONS
     # IMPORTANT: No nested tournament actions
+
+    @property
+    def rounds(self) -> list[IRound]:
+        return [Round.get(x) for x in self._rounds]
+
+    @property
+    def players(self) -> list[IPlayer]:
+        return [Player.get(x, self) for x in self._players]
+
+    @property
+    def dropped(self) -> list[IPlayer]:
+        return [Player.get(x, self) for x in self._dropped]
+
+    @property
+    def round(self) -> IRound|None:
+        return Round.get(self._round) if self._round else None
+
+
+    @override
+    @classmethod
+    def get(cls, ID: UUID) -> Tournament|ITournament:
+        return cls.CACHE[ID]
+
+    @property
+    def state(self) -> dict[str, Any]:
+
+        state = {
+            p.ID: p.location
+            for p in self.players
+        }
+
+        return state
 
     @property
     def draw_rate(self):
@@ -506,7 +541,7 @@ class Tournament(ITournament):
                 continue
             if name:
                 p = Player(name, tour=self)
-                self.players.append(p)
+                self._players.append(p.ID)
                 new_players.append(p)
                 Log.log('\tAdded player {}'.format(
                     p.name), level=Log.Level.INFO)
@@ -524,7 +559,7 @@ class Tournament(ITournament):
                     continue
             if p.played:
                 self.dropped.append(p)
-            self.players.remove(p)
+            self._players.remove(p.ID)
 
             Log.log('\tRemoved player {}'.format(p.name), level=Log.Level.INFO)
 
@@ -581,11 +616,11 @@ class Tournament(ITournament):
                 logic = PairingSnake()
             else:
                 logic = PairingDefault()
-            self.round = Round(
+            self._round = Round(
                 len(self.rounds),
                 logic,
-                self
-            )
+                self.ID
+            ).ID
         if not self.round.all_players_seated:
             self.round.create_pairings()
             for pod in self.round.pods:
@@ -597,7 +632,7 @@ class Tournament(ITournament):
             Log.log(30*'*', level=Log.Level.WARNING)
             Log.log('Please report results of following pods: {}'.format(
                 ', '.join([
-                    str(pod.id)
+                    str(pod.table)
                     for pod in self.round.pods
                     if not pod.done
                 ])
@@ -729,7 +764,7 @@ class Tournament(ITournament):
                         player.name, pod.name), level=Log.Level.INFO)
                 else:
                     Log.log('Failed to add palyer {} to Pod {}'.format(
-                        player.name, pod.id), level=Log.Level.ERROR)
+                        player.name, pod.table), level=Log.Level.ERROR)
 
     @TournamentAction.action
     def bench_players(self, players: list[Player]|Player):
@@ -908,12 +943,16 @@ class Player(IPlayer):
 
     def __init__(self, name:str, tour: Tournament|ITournament):
         super().__init__()
-        self.tour = tour
+        self._tour = tour.ID
         self.name = name
         self.points = 0
         self.ID:UUID = tour.TC.player_id.next()
         self.CACHE[self.ID] = self
         self.opponents_beaten = set()
+
+    @property
+    def tour(self) -> Tournament|ITournament:
+        return Tournament.get(self._tour)
 
     @classmethod
     def get(cls, ID: UUID, tour: Tournament|ITournament):
@@ -1181,11 +1220,11 @@ class Player(IPlayer):
             fields.append(self.name.ljust(pname_size))
 
         if args.pod and self.tour.round and len(self.tour.round.pods) > 0:
-            max_pod_id = max([len(str(p.id)) for p in self.tour.round.pods])
+            max_pod_id = max([len(str(p.table)) for p in self.tour.round.pods])
             if self.pod:
                 #find number of digits in max pod id
                 fields.append('{}'.format(
-                    f'P{str(self.pod.id).zfill(max_pod_id)}/S{self.pod.players.index(self)}' if self.pod else ''))
+                    f'P{str(self.pod.table).zfill(max_pod_id)}/S{self.pod.players.index(self)}' if self.pod else ''))
             elif self.result == Player.EResult.LOSS:
                 fields.append('Loss'.ljust(max_pod_id+4))
             else:
@@ -1208,22 +1247,33 @@ class Player(IPlayer):
 
 
 class Pod(IPod):
-    def __init__(self, round: Round, id, cap=0):
+    CACHE: dict[UUID, IPod|Pod] = {}
+
+    def __init__(self, round: Round, table:int, cap=0, ID: UUID|None = None):
         super().__init__()
-        self.id = id
-        self.cap = cap
-        self.players: list[Player] = list()
+        self.ID: UUID = ID if ID else uuid4()
+        self.CACHE[self.ID] = self
+        self.table:int = table
+        self.cap:int = cap
+        self._players: list[UUID] = list()
         #self._players: list[UUID] = list() #TODO: make references to players
-        self.round: Round = round
+        self._round: UUID = round.ID
         self.result: None|Player|IPlayer|Sequence[IPlayer|Player] = None
         self.winner: None|Player = None
         self.draw: list[Player] = list()
         self.discord_message_id: None|int = None
 
-    #@property
-    #def players(self) -> list[Player]:
-    #    x = [Player.get(ID, self.round.tour) for ID in self._players]
-    #    return x
+    @property
+    def round(self) -> Round:
+        return Round.get(self._round)
+
+    @property
+    def players(self) -> list[IPlayer]:
+        return [Player.get(x, self.round.tour) for x in self._players]
+
+    @classmethod
+    def get(cls, ID: UUID) -> Pod|IPod:
+        return cls.CACHE[ID]
 
     @override
     def add_player(self, player: Player, manual=False) -> bool:
@@ -1231,7 +1281,7 @@ class Pod(IPod):
             return False
         if player.pod:
             player.pod.remove_player(player)
-        self.players.append(player)
+        self._players.append(player.ID)
         player.location = IPlayer.ELocation.SEATED
 
         return True
@@ -1303,7 +1353,7 @@ class Pod(IPod):
 
     @property
     def name(self):
-        return 'Pod {}'.format(self.id)
+        return 'Pod {}'.format(self.table)
 
     @override
     def __repr__(self):
@@ -1312,7 +1362,7 @@ class Pod(IPod):
         else:
             maxlen = max([len(p.name) for p in self.players])
         ret = 'Pod {} with {}/{} players:\n\t{}'.format(
-            self.id,
+            self.table,
             len(self),
             self.cap,
             '\n\t'.join(
@@ -1331,12 +1381,32 @@ class Pod(IPod):
 
 
 class Round(IRound):
-    def __init__(self, seq: int, pairing_logic:IPairingLogic, tour: Tournament):
+    CACHE: dict[UUID, IRound|Round] = {}
+
+    def __init__(self, seq: int, pairing_logic:IPairingLogic, tour_id: UUID, ID: UUID|None = None):
         super().__init__()
-        self.players.extend(tour.players)
-        self.seq = seq
+        self.ID: UUID = ID if ID else uuid4()
+        self.CACHE[self.ID] = self
+        self._tour: UUID = tour_id
+        self._players: list[UUID] = [p.ID for p in self.tour.players]
+        self.seq:int = seq
         self.logic = pairing_logic
-        self.tour: Tournament = tour
+
+    @property
+    def players(self) -> list[IPlayer]:
+        return [Player.get(x, self.tour) for x in self._players]
+
+    @classmethod
+    def get(cls, ID: UUID) -> IRound|Round:
+        return cls.CACHE[ID]
+
+    @property
+    def pods(self) -> list[IPod]:
+        return [Pod.get(x) for x in self._pods]
+
+    @property
+    def tour(self) -> Tournament|ITournament:
+        return Tournament.get(self._tour)
 
     @property
     def done(self):
@@ -1379,12 +1449,10 @@ class Round(IRound):
         if pod_sizes is None:
             Log.log('Can not make pods.', level=Log.Level.WARNING)
             return None
-        pods:list[Pod] = []
         for size in pod_sizes:
             pod = Pod(self, len(self.pods), cap=size)
-            pods.append(pod)
-            self.pods.append(pod)
-        return pods
+            self._pods.append(pod.ID)
+
 
     def create_pairings(self):
         self.create_pods()
@@ -1399,7 +1467,8 @@ class Round(IRound):
             Log.log(pod.__repr__(), Log.Level.NONE)
 
     def sort_pods(self):
-        self.pods[:] = sorted(self.pods, key=lambda x: (len(x.players), np.average([p.points for p in x.players])), reverse=True)
+        pods_sorted = sorted(self.pods, key=lambda x: (len(x.players), np.average([p.points for p in x.players])), reverse=True)
+        self._pods[:] = [pod.ID for pod in pods_sorted]
 
     def won(self, players: list[IPlayer|Player]|IPlayer|Player):
         if not isinstance(players, list):
