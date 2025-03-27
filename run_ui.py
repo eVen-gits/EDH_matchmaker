@@ -83,7 +83,7 @@ class GeneratePlayersDialog(QDialog):
 
         self.sb_nPlayers = QSpinBox()
         self.sb_nPlayers.setRange(1, 1024)
-        self.sb_nPlayers.setValue(64)
+        self.sb_nPlayers.setValue(16)
         self.m_layout.addWidget(self.sb_nPlayers)
 
         self.pb_confirm = QPushButton('Generate')
@@ -503,11 +503,11 @@ class MainWindow(QMainWindow):
         for row in range(self.ui.lv_players.count()):
             item = self.ui.lv_players.item(row)
             data = item.data(Qt.ItemDataRole.UserRole)
-            if data.seated:
+            if data.result == Player.EResult.LOSS:
+                item.setBackground(self.game_loss_color)
+            elif data.seated:
                 item.setBackground(self.seated_color)
                 #item.setData(1, "background-color: {QTMATERIAL_PRIMARYCOLOR};")
-            elif data.result == Player.EResult.LOSS:
-                item.setBackground(self.game_loss_color)
             else:
                 item.setBackground(self.unseated_color)
             item.setText(data.__repr__(self.PLIST_FMT))

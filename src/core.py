@@ -13,7 +13,7 @@ from enum import Enum
 
 from .discord_engine import DiscordPoster
 from .interface import IPlayer, ITournament, IPod, IRound, IPairingLogic, ITournamentConfiguration
-from .misc import Json2Obj
+from .misc import Json2Obj, generate_player_names
 import numpy as np
 from tqdm import tqdm # pyright: ignore
 from .pairing_logic.examples import PairingRandom, PairingSnake, PairingDefault
@@ -61,15 +61,15 @@ class PodsExport(DataExport):
                         pod.__repr__()
                         for pod in tour_round.pods
                     ])
-                    game_lost: list[IPlayer|Player] = [x for x in tour_round.players if x.result == IPlayer.EResult.LOSS]
-                    byes = [x for x in tour_round.unseated if x.location == IPlayer.ELocation.UNSEATED and x.result == IPlayer.EResult.BYE]
+                    game_lost: list[Player] = [x for x in tour_round.players if x.result == Player.EResult.LOSS]
+                    byes = [x for x in tour_round.unseated if x.location == Player.ELocation.UNSEATED and x.result == Player.EResult.BYE]
                     if len(game_lost) + len(byes) > 0:
                         max_len = max([len(p.name) for p in game_lost + byes])
                         if self.TC.allow_bye and byes:
                             export_str += '\n\nByes:\n' + '\n'.join([
                                 "\t{} | pts: {}".format(p.name.ljust(max_len), p.points)
                                 for p in tour_round.unseated
-                                if p.result == IPlayer.EResult.BYE
+                                if p.result == Player.EResult.BYE
                             ])
                         if game_lost:
                             export_str += '\n\nGame losses:\n' + '\n'.join([
@@ -457,7 +457,7 @@ class Tournament(ITournament):
     # then opponent winrate, - CHANGE - moved this upwards and added dummy opponents with 33% winrate
     # then number of opponents beaten,
     # then ID - this last one is to ensure deterministic sorting in case of equal values (start of tournament for example)
-    CACHE: dict[UUID, ITournament|Tournament] = {}
+    CACHE: dict[UUID, Tournament] = {}
 
     def __init__(self, config: Union[TournamentConfiguration, None] = None) :  # type: ignore
         TournamentAction.reset()
@@ -477,36 +477,29 @@ class Tournament(ITournament):
     # IMPORTANT: No nested tournament actions
 
     @property
-    def rounds(self) -> list[IRound]:
+    def rounds(self) -> list[Round]:
         return [Round.get(x) for x in self._rounds]
 
     @property
-    def players(self) -> list[IPlayer]:
-        return [Player.get(x, self) for x in self._players]
+    def players(self) -> list[Player]:
+        return [Player.get(x) for x in self._players]
 
     @property
-    def dropped(self) -> list[IPlayer]:
+    def dropped(self) -> list[Player]:
         return [Player.get(x, self) for x in self._dropped]
 
     @property
-    def round(self) -> IRound|None:
+    def round(self) -> Round|None:
         return Round.get(self._round) if self._round else None
 
+    @round.setter
+    def round(self, round: Round|None):
+        self._round = round.ID if round else None
 
     @override
     @classmethod
-    def get(cls, ID: UUID) -> Tournament|ITournament:
+    def get(cls, ID: UUID) -> Tournament:
         return cls.CACHE[ID]
-
-    @property
-    def state(self) -> dict[str, Any]:
-
-        state = {
-            p.ID: p.location
-            for p in self.players
-        }
-
-        return state
 
     @property
     def draw_rate(self):
@@ -516,17 +509,17 @@ class Tournament(ITournament):
             for pod in round.pods:
                 if pod.done:
                     n_matches += 1
-                    if pod.draw:
-                        n_draws += len(pod.draw)
+                    if pod.result_type == Pod.EResult.DRAW:
+                        n_draws += len(pod.result)
         return n_draws/n_matches
 
     @property
-    def TC(self):
+    def TC(self) -> TournamentConfiguration:
         return self._tc
 
     @TC.setter
     @TournamentAction.action
-    def TC(self, config):
+    def TC(self, config: TournamentConfiguration):
         self._tc = config
 
     @TournamentAction.action
@@ -621,13 +614,13 @@ class Tournament(ITournament):
                 logic,
                 self.ID
             ).ID
+        assert self.round is not None
         if not self.round.all_players_seated:
             self.round.create_pairings()
-            for pod in self.round.pods:
-                pod.sort()
+
             for p in self.round.unseated:
-                if p.result != IPlayer.EResult.LOSS:
-                    p.result = IPlayer.EResult.BYE
+                if p.result!= Player.EResult.LOSS:
+                    p.result = Player.EResult.BYE
         else:
             Log.log(30*'*', level=Log.Level.WARNING)
             Log.log('Please report results of following pods: {}'.format(
@@ -649,7 +642,7 @@ class Tournament(ITournament):
                 logic = PairingSnake()
             else:
                 logic = PairingDefault()
-            self.round = Round(seq, logic, self)
+            self.round = Round(seq, logic, self.ID)
             return True
         else:
             if self.round.pods:
@@ -672,13 +665,13 @@ class Tournament(ITournament):
     @TournamentAction.action
     def reset_pods(self):
         if self.round:
-            self.round.pods = []
+            self.round._pods = []
             for p in self.round.players:
-                if p.result != IPlayer.EResult.LOSS:
-                    p.result = IPlayer.EResult.PENDING
-            self.round = None
+                if p.result != Player.EResult.LOSS:
+                    p.result = Player.EResult.PENDING
+            self._round = None
             for player in self.players:
-                player.location = IPlayer.ELocation.UNSEATED
+                player.location = Player.ELocation.UNSEATED
 
     @TournamentAction.action
     def manual_pod(self, players: list[Player]):
@@ -688,6 +681,7 @@ class Tournament(ITournament):
         assert isinstance(self.round, Round)
         cap = min(self.TC.max_pod_size, len(self.round.unseated))
         pod = Pod(self.round, len(self.round.pods), cap=cap)
+        self.round._pods.append(pod.ID)
 
         for player in players:
             pod.add_player(player)
@@ -700,7 +694,7 @@ class Tournament(ITournament):
                 players = [players]
             for p in players:
                 Log.log('Reporting player {} won this round.'.format(p.name))
-            self.round.won(players)
+            self.round.assign_win(players)
 
     @TournamentAction.action
     def report_draw(self, players: list[Player]|Player):
@@ -733,7 +727,7 @@ class Tournament(ITournament):
                 if not draw:
                     win = np.argmax([result < x for x in rates])
                     Log.log('won "{}"'.format(pod.players[win].name))
-                    self.round.won([pod.players[win]])
+                    self.round.assign_win([pod.players[win]])
                     #player = random.sample(pod.players, 1)[0]
                     #Log.log('won "{}"'.format(player.name))
                     #self.round.won([player])
@@ -743,7 +737,7 @@ class Tournament(ITournament):
                     players = pod.players
                     Log.log('draw {}'.format(
                         ' '.join(['"{}"'.format(p.name) for p in players])))
-                    self.round.draw([p for p in players])
+                    self.round.assign_draw([p for p in players])
         pass
 
     @TournamentAction.action
@@ -758,8 +752,8 @@ class Tournament(ITournament):
                     player.name, old_pod), level=Log.Level.INFO)
             if player.pod != pod:
                 if pod.add_player(player, manual=manual):
-                    player.result = IPlayer.EResult.PENDING
-                    player.location = IPlayer.ELocation.SEATED
+                    player.result = Player.EResult.PENDING
+                    player.location = Player.ELocation.SEATED
                     Log.log('Added player {} to {}'.format(
                         player.name, pod.name), level=Log.Level.INFO)
                 else:
@@ -778,14 +772,14 @@ class Tournament(ITournament):
         if not isinstance(players, list):
             players = [players]
         for player in players:
-            if player.result == IPlayer.EResult.LOSS:
-                player.result = IPlayer.EResult.PENDING
+            if player.result == Player.EResult.LOSS:
+                player.result = Player.EResult.PENDING
                 Log.log('{} game loss removed.'.format(
                     player.name), level=Log.Level.INFO)
             else:
                 if player.pod is not None:
                     self.remove_player_from_pod(player)
-                player.result = IPlayer.EResult.LOSS
+                player.result = Player.EResult.LOSS
                 Log.log('{} assigned a game loss.'.format(
                     player.name), level=Log.Level.INFO)
 
@@ -936,12 +930,12 @@ class Tournament(ITournament):
 
 
 class Player(IPlayer):
-    CACHE: dict[UUID, IPlayer|Player] = {}
+    CACHE: dict[UUID, Player] = {}
     SORT_METHOD: SORT_METHOD = SORT_METHOD.ID
     SORT_ORDER: SORT_ORDER = SORT_ORDER.ASCENDING
     FORMATTING = ['-p']
 
-    def __init__(self, name:str, tour: Tournament|ITournament):
+    def __init__(self, name:str, tour: Tournament):
         super().__init__()
         self._tour = tour.ID
         self.name = name
@@ -951,22 +945,21 @@ class Player(IPlayer):
         self.opponents_beaten = set()
 
     @property
-    def tour(self) -> Tournament|ITournament:
+    def tour(self) -> Tournament:
         return Tournament.get(self._tour)
 
     @classmethod
-    def get(cls, ID: UUID, tour: Tournament|ITournament):
-        if ID not in cls.CACHE:
-            cls.CACHE[ID] = cls('', tour)
-            cls.CACHE[ID].ID = ID
+    def get(cls, ID: UUID):
         return cls.CACHE[ID]
 
     @property
     def players_beaten(self) -> list[Player]:
         players = set()
         for pod in self.games:
-            if pod.winner is self:
+            if pod.result_type == Pod.EResult.WIN and self in pod.result:
                 players.update(pod.players)
+
+        players.discard(self)
         return list(players)
 
     @property
@@ -1024,7 +1017,8 @@ class Player(IPlayer):
         return False
 
     @property
-    def pod(self) -> IPod|Pod|None:
+    @override
+    def pod(self) -> Pod|None:
         if self.tour.round is None:
             return None
         for pod in self.tour.round.pods:
@@ -1034,7 +1028,7 @@ class Player(IPlayer):
 
     @property
     @override
-    def played(self) -> list[IPlayer|Player]:
+    def played(self) -> list[Player]:
         players = set()
         for p in self.pods:
             if isinstance(p, Pod):
@@ -1042,7 +1036,7 @@ class Player(IPlayer):
         return list(players)
 
     @property
-    def not_played(self) -> list[IPlayer|Player]:
+    def not_played(self) -> list[Player]:
         return list(set(self.tour.players) - set(self.played))
 
     @property
@@ -1060,16 +1054,16 @@ class Player(IPlayer):
 
     @property
     def games(self):
-        return [p for p in self.pods if not isinstance(p, IPlayer.EResult)]
+        return [p for p in self.pods if isinstance(p, Pod)]
 
     @property
     @override
     def byes(self):
-        return len([p for p in self.pods if p is IPlayer.EResult.BYE])
+        return len([p for p in self.pods if p is Player.EResult.BYE])
 
     @property
     def wins(self):
-        return len([p for p in self.games if p.winner is self])
+        return len([p for p in self.games if p.result is self.ID])
 
     @property
     def record(self) -> list[Player.EResult]:
@@ -1084,17 +1078,12 @@ class Player(IPlayer):
                 else:
                     seq.append(Player.EResult.BYE)
             elif isinstance(pod, Pod):
-                if pod.done:
-                    if pod.winner is not None:
-                        if pod.winner is self:
-                            seq.append(Player.EResult.WIN)
-                        else:
-                            seq.append(Player.EResult.LOSS)
-                    else:
-                        if self in pod.draw:
-                            seq.append(Player.EResult.DRAW)
-                        else:
-                            seq.append(Player.EResult.LOSS)
+                if pod.result_type:
+                    if pod.result_type == Pod.EResult.WIN and self.ID in pod.result:
+                        seq.append(Player.EResult.WIN)
+                    elif pod.result_type == Pod.EResult.DRAW and self.ID in pod.result:
+                        seq.append(Player.EResult.DRAW)
+                    seq.append(Player.EResult.LOSS)
                 else:
                     seq.append(Player.EResult.PENDING)
 
@@ -1108,7 +1097,7 @@ class Player(IPlayer):
         return seq
 
     @staticmethod
-    def fmt_record(record:list[IPlayer.EResult]) -> str:
+    def fmt_record(record:list[Player.EResult]) -> str:
         return ''.join([{
             Player.EResult.WIN: 'W',
             Player.EResult.LOSS: 'L',
@@ -1247,7 +1236,7 @@ class Player(IPlayer):
 
 
 class Pod(IPod):
-    CACHE: dict[UUID, IPod|Pod] = {}
+    CACHE: dict[UUID, Pod] = {}
 
     def __init__(self, round: Round, table:int, cap=0, ID: UUID|None = None):
         super().__init__()
@@ -1258,21 +1247,30 @@ class Pod(IPod):
         self._players: list[UUID] = list()
         #self._players: list[UUID] = list() #TODO: make references to players
         self._round: UUID = round.ID
-        self.result: None|Player|IPlayer|Sequence[IPlayer|Player] = None
-        self.winner: None|Player = None
-        self.draw: list[Player] = list()
-        self.discord_message_id: None|int = None
+        #self.discord_message_id: None|int = None
+
+    @property
+    def result_type(self) -> None|Pod.EResult:
+        if self.result:
+            if len(self.result) == 1:
+                return Pod.EResult.WIN
+            return Pod.EResult.DRAW
+        return None
+
+    @property
+    def done(self) -> bool:
+        return len(self.result) > 0
 
     @property
     def round(self) -> Round:
         return Round.get(self._round)
 
     @property
-    def players(self) -> list[IPlayer]:
-        return [Player.get(x, self.round.tour) for x in self._players]
+    def players(self) -> list[Player]:
+        return [Player.get(x) for x in self._players]
 
     @classmethod
-    def get(cls, ID: UUID) -> Pod|IPod:
+    def get(cls, ID: UUID) -> Pod:
         return cls.CACHE[ID]
 
     @override
@@ -1282,17 +1280,17 @@ class Pod(IPod):
         if player.pod:
             player.pod.remove_player(player)
         self._players.append(player.ID)
-        player.location = IPlayer.ELocation.SEATED
+        player.location = Player.ELocation.SEATED
 
         return True
 
     def remove_player(self, player: Player, cleanup=True) -> Player|None:
         try:
-            idx = self.players.index(player)
+            idx = self._players.index(player.ID)
         except ValueError:
             return None
-        p = self.players.pop(idx)
-        player.location = IPlayer.ELocation.UNSEATED
+        p = self._players.pop(idx)
+        player.location = Player.ELocation.UNSEATED
         if len(self) == 0 and cleanup:
             self.round.remove_pod(self)
         return player
@@ -1312,7 +1310,7 @@ class Pod(IPod):
         ])
 
     @override
-    def sort(self):
+    def assign_seats(self):
         # Average seating positions
         average_positions = [p.average_seat for p in self.players]
         n = len(average_positions)
@@ -1348,7 +1346,7 @@ class Pod(IPod):
 
     def clear(self):
         for p in self.players:
-            p.location = IPlayer.ELocation.UNSEATED
+            p.location = Player.ELocation.UNSEATED
         self.players.clear()
 
     @property
@@ -1368,9 +1366,9 @@ class Pod(IPod):
             '\n\t'.join(
                 [
                     '[{}] {}\t'.format(
-                        ' ' if not self.done else
-                        'W' if p == self.winner else
-                        'D' if p in self.draw else
+                        ' ' if not self.result else
+                        'W' if self.result_type == Pod.EResult.WIN and p.ID in self.result else
+                        'D' if self.result_type == Pod.EResult.DRAW and p.ID in self.result else
                         'L',
                         p.__repr__(['-s', str(maxlen), '-p']))
                     for _, p in
@@ -1381,7 +1379,7 @@ class Pod(IPod):
 
 
 class Round(IRound):
-    CACHE: dict[UUID, IRound|Round] = {}
+    CACHE: dict[UUID, Round] = {}
 
     def __init__(self, seq: int, pairing_logic:IPairingLogic, tour_id: UUID, ID: UUID|None = None):
         super().__init__()
@@ -1393,19 +1391,23 @@ class Round(IRound):
         self.logic = pairing_logic
 
     @property
-    def players(self) -> list[IPlayer]:
-        return [Player.get(x, self.tour) for x in self._players]
+    def players(self) -> list[Player]:
+        return [Player.get(x) for x in self._players]
+
+    @players.setter
+    def players(self, players: list[Player]):
+        self._players = [p.ID for p in players]
 
     @classmethod
-    def get(cls, ID: UUID) -> IRound|Round:
+    def get(cls, ID: UUID) -> Round:
         return cls.CACHE[ID]
 
     @property
-    def pods(self) -> list[IPod]:
+    def pods(self) -> list[Pod]:
         return [Pod.get(x) for x in self._pods]
 
     @property
-    def tour(self) -> Tournament|ITournament:
+    def tour(self) -> Tournament:
         return Tournament.get(self._tour)
 
     @property
@@ -1427,12 +1429,17 @@ class Round(IRound):
             return sum(pod_sizes) == seated
 
     @property
-    def seated(self) -> list[Player|IPlayer]:
-        return [p for p in self.players if p.location == IPlayer.ELocation.SEATED]
+    def seated(self) -> list[Player]:
+        return [p for p in self.players if p.location == Player.ELocation.SEATED]
 
     @property
-    def unseated(self) -> list[Player|IPlayer]:
-        return [p for p in self.tour.players if p.location == IPlayer.ELocation.UNSEATED and not p.result == IPlayer.EResult.LOSS]
+    def unseated(self) -> list[Player]:
+        return [
+            p
+            for p in self.players
+            if p.location == Player.ELocation.UNSEATED
+            and not p.result == Player.EResult.LOSS
+        ]
 
     def remove_pod(self, pod: Pod):
         if not pod.done:
@@ -1453,7 +1460,6 @@ class Round(IRound):
             pod = Pod(self, len(self.pods), cap=size)
             self._pods.append(pod.ID)
 
-
     def create_pairings(self):
         self.create_pods()
         pods = [p for p in self.pods
@@ -1462,15 +1468,17 @@ class Round(IRound):
                     len(p) < p.cap
         ])]
         self.logic.make_pairings(self.unseated, pods)
-        self.sort_pods()
         for pod in self.pods:
-            Log.log(pod.__repr__(), Log.Level.NONE)
+            pod.assign_seats()
+        self.sort_pods()
+        #for pod in self.pods:
+        #    Log.log(pod.__repr__(), Log.Level.NONE)
 
     def sort_pods(self):
         pods_sorted = sorted(self.pods, key=lambda x: (len(x.players), np.average([p.points for p in x.players])), reverse=True)
         self._pods[:] = [pod.ID for pod in pods_sorted]
 
-    def won(self, players: list[IPlayer|Player]|IPlayer|Player):
+    def assign_win(self, players: list[Player]|Player):
         if not isinstance(players, list):
             players = [players]
         for player in players:
@@ -1484,21 +1492,19 @@ class Round(IRound):
             if not pod.done:
                 player.points = player.points + self.tour.TC.win_points
 
-                pod.winner = player
-                pod.done = True
+                pod.result.add(player.ID)
 
             if self.done:
                 self.conclude()
 
-    def draw(self, players: list[Player]|Player):
+    def assign_draw(self, players: list[Player]|Player):
         if not isinstance(players, list):
             players = [players]
         for player in players:
             if player.pod is not None:
                 player.points = player.points + self.tour.TC.draw_points
 
-                player.pod.draw.append(player)
-                player.pod.done = True
+                player.pod.result.add(player.ID)
 
         if self.done and not self.concluded:
             self.conclude()
@@ -1518,12 +1524,10 @@ class Round(IRound):
 
         self.tour.rounds.append(self)
         self.concluded = datetime.now()
-        self.players = deepcopy(self.players)
         Log.log('{}{}{}'.format(
             30*'*', '\nRound completed!\n', 30*'*',), Log.Level.INFO)
         self.tour.round = None
         for p in self.tour.players:
-            p.location = IPlayer.ELocation.UNSEATED
-            #p.result = IPlayer.EResult.PENDING
+            p.location = Player.ELocation.UNSEATED
+            #p.result = Player.EResult.PENDING
         pass
-

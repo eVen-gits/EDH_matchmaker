@@ -37,7 +37,7 @@ class CommonPairing(IPairingLogic):
             x.opponent_winrate
         )
 
-        capacity = sum([pod.cap for pod in pods])
+        capacity = sum([pod.cap - len(pod.players) for pod in pods])
         n_byes = len(players) - capacity
         buckets = [
             [
@@ -59,7 +59,8 @@ class PairingRandom(CommonPairing):
         byes = self.assign_byes(players, pods)
         active_players = [p for p in players if p not in byes]
         random.shuffle(active_players)
-        for pod in pods:
+        from tqdm import tqdm
+        for pod in tqdm(pods):
             for _ in range(pod.cap - len(pod)):
                 pod.add_player(active_players.pop(0))
 

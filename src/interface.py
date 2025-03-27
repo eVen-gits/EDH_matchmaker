@@ -12,9 +12,9 @@ class IHashable:
         self.ID: UUID = uuid4()
 
     @classmethod
+    @abstractmethod
     def get(cls, ID: UUID) -> IHashable:
         raise NotImplementedError()
-
 
 class IPlayer(IHashable):
     class ELocation(IntEnum):
@@ -43,6 +43,11 @@ class IPlayer(IHashable):
         self.byes: int
         self.wins: int
 
+    @property
+    @abstractmethod
+    def pod(self) -> IPod|None:
+        raise NotImplementedError()
+
 class ITournament(IHashable):
     def __init__(self, config: ITournamentConfiguration | None = None):
         super().__init__()
@@ -60,17 +65,15 @@ class ITournament(IHashable):
 class IPod(IHashable):
 
     class EResult(IntEnum):
-        LOSS = 0
-        DRAW = 1
-        WIN = 2
+        DRAW = 0
+        WIN = 1
 
     def __init__(self):
         super().__init__()
         self.table: int = -1
         self._players: list[UUID] = list()
         self.cap: int = 0
-        self.done: bool = False
-        self.winner: None|IPlayer = None
+        self.result: set[UUID] = set()
 
     @property
     @abstractmethod
@@ -78,7 +81,7 @@ class IPod(IHashable):
         raise NotImplementedError('Pod.players not implemented - use subclass')
 
     @abstractmethod
-    def sort(self):
+    def assign_seats(self):
         pass
 
     @abstractmethod
