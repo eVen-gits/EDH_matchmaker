@@ -291,9 +291,12 @@ class Log:
     output = []
 
     PRINT = False
+    DISABLE = False
 
     @classmethod
     def log(cls, str_log, level=Level.NONE):
+        if cls.DISABLE:
+            return
         entry = Log.LogEntry(str_log, level)
         cls.output.append(entry)
         if cls.PRINT:
@@ -350,7 +353,6 @@ class TournamentAction:
         @StandingsExport.auto_export
         @PodsExport.auto_export
         def wrapper(self, *original_args, **original_kwargs):
-
             before = deepcopy(self)
             ret = func(self, *original_args, **original_kwargs)
             after = deepcopy(self)
@@ -366,6 +368,7 @@ class TournamentAction:
         if cls.LOGF is None:
             cls.LOGF = cls.DEFAULT_LOGF
         if cls.LOGF:
+            assert isinstance(cls.LOGF, str)
             if not os.path.exists(os.path.dirname(cls.LOGF)):
                 os.makedirs(os.path.dirname(cls.LOGF))
             with open(cls.LOGF, 'wb') as f:
@@ -378,6 +381,11 @@ class TournamentAction:
             try:
                 with open(cls.LOGF, 'rb') as f:
                     cls.ACTIONS = pickle.load(f)
+
+                    Tournament.CACHE.clear()
+                    for action in cls.ACTIONS:
+                        Tournament.CACHE[action.before.ID] = action.before
+                        Tournament.CACHE[action.after.ID] = action.after
                 if not cls.ACTIONS:
                     return False
                 return True
@@ -470,36 +478,50 @@ class Tournament(ITournament):
         self._dropped: list[UUID] = list()
         self._round: UUID|None = None
 
+        self.PLAYER_CACHE: dict[UUID, Player] = {}
+        self.POD_CACHE: dict[UUID, Pod] = {}
+        self.ROUND_CACHE: dict[UUID, Round] = {}
         # Direct setting - don't want to overwrite old log file
         self._tc = config
 
+
     # TOURNAMENT ACTIONS
     # IMPORTANT: No nested tournament actions
-
-    @property
-    def rounds(self) -> list[Round]:
-        return [Round.get(x) for x in self._rounds]
-
-    @property
-    def players(self) -> list[Player]:
-        return [Player.get(x) for x in self._players]
-
-    @property
-    def dropped(self) -> list[Player]:
-        return [Player.get(x, self) for x in self._dropped]
-
-    @property
-    def round(self) -> Round|None:
-        return Round.get(self._round) if self._round else None
-
-    @round.setter
-    def round(self, round: Round|None):
-        self._round = round.ID if round else None
 
     @override
     @classmethod
     def get(cls, ID: UUID) -> Tournament:
         return cls.CACHE[ID]
+
+    @property
+    def players(self) -> list[Player]:
+        return [Player.get(self, x) for x in self._players]
+
+    @property
+    def dropped(self) -> list[Player]:
+        return [Player.get(self, x) for x in self._dropped]
+
+    @property
+    def round(self) -> Round|None:
+        return Round.get(self, self._round) if self._round else None
+
+    @round.setter
+    def round(self, round: Round):
+        self._round = round.ID
+
+    @property
+    def pods(self) -> list[Pod]|None:
+        if not self.round:
+            return None
+        return self.round.pods
+
+    @property
+    def rounds(self) -> list[Round]:
+        return [Round.get(self, x) for x in self._rounds]
+
+    @rounds.setter
+    def rounds(self, rounds: list[Round]):
+        self._rounds = [r.ID for r in rounds]
 
     @property
     def draw_rate(self):
@@ -527,8 +549,9 @@ class Tournament(ITournament):
         new_players = []
         if isinstance(names, str):
             names = [names]
+        existing_names = set([p.name for p in self.players])
         for name in names:
-            if name in [p.name for p in self.players]:
+            if name in existing_names:
                 Log.log('\tPlayer {} already enlisted.'.format(
                     name), level=Log.Level.WARNING)
                 continue
@@ -536,6 +559,7 @@ class Tournament(ITournament):
                 p = Player(name, tour=self)
                 self._players.append(p.ID)
                 new_players.append(p)
+                existing_names.add(name)
                 Log.log('\tAdded player {}'.format(
                     p.name), level=Log.Level.INFO)
         return new_players
@@ -575,27 +599,42 @@ class Tournament(ITournament):
                 player.name, new_name), level=Log.Level.INFO)
 
     def get_pod_sizes(self, n) -> list[int]|None:
-        # tails = {}
-        for pod_size in self.TC.pod_sizes:
-            rem = n-pod_size
-            if rem < 0:
+        # Stack to store (remaining_players, current_pod_size_index, current_solution)
+        stack = [(n, 0, [])]
+
+        while stack:
+            remaining, pod_size_idx, current_solution = stack.pop()
+
+            # If we've processed all pod sizes, continue to next iteration
+            if pod_size_idx >= len(self.TC.pod_sizes):
                 continue
+
+            pod_size = self.TC.pod_sizes[pod_size_idx]
+            rem = remaining - pod_size
+
+            # Skip if this pod size would exceed remaining players
+            if rem < 0:
+                stack.append((remaining, pod_size_idx + 1, current_solution))
+                continue
+
+            # If this pod size exactly matches remaining players, we found a solution
             if rem == 0:
-                return [pod_size]
+                return current_solution + [pod_size]
+
+            # Handle case where remaining players is less than minimum pod size
             if rem < self.TC.min_pod_size:
                 if self.TC.allow_bye and rem <= self.TC.max_byes:
-                    return [pod_size]
+                    return current_solution + [pod_size]
                 elif pod_size == self.TC.pod_sizes[-1]:
-                    return None
+                    continue
+                else:
+                    stack.append((remaining, pod_size_idx + 1, current_solution))
+                    continue
+
+            # If remaining players is valid, try this pod size and continue with remaining players
             if rem >= self.TC.min_pod_size:
-                # This following code prefers smaller pods over byes
-                # tails[(rem, pod_size)] = self.get_pod_sizes(rem)
-                # if tails[(rem, pod_size)] is not None:
-                #    if sum(tails[(rem, pod_size)]) == rem:
-                #        return sorted([pod_size] + tails[(rem, pod_size)], reverse=True)
-                tail = self.get_pod_sizes(rem)
-                if tail is not None:
-                    return [pod_size] + tail
+                stack.append((remaining, pod_size_idx + 1, current_solution))
+                stack.append((rem, 0, current_solution + [pod_size]))
 
         return None
 
@@ -612,7 +651,7 @@ class Tournament(ITournament):
             self._round = Round(
                 len(self.rounds),
                 logic,
-                self.ID
+                self
             ).ID
         assert self.round is not None
         if not self.round.all_players_seated:
@@ -642,7 +681,8 @@ class Tournament(ITournament):
                 logic = PairingSnake()
             else:
                 logic = PairingDefault()
-            self.round = Round(seq, logic, self.ID)
+            round = Round(seq, logic, self)
+            self._round = round.ID
             return True
         else:
             if self.round.pods:
@@ -669,6 +709,7 @@ class Tournament(ITournament):
             for p in self.round.players:
                 if p.result != Player.EResult.LOSS:
                     p.result = Player.EResult.PENDING
+                p.pod = None
             self._round = None
             for player in self.players:
                 player.location = Player.ELocation.UNSEATED
@@ -799,6 +840,8 @@ class Tournament(ITournament):
     # MISC ACTIONS
 
     def get_pods_str(self) -> str:
+        if not self.round:
+            return ''
         export_str = '\n\n'.join([
             pod.__repr__()
             for pod in self.round.pods
@@ -930,7 +973,6 @@ class Tournament(ITournament):
 
 
 class Player(IPlayer):
-    CACHE: dict[UUID, Player] = {}
     SORT_METHOD: SORT_METHOD = SORT_METHOD.ID
     SORT_ORDER: SORT_ORDER = SORT_ORDER.ASCENDING
     FORMATTING = ['-p']
@@ -943,14 +985,23 @@ class Player(IPlayer):
         self.ID:UUID = tour.TC.player_id.next()
         self.CACHE[self.ID] = self
         self.opponents_beaten = set()
+        self._pod_id: UUID|None = None  # Direct reference to current pod
+
+    @property
+    def CACHE(self) -> dict[UUID, Player]:
+        return self.tour.PLAYER_CACHE
 
     @property
     def tour(self) -> Tournament:
         return Tournament.get(self._tour)
 
-    @classmethod
-    def get(cls, ID: UUID):
-        return cls.CACHE[ID]
+    @tour.setter
+    def tour(self, tour: Tournament):
+        self._tour = tour.ID
+
+    @staticmethod
+    def get(tour: Tournament, ID: UUID):
+        return tour.PLAYER_CACHE[ID]
 
     @property
     def players_beaten(self) -> list[Player]:
@@ -989,7 +1040,7 @@ class Player(IPlayer):
         score = 0
         for pod in self.pods:
             if isinstance(pod, Pod):
-                index = pod.players.index(self)
+                index = ([x.ID for x in pod.players]).index(self.ID)
                 if index == 0:
                     score += 1
                 elif index == len(pod) - 1:
@@ -1017,14 +1068,14 @@ class Player(IPlayer):
         return False
 
     @property
-    @override
     def pod(self) -> Pod|None:
-        if self.tour.round is None:
+        if self._pod_id is None:
             return None
-        for pod in self.tour.round.pods:
-            if self in pod.players:
-                return pod
-        return None
+        return Pod.get(self.tour, self._pod_id)
+
+    @pod.setter
+    def pod(self, pod: Pod|None):
+        self._pod_id = pod.ID if pod is not None else None
 
     @property
     @override
@@ -1112,7 +1163,8 @@ class Player(IPlayer):
             return 'N/A'
         ret_str = ' '.join([
             '{}/{}'.format(
-                p.players.index(self)+1, len(p.players)
+                ([x.ID for x in p.players]).index(self.ID)+1,
+                len(p.players)
             )
             if isinstance(p, Pod)
             else 'N/A'
@@ -1236,18 +1288,25 @@ class Player(IPlayer):
 
 
 class Pod(IPod):
-    CACHE: dict[UUID, Pod] = {}
-
     def __init__(self, round: Round, table:int, cap=0, ID: UUID|None = None):
         super().__init__()
+        self._tour: UUID = round.tour.ID
+        self._round: UUID = round.ID
         self.ID: UUID = ID if ID else uuid4()
         self.CACHE[self.ID] = self
         self.table:int = table
         self.cap:int = cap
         self._players: list[UUID] = list()
         #self._players: list[UUID] = list() #TODO: make references to players
-        self._round: UUID = round.ID
         #self.discord_message_id: None|int = None
+
+    @property
+    def CACHE(self) -> dict[UUID, Pod]:
+        return self.tour.POD_CACHE
+
+    @staticmethod
+    def get(tour: Tournament, ID: UUID) -> Pod:
+        return tour.POD_CACHE[ID]
 
     @property
     def result_type(self) -> None|Pod.EResult:
@@ -1262,26 +1321,30 @@ class Pod(IPod):
         return len(self.result) > 0
 
     @property
+    def tour(self) -> Tournament:
+        return Tournament.get(self._tour)
+
+    @tour.setter
+    def tour(self, tour: Tournament):
+        self._tour = tour.ID
+
+    @property
     def round(self) -> Round:
-        return Round.get(self._round)
+        return Round.get(self.tour, self._round)
 
     @property
     def players(self) -> list[Player]:
-        return [Player.get(x) for x in self._players]
-
-    @classmethod
-    def get(cls, ID: UUID) -> Pod:
-        return cls.CACHE[ID]
+        return [Player.get(self.tour, x) for x in self._players]
 
     @override
-    def add_player(self, player: Player, manual=False) -> bool:
+    def add_player(self, player: Player, manual=False, player_pod_map=None) -> bool:
         if len(self) >= self.cap and self.cap and not manual:
             return False
-        if player.pod:
+        if player.pod is not None:
             player.pod.remove_player(player)
         self._players.append(player.ID)
         player.location = Player.ELocation.SEATED
-
+        player.pod = self  # Update player's pod reference
         return True
 
     def remove_player(self, player: Player, cleanup=True) -> Player|None:
@@ -1291,6 +1354,7 @@ class Pod(IPod):
             return None
         p = self._players.pop(idx)
         player.location = Player.ELocation.UNSEATED
+        player.pod = None  # Clear player's pod reference
         if len(self) == 0 and cleanup:
             self.round.remove_pod(self)
         return player
@@ -1347,6 +1411,7 @@ class Pod(IPod):
     def clear(self):
         for p in self.players:
             p.location = Player.ELocation.UNSEATED
+            p.pod = None  # Clear pod references
         self.players.clear()
 
     @property
@@ -1379,32 +1444,35 @@ class Pod(IPod):
 
 
 class Round(IRound):
-    CACHE: dict[UUID, Round] = {}
 
-    def __init__(self, seq: int, pairing_logic:IPairingLogic, tour_id: UUID, ID: UUID|None = None):
+    def __init__(self, seq: int, pairing_logic:IPairingLogic, tour: Tournament, ID: UUID|None = None):
         super().__init__()
         self.ID: UUID = ID if ID else uuid4()
+        self._tour: UUID = tour.ID
         self.CACHE[self.ID] = self
-        self._tour: UUID = tour_id
         self._players: list[UUID] = [p.ID for p in self.tour.players]
         self.seq:int = seq
         self.logic = pairing_logic
 
     @property
+    def CACHE(self) -> dict[UUID, Round]:
+        return self.tour.ROUND_CACHE
+
+    @staticmethod
+    def get(tour: Tournament, ID: UUID) -> Round:
+        return tour.ROUND_CACHE[ID]
+
+    @property
     def players(self) -> list[Player]:
-        return [Player.get(x) for x in self._players]
+        return [Player.get(self.tour, x) for x in self._players]
 
     @players.setter
     def players(self, players: list[Player]):
         self._players = [p.ID for p in players]
 
-    @classmethod
-    def get(cls, ID: UUID) -> Round:
-        return cls.CACHE[ID]
-
     @property
     def pods(self) -> list[Pod]:
-        return [Pod.get(x) for x in self._pods]
+        return [Pod.get(self.tour, x) for x in self._pods]
 
     @property
     def tour(self) -> Tournament:
@@ -1456,8 +1524,9 @@ class Round(IRound):
         if pod_sizes is None:
             Log.log('Can not make pods.', level=Log.Level.WARNING)
             return None
-        for size in pod_sizes:
-            pod = Pod(self, len(self.pods), cap=size)
+        start_table = len(self.pods) + 1
+        for i, size in enumerate(pod_sizes):
+            pod = Pod(self, start_table + i, cap=size)
             self._pods.append(pod.ID)
 
     def create_pairings(self):
@@ -1471,8 +1540,8 @@ class Round(IRound):
         for pod in self.pods:
             pod.assign_seats()
         self.sort_pods()
-        #for pod in self.pods:
-        #    Log.log(pod.__repr__(), Log.Level.NONE)
+        for pod in self.pods:
+            Log.log(pod, Log.Level.NONE)
 
     def sort_pods(self):
         pods_sorted = sorted(self.pods, key=lambda x: (len(x.players), np.average([p.points for p in x.players])), reverse=True)
@@ -1526,8 +1595,9 @@ class Round(IRound):
         self.concluded = datetime.now()
         Log.log('{}{}{}'.format(
             30*'*', '\nRound completed!\n', 30*'*',), Log.Level.INFO)
-        self.tour.round = None
+        self.tour._round = None
         for p in self.tour.players:
             p.location = Player.ELocation.UNSEATED
+            p.pod = None
             #p.result = Player.EResult.PENDING
         pass

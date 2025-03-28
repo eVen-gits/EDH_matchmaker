@@ -59,10 +59,12 @@ class PairingRandom(CommonPairing):
         byes = self.assign_byes(players, pods)
         active_players = [p for p in players if p not in byes]
         random.shuffle(active_players)
-        from tqdm import tqdm
-        for pod in tqdm(pods):
+
+        player_index = 0
+        for pod in pods:
             for _ in range(pod.cap - len(pod)):
-                pod.add_player(active_players.pop(0))
+                pod.add_player(active_players[player_index])
+                player_index += 1
 
         return players
 

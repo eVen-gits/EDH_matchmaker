@@ -16,7 +16,7 @@ from PyQt6.QtWidgets import QListWidgetItem
 
 from src.interface import *
 from src.core import (SORT_METHOD, SORT_ORDER, StandingsExport, Log, Player, Pod,
-                  Tournament, TournamentAction, TournamentConfiguration)
+                  Tournament, Round, TournamentAction, TournamentConfiguration)
 from src.misc import generate_player_names
 
 
@@ -53,10 +53,10 @@ class PlayerListItem(QListWidgetItem):
         self.setFont(monospace_font)
         self.player = player
 
-    def __lt__(self, other):
+    def __lt__(self, other: PlayerListItem):
         return self.player.__lt__(other.player)
 
-    def __gt__(self, other):
+    def __gt__(self, other: PlayerListItem):
         return self.player.__gt__(other.player)
 
 
@@ -264,7 +264,7 @@ class MainWindow(QMainWindow):
                 if not file.endswith(ext.replace('*', '')):
                     file = ext.replace('*', '{}').format(file)
                 pods_str = self.core.get_pods_str()
-                self.core.export_data(pods_str, file, StandingsExport.Target.FILE)
+                self.core.export_str(pods_str, file, StandingsExport.Target.FILE)
 
     def init_sort_dropdown(self):
         values = [
