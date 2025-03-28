@@ -873,6 +873,8 @@ class Tournament(ITournament):
         if StandingsExport.Target.WEB == target_type:
             api = os.getenv("EXPORT_ONLINE_API_URL")
             key = os.getenv("EXPORT_ONLINE_API_KEY")
+            tournament_id = os.getenv("TOURNAMENT_ID")
+            url = f"{api}?tournamentId={tournament_id}"
             if not key or not api:
                 Log.log("Error: EXPORT_ONLINE_API_URL or EXPORT_ONLINE_API_KEY not set in the environment variables.")
                 return
@@ -884,10 +886,10 @@ class Tournament(ITournament):
             request_data = {
                 "title": "Tournament Update",
                 "timestamp": f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-                "text": data
+                "text": data,
             }
 
-            thread = threading.Thread(target=self.send_request, args=(api, request_data, headers))
+            thread = threading.Thread(target=self.send_request, args=(url, request_data, headers))
             thread.start()
 
         if StandingsExport.Target.DISCORD == target_type:
