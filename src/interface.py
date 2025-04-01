@@ -5,6 +5,15 @@ from typing import Sequence, Callable, Any
 from datetime import datetime
 from uuid import UUID, uuid4
 
+class SortMethod(IntEnum):
+    ID = 0
+    NAME = 1
+    RANK = 2
+
+class SortOrder(IntEnum):
+    ASCENDING = 0
+    DESCENDING = 1
+
 class IHashable:
     CACHE: dict[UUID, Any] = {}
 

@@ -251,13 +251,13 @@ class StandingsExport(DataExport):
         return auto_standings_export_wrapper
 
 
-class SORT_METHOD(Enum):
+class SortMethod(Enum):
     ID = 0
     NAME = 1
     RANK = 2
 
 
-class SORT_ORDER(Enum):
+class SortOrder(Enum):
     ASCENDING = 0
     DESCENDING = 1
 
@@ -857,8 +857,8 @@ class Tournament(ITournament):
     def get_standings(self) -> list[Player]:
         method = Player.SORT_METHOD
         order = Player.SORT_ORDER
-        Player.SORT_METHOD = SORT_METHOD.RANK
-        Player.SORT_ORDER = SORT_ORDER.ASCENDING
+        Player.SORT_METHOD = SortMethod.RANK
+        Player.SORT_ORDER = SortOrder.ASCENDING
         standings = sorted(self.players, key=self.TC.ranking, reverse=True)
         Player.SORT_METHOD = method
         Player.SORT_ORDER = order
@@ -973,8 +973,8 @@ class Tournament(ITournament):
 
 
 class Player(IPlayer):
-    SORT_METHOD: SORT_METHOD = SORT_METHOD.ID
-    SORT_ORDER: SORT_ORDER = SORT_ORDER.ASCENDING
+    SORT_METHOD: SortMethod = SortMethod.ID
+    SORT_ORDER: SortOrder = SortOrder.ASCENDING
     FORMATTING = ['-p']
 
     def __init__(self, name:str, tour: Tournament):
@@ -1175,11 +1175,11 @@ class Player(IPlayer):
 
     def __gt__(self, other):
         b = False
-        if self.SORT_METHOD == SORT_METHOD.ID:
+        if self.SORT_METHOD == SortMethod.ID:
             b = self.ID > other.ID
-        elif self.SORT_METHOD == SORT_METHOD.NAME:
+        elif self.SORT_METHOD == SortMethod.NAME:
             b = self.name > other.name
-        elif self.SORT_METHOD == SORT_METHOD.RANK:
+        elif self.SORT_METHOD == SortMethod.RANK:
             my_score = self.tour.TC.ranking(self)
             other_score = self.tour.TC.ranking(other)
             b = None
@@ -1191,11 +1191,11 @@ class Player(IPlayer):
 
     def __lt__(self, other):
         b = False
-        if self.SORT_METHOD == SORT_METHOD.ID:
+        if self.SORT_METHOD == SortMethod.ID:
             b = self.ID < other.ID
-        elif self.SORT_METHOD == SORT_METHOD.NAME:
+        elif self.SORT_METHOD == SortMethod.NAME:
             b = self.name < other.name
-        elif self.SORT_METHOD == SORT_METHOD.RANK:
+        elif self.SORT_METHOD == SortMethod.RANK:
             my_score = self.tour.TC.ranking(self)
             other_score = self.tour.TC.ranking(other)
             b = None

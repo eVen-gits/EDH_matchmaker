@@ -15,8 +15,8 @@ from PyQt6.QtWidgets import *
 from PyQt6.QtWidgets import QListWidgetItem
 
 from src.interface import *
-from src.core import (SORT_METHOD, SORT_ORDER, StandingsExport, Log, Player, Pod,
-                  Tournament, Round, TournamentAction, TournamentConfiguration)
+from src.core import (StandingsExport, Log, Player, Pod,
+                  Tournament, TournamentConfiguration, TournamentAction)
 from src.misc import generate_player_names
 
 
@@ -62,7 +62,7 @@ class PlayerListItem(QListWidgetItem):
 
     @staticmethod
     def SORT_ORDER():
-        if Player.SORT_ORDER == SORT_ORDER.ASCENDING:
+        if Player.SORT_ORDER == SortOrder.ASCENDING:
             return Qt.SortOrder.AscendingOrder
         return Qt.SortOrder.DescendingOrder
 
@@ -268,12 +268,12 @@ class MainWindow(QMainWindow):
 
     def init_sort_dropdown(self):
         values = [
-            (SORT_METHOD.ID, SORT_ORDER.ASCENDING),
-            (SORT_METHOD.ID, SORT_ORDER.DESCENDING),
-            (SORT_METHOD.NAME, SORT_ORDER.ASCENDING),
-            (SORT_METHOD.NAME, SORT_ORDER.DESCENDING),
-            (SORT_METHOD.RANK, SORT_ORDER.ASCENDING),
-            (SORT_METHOD.RANK, SORT_ORDER.DESCENDING),
+            (SortMethod.ID, SortOrder.ASCENDING),
+            (SortMethod.ID, SortOrder.DESCENDING),
+            (SortMethod.NAME, SortOrder.ASCENDING),
+            (SortMethod.NAME, SortOrder.DESCENDING),
+            (SortMethod.RANK, SortOrder.ASCENDING),
+            (SortMethod.RANK, SortOrder.DESCENDING),
         ]
 
         for tup in values:
