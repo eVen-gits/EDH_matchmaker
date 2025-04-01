@@ -23,6 +23,8 @@ from dotenv import load_dotenv
 import requests
 import threading
 
+from eventsourcing.application import Application
+
 
 # Load configuration from .env file
 load_dotenv()
@@ -411,25 +413,28 @@ class TournamentAction:
 
 
 class TournamentConfiguration(ITournamentConfiguration):
-    def __init__(self, **kwargs):
-        self.pod_sizes = kwargs.get('pod_sizes', [4, 3])
-        self.allow_bye = kwargs.get('allow_bye', False)
-        self.win_points = kwargs.get('win_points', 5)
-        self.bye_points = kwargs.get('bye_points', 2)
-        self.draw_points = kwargs.get('draw_points', 1)
-        self.snake_pods = kwargs.get('snake_pods', False)
-        self.n_rounds = kwargs.get('n_rounds', 5)
-        self.max_byes = kwargs.get('max_byes', 2)
-        self.auto_export = kwargs.get('auto_export', False)
-        self.standings_export = kwargs.get(
-            'standings_export', StandingsExport())
-        self.player_id = kwargs.get('player_id', ID())
-        self.global_wr_seats = kwargs.get('global_wr_seats', [
-            0.2553,
-            0.2232,
-            0.1847,
-            0.1428,
-        ])
+    def __init__(self, core: Core):
+        super().__init__()
+        self.core = core
+        self.core.save(self)
+        pass
+        #self.pod_sizes = kwargs.get('pod_sizes', [4, 3])
+        #self.allow_bye = kwargs.get('allow_bye', False)
+        #self.win_points = kwargs.get('win_points', 5)
+        #self.bye_points = kwargs.get('bye_points', 2)
+        #self.draw_points = kwargs.get('draw_points', 1)
+        #self.snake_pods = kwargs.get('snake_pods', False)
+        #self.n_rounds = kwargs.get('n_rounds', 5)
+        #self.max_byes = kwargs.get('max_byes', 2)
+        #self.auto_export = kwargs.get('auto_export', False)
+        #self.standings_export = kwargs.get('standings_export', StandingsExport())
+        #self.player_id = kwargs.get('player_id', ID())
+        #self.global_wr_seats = kwargs.get('global_wr_seats', [
+        #    0.2553,
+        #    0.2232,
+        #    0.1847,
+        #    0.1428,
+        #])
 
     @property
     def min_pod_size(self):
@@ -459,20 +464,23 @@ class TournamentConfiguration(ITournamentConfiguration):
         ])
 
 
+class Core(Application):
+    def get_tournament(self, id: UUID) -> Tournament:
+        return Tournament.from_aggregate(self, self.repository.get(id))
+
+
+'''
 class Tournament(ITournament):
     # CONFIGURATION
     # Logic: Points is primary sorting key,
     # then opponent winrate, - CHANGE - moved this upwards and added dummy opponents with 33% winrate
     # then number of opponents beaten,
     # then ID - this last one is to ensure deterministic sorting in case of equal values (start of tournament for example)
-    CACHE: dict[UUID, Tournament] = {}
-
     def __init__(self, config: Union[TournamentConfiguration, None] = None) :  # type: ignore
         TournamentAction.reset()
         if config is None:
             config = TournamentConfiguration()
         self.ID: UUID = uuid4()
-        self.CACHE[self.ID] = self
         self._rounds: list[UUID] = list()
         self._players: list[UUID] = list()
         self._dropped: list[UUID] = list()
@@ -487,11 +495,6 @@ class Tournament(ITournament):
 
     # TOURNAMENT ACTIONS
     # IMPORTANT: No nested tournament actions
-
-    @override
-    @classmethod
-    def get(cls, ID: UUID) -> Tournament:
-        return cls.CACHE[ID]
 
     @property
     def players(self) -> list[Player]:
@@ -970,8 +973,60 @@ class Tournament(ITournament):
             if not isinstance(var_export_param, Log.Level):
                 var_export_param = Log.Level.INFO
             Log.log(data, level=var_export_param)
+'''
+
+class Tournament:
+    is_snapshotting_enabled = True
+
+    def __init__(self, core: Core, config: TournamentConfiguration):
+        """Wrap ITournament with a repository for dynamic behavior."""
+        self.aggregate = ITournament(config.id)
+        self._core = core  # Store repository
+        self._core.save(self.aggregate)
+
+    @classmethod
+    def from_aggregate(cls, core: Core, aggregate: ITournament) -> "Tournament":
+        config = core.repository.get(aggregate.config)
+        return cls(core, config)
+
+    @property
+    def players(self) -> list[IPlayer]:
+        """Automatically resolve player objects from repository."""
+        return [self._core.repository.get(player_id) for player_id in self.aggregate.players]
+
+    @property
+    def id(self) -> UUID:
+        return self.aggregate.id
+
+    def add_player(self, names: str|list[str]|None=None):
+        new_players = []
+        if isinstance(names, str):
+            names = [names]
+        existing_names = set([p.name for p in self.players])
+        for name in names:
+            if name in existing_names:
+                #Log.log('\tPlayer {} already enlisted.'.format(
+                #    name), level=Log.Level.WARNING)
+                continue
+            if name:
+                p = Player(self, name)
+                self.aggregate.add_player(p.aggregate)
+                new_players.append(p)
+                existing_names.add(name)
+                #Log.log('\tAdded player {}'.format(
+                #    p.name), level=Log.Level.INFO)
+        return new_players
 
 
+class Player:
+    def __init__(self, tour: Tournament, name:str):
+        super().__init__()
+        self.aggregate = IPlayer(name)
+        self.tour = tour
+        self.tour.save(self.aggregate)
+
+
+'''
 class Player(IPlayer):
     SORT_METHOD: SortMethod = SortMethod.ID
     SORT_ORDER: SortOrder = SortOrder.ASCENDING
@@ -1138,13 +1193,13 @@ class Player(IPlayer):
                 else:
                     seq.append(Player.EResult.PENDING)
 
-        '''record_sequence = ''.join(seq)
-        return ('{} ({}/{}/{})'.format(
-            record_sequence.ljust(total_rounds),
-            record_sequence.count('W') + record_sequence.count('B'),
-            record_sequence.count('L'),
-            record_sequence.count('D'),
-        ))'''
+        #record_sequence = ''.join(seq)
+        #return ('{} ({}/{}/{})'.format(
+        #    record_sequence.ljust(total_rounds),
+        #    record_sequence.count('W') + record_sequence.count('B'),
+        #    record_sequence.count('L'),
+        #    record_sequence.count('D'),
+        #))
         return seq
 
     @staticmethod
@@ -1240,9 +1295,6 @@ class Player(IPlayer):
         parser_player.add_argument(
             '-l', '--pod',
             dest='pod', action='store_true')
-        '''parser_player.add_argument(
-            '-s', '--spaces',
-            dest='spaces', type=int, default=0)'''
         # parser.add_argument('-n', '--notplayed',    dest='np', action='store_true')
 
         args, _ = parser_player.parse_known_args(tokens)
@@ -1285,36 +1337,13 @@ class Player(IPlayer):
         # OUTPUT_BUFFER.append('\t{}'.format(' | '.join(fields)))
 
         return ' | '.join(fields)
+'''
 
 
 class Pod(IPod):
-    def __init__(self, round: Round, table:int, cap=0, ID: UUID|None = None):
-        super().__init__()
-        self._tour: UUID = round.tour.ID
-        self._round: UUID = round.ID
-        self.ID: UUID = ID if ID else uuid4()
-        self.CACHE[self.ID] = self
-        self.table:int = table
-        self.cap:int = cap
-        self._players: list[UUID] = list()
-        #self._players: list[UUID] = list() #TODO: make references to players
-        #self.discord_message_id: None|int = None
+    def __init__(self, tour: Tournament, round: Round, table:int, cap=0):
+        super().__init__(tour.ID, round.ID, table, cap)
 
-    @property
-    def CACHE(self) -> dict[UUID, Pod]:
-        return self.tour.POD_CACHE
-
-    @staticmethod
-    def get(tour: Tournament, ID: UUID) -> Pod:
-        return tour.POD_CACHE[ID]
-
-    @property
-    def result_type(self) -> None|Pod.EResult:
-        if self.result:
-            if len(self.result) == 1:
-                return Pod.EResult.WIN
-            return Pod.EResult.DRAW
-        return None
 
     @property
     def done(self) -> bool:
@@ -1342,7 +1371,7 @@ class Pod(IPod):
             return False
         if player.pod is not None:
             player.pod.remove_player(player)
-        self._players.append(player.ID)
+        super().add_player(player)
         player.location = Player.ELocation.SEATED
         player.pod = self  # Update player's pod reference
         return True

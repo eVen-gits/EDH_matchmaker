@@ -286,24 +286,44 @@ class TestLarge(unittest.TestCase):
             with self.subTest(n=str(i+1).zfill(2)):
                 t.create_pairings()
                 t.random_results()
-'''#TODO: Implement this test
-class TestSeatNormalization(unittest.TestCase):
-    def test_close_to_equal(self):
-        t = Tournament(
-            TournamentConfiguration(
-                pod_sizes=[4],
-                allow_bye=False,
-                snake_pods=True,
-            )
-        )
-        t.add_player([
-            fkr.name()
-            for _ in range(16)
-        ])
 
-        for i in tqdm(range(500)):
-            t.create_pairings()
-            t.random_results()
-            pass
+class TestCore(unittest.TestCase):
+    def test_init(self):
+        core = Core()
+        self.assertIsNotNone(core)
 
-        pass'''
+class TestTournamentConfiguration(unittest.TestCase):
+    def test_tournament_configuration(self):
+        config = TournamentConfiguration()
+        self.assertIsNotNone(config)
+
+    def test_tournament_configuration_update(self):
+        config = TournamentConfiguration()
+        config.update_property('pod_sizes', [4, 3])
+        self.assertEqual(config.pod_sizes, [4, 3])
+
+        pass
+
+class TestTournamentApplication(unittest.TestCase):
+
+    def test_init(self):
+        core = Core()
+        t = Tournament(core, TournamentConfiguration(core=core))
+        self.assertIsNotNone(t)
+
+    def test_rehydrate(self):
+        core = Core()
+        t = Tournament(core, TournamentConfiguration(core=core))
+        aggregate = t.aggregate
+        del t
+        t2 = core.get_tournament(aggregate.id)
+        self.assertIsNotNone(t2)
+
+    def test_add_player(self):
+        core = Core()
+        t = Tournament(core, TournamentConfiguration(core=core))
+        name = fkr.name()
+        t.add_player(name)
+
+        self.assertEqual(len(t.players), 1)
+        self.assertEqual(t.players[0].name, name)
