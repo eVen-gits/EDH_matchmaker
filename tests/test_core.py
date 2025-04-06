@@ -292,17 +292,47 @@ class TestCore(unittest.TestCase):
         core = Core()
         self.assertIsNotNone(core)
 
-class TestTournamentConfiguration(unittest.TestCase):
+class TestITournamentConfiguration(unittest.TestCase):
     def test_tournament_configuration(self):
-        config = TournamentConfiguration()
+        config = ITournamentConfiguration()
         self.assertIsNotNone(config)
 
     def test_tournament_configuration_update(self):
-        config = TournamentConfiguration()
-        config.update_property('pod_sizes', [4, 3])
-        self.assertEqual(config.pod_sizes, [4, 3])
+        config = ITournamentConfiguration()
+        properties = {
+            'pod_sizes': [4, 3, 2, 1],
+            'n_rounds': 5,
+            'allow_bye': True,
+            'win_points': 4,
+            'draw_points': 1,
+            'bye_points': 2,
+            'snake_pods': True,
+        }
+        for k, v in properties.items():
+            config.update_property(k, v)
+
+        self.assertEqual(getattr(config, k), v)
 
         pass
+
+    def test_tournament_configuration_restore(self):
+        config = ITournamentConfiguration()
+        properties = {
+            'pod_sizes': [4, 3, 2, 1],
+            'n_rounds': 5,
+            'allow_bye': True,
+            'win_points': 4,
+        }
+        for k, v in properties.items():
+            config.update_property(k, v)
+
+        core = Core()
+        cid = config.id
+        core.save(config)
+        del config
+        config = core.repository.get(cid)
+        for k, v in properties.items():
+            self.assertEqual(getattr(config, k), v)
 
 class TestTournamentApplication(unittest.TestCase):
 

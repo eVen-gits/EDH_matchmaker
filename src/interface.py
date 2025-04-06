@@ -49,6 +49,40 @@ class IPlayer(Aggregate):
     def pod(self) -> IPod|None:
         raise NotImplementedError()
 
+class ITournamentConfiguration(Aggregate):
+    class Registered(Aggregate.Created):
+        properties: dict[str, Any]
+
+    class PropertyUpdated(Aggregate.Event):
+        name: str
+        value: Any
+
+    @event(Registered)
+    def __init__(self, properties: dict[str, Any]):
+        self.pod_sizes: Sequence[int] = [4, 3]
+
+        self.allow_bye: bool = True
+        self.max_byes: int = 2
+
+        self.win_points: int = 5
+        self.draw_points: int = 1
+        self.bye_points: int = 2
+
+        self.n_rounds: int = 5
+        self.snake_pods: bool = True
+
+        self.auto_export: bool = False
+        #standings_export: IStandingsExport
+
+        self.global_wr_seats: Sequence[float] = [0.2553, 0.2232, 0.1847, 0.1428]
+
+        for k, v in properties.items():
+            setattr(self, k, v)
+
+    @event(PropertyUpdated)
+    def update_property(self, name: str, value: Any):
+        setattr(self, name, value)
+
 class ITournament(Aggregate):
 
     class Registered(Aggregate.Created):
@@ -56,6 +90,9 @@ class ITournament(Aggregate):
 
     class PlayerAdded(Aggregate.Event):
         player: UUID|list[UUID]
+
+    class ConfigurationUpdated(Aggregate.Event):
+        config: UUID
 
     @event(Registered)
     def __init__(self, config: UUID):
@@ -71,6 +108,10 @@ class ITournament(Aggregate):
             self.players.append(player.id)
         elif isinstance(player, list):
             self.players.extend([p.id for p in player])
+
+    @event(ConfigurationUpdated)
+    def update_configuration(self, config: ITournamentConfiguration):
+        self.config = config.id
 
     def get_pod_sizes(self, n:int) -> Sequence[int]|None:
         pass
@@ -162,34 +203,5 @@ class IPairingLogic:
     def make_pairings(self, players: Sequence[IPlayer], pods:Sequence[IPod]) -> Sequence[IPlayer]:
         raise NotImplementedError('PairingLogic.make_pairings not implemented - use subclass')
 
-class ITournamentConfiguration(Aggregate):
-    class Registered(Aggregate.Created):
-        pass
 
-    class PropertyUpdated(Aggregate.Event):
-        name: str
-        value: Any
-
-    @event(Registered)
-    def __init__(self):
-        self.pod_sizes: Sequence[int] = [4, 3]
-
-        self.allow_bye: bool = True
-        self.max_byes: int = 2
-
-        self.win_points: int = 5
-        self.draw_points: int = 1
-        self.bye_points: int = 2
-
-        self.n_rounds: int = 5
-        self.snake_pods: bool = True
-
-        self.auto_export: bool = False
-        #standings_export: IStandingsExport
-
-        self.global_wr_seats: Sequence[float] = [0.2553, 0.2232, 0.1847, 0.1428]
-
-    @event(PropertyUpdated)
-    def update_property(self, name: str, value: Any):
-        setattr(self, name, value)
 
