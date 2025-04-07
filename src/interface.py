@@ -31,10 +31,12 @@ class IPlayer(Aggregate):
 
     class Registered(Aggregate.Created):
         name: str
-
+        tour: UUID
+        
     @event(Registered)
-    def __init__(self, name:str):
+    def __init__(self, name:str, tour: UUID):
         self.name: str = name
+        self.tour: UUID = tour
 
         self.pods: list[UUID|IPlayer.EResult] = []
         self.rounds: list[UUID] = []

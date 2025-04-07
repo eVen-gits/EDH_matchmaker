@@ -451,9 +451,14 @@ class TournamentConfiguration:
         #    0.1428,
         #])
 
-    @property
-    def id(self) -> UUID:
-        return self.aggregate.id
+    @classmethod
+    def from_aggregate(cls, core: Core, aggregate: ITournamentConfiguration) -> 'TournamentConfiguration':
+        return cls(core, aggregate)
+
+    def __getattr__(self, item):
+        if item in self.__dict__:
+            return self.__dict__[item]
+        return getattr(self.aggregate, item)
 
     @property
     def min_pod_size(self):
@@ -509,7 +514,7 @@ class Tournament:
 
     @property
     def config(self) -> TournamentConfiguration:
-        return self._core.repository.get(self.aggregate.config)
+        return TournamentConfiguration.from_aggregate(self._core, self._core.repository.get(self.aggregate.config))
 
     def save(self, aggregate: Aggregate):
         self._core.save(aggregate)
@@ -521,14 +526,14 @@ class Tournament:
             return cls._instance_cache[aggregate.id]
 
         tournament = core.repository.get(aggregate.id)
-        config = core.repository.get(tournament.config)
+        config = TournamentConfiguration.from_aggregate(core, core.repository.get(tournament.config))
 
         return cls(core, config, aggregate)
 
     @property
-    def players(self) -> list[IPlayer]:
+    def players(self) -> list[Player]:
         """Automatically resolve player objects from repository."""
-        return [self._core.repository.get(player_id) for player_id in self.aggregate.players]
+        return [Player.from_aggregate(self._core, self._core.repository.get(player_id)) for player_id in self.aggregate.players]
 
     def add_player(self, names: str|list[str]|None=None):
         new_players = []
@@ -548,7 +553,6 @@ class Tournament:
                 #Log.log('\tAdded player {}'.format(
                 #    p.name), level=Log.Level.INFO)
         return new_players
-
 
     def create_pairings(self):
         if self.round is None or self.round.concluded:
@@ -585,10 +589,14 @@ class Tournament:
 
 class Player:
     def __init__(self, tour: Tournament, name:str):
-        super().__init__()
-        self.aggregate = IPlayer(name)
+        self.aggregate = IPlayer(name, tour.id)
         self.tour = tour
         self.tour.save(self.aggregate)
+
+    @classmethod
+    def from_aggregate(cls, core: Core, aggregate: IPlayer) -> 'Player':
+        tour = core.get_tournament(aggregate.tour)
+        return cls(tour, aggregate.name)
 
 
 class Pod(IPod):

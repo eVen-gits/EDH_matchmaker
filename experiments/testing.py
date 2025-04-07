@@ -2,7 +2,7 @@ from tqdm import tqdm
 import os
 
 from src.misc import generate_player_names
-from src.core import Tournament, TournamentConfiguration, Log, TournamentAction, Core
+from src.core import Tournament, TournamentConfiguration, Log, TournamentAction, Core, Player
 
 from uuid import UUID
 
@@ -12,46 +12,49 @@ if __name__ == "__main__":
     os.environ['PERSISTENCE_MODULE'] = 'eventsourcing.sqlite'
     os.environ['SQLITE_DBNAME'] = 'database.db'
 
-    n = 16
-    print(f"Tour size: {n}")
+    restore = False
     core = Core()
+    if not restore:
+        n = 16
 
-    #t = core.get_tournament(UUID('80261c28-aee8-4ce8-a2d3-d536b0107555'))
-    pass
-
-    config = TournamentConfiguration(
+        config = TournamentConfiguration(
+                core,
+                pod_sizes=[4, 3],
+                n_rounds=8,
+                auto_export=False,
+                allow_bye=True,
+                win_points=5,
+                draw_points=1,
+                bye_points=2,
+                snake_pods=True,
+                max_byes=2,
+        )
+        core.save(config.aggregate)
+        cid = config.aggregate.id
+        config = core.repository.get(cid)
+        pass
+        t1 = Tournament(
             core,
-            #pod_sizes=[4, 3],
-            #n_rounds=8,
-            #auto_export=False,
-            #allow_bye=True,
-            #win_points=5,
-            #draw_points=1,
-            #bye_points=2,
-            #snake_pods=True,
-            #max_byes=2,
-    )
+            config
+        )
 
-    core.save(config.aggregate)
-    cid = config.aggregate.id
-    config = core.repository.get(cid)
-    pass
-    t1 = Tournament(
-        core,
-        config
-    )
-    config = t1.config
-    tid = t1.aggregate.id
-    t2 = core.get_tournament(tid)
+        pass
 
-    pass
+        p = Player(t1, 'Player 1')
 
-    t1.add_player(generate_player_names(n))
+        t1.add_player(generate_player_names(n))
+
+        print(t1.players)
+        print(t1.id)
+    else:
+        tid = UUID('52631e2b-75ef-419d-8ef9-c142ae2fba24')
+        t1 = core.get_tournament(tid)
+        pass
     #TournamentAction.LOGF = os.path.normpath("/home/even/Dev/EDH_matchmaker/logs/testing.log")
 
-    for n in tqdm(range(5), desc="Round", total=5):
-        t1.create_pairings()
-        t1.random_results()
+    #for n in tqdm(range(5), desc="Round", total=5):
+    #    t1.create_pairings()
+    #    t1.random_results()
 
     pass
 
