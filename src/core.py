@@ -416,8 +416,16 @@ class Core(Application):
     def get_tournament(self, id: UUID) -> Tournament:
         return Tournament.from_aggregate(self, self.repository.get(id))
 
+    def get_player(self, id: UUID) -> Player:
+        return Player.from_aggregate(self, self.repository.get(id))
 
-class TournamentConfiguration:
+class AggregateWrapper:
+    def __getattr__(self, item):
+        if item in self.__dict__:
+            return self.__dict__[item]
+        return getattr(self.aggregate, item)
+
+class TournamentConfiguration(AggregateWrapper):
     def __init__(
         self,
         core: Core,
@@ -427,8 +435,6 @@ class TournamentConfiguration:
         self._core = core
         if aggregate is None:
             self.aggregate = ITournamentConfiguration(kwargs)
-            #for k, v in kwargs.items():
-            #    setattr(self.aggregate, k, v)
             self._core.save(self.aggregate)
         else:
             self.aggregate = aggregate
@@ -454,11 +460,6 @@ class TournamentConfiguration:
     @classmethod
     def from_aggregate(cls, core: Core, aggregate: ITournamentConfiguration) -> 'TournamentConfiguration':
         return cls(core, aggregate)
-
-    def __getattr__(self, item):
-        if item in self.__dict__:
-            return self.__dict__[item]
-        return getattr(self.aggregate, item)
 
     @property
     def min_pod_size(self):
@@ -488,7 +489,7 @@ class TournamentConfiguration:
         ])
 
 
-class Tournament:
+class Tournament(AggregateWrapper):
     is_snapshotting_enabled = True
     _instance_cache: dict[UUID, 'Tournament'] = {}
 
@@ -508,6 +509,9 @@ class Tournament:
         # Cache the instance
         Tournament._instance_cache[self.aggregate.id] = self
 
+    def save(self, aggregate: Aggregate):
+        self._core.save(aggregate)
+
     @property
     def id(self) -> UUID:
         return self.aggregate.id
@@ -515,9 +519,6 @@ class Tournament:
     @property
     def config(self) -> TournamentConfiguration:
         return TournamentConfiguration.from_aggregate(self._core, self._core.repository.get(self.aggregate.config))
-
-    def save(self, aggregate: Aggregate):
-        self._core.save(aggregate)
 
     @classmethod
     def from_aggregate(cls, core: Core, aggregate: ITournament) -> "Tournament":
@@ -587,19 +588,27 @@ class Tournament:
             Log.log(30*'*', level=Log.Level.WARNING)
 
 
-class Player:
-    def __init__(self, tour: Tournament, name:str):
-        self.aggregate = IPlayer(name, tour.id)
+class Player(AggregateWrapper):
+    def __init__(
+        self,
+        tour: Tournament,
+        name: str,
+        aggregate: IPlayer|None = None
+    ):
         self.tour = tour
-        self.tour.save(self.aggregate)
+        if aggregate is None:
+            self.aggregate = IPlayer(name, tour.id)
+            self.tour.save(self.aggregate)
+        else:
+            self.aggregate = aggregate
 
     @classmethod
     def from_aggregate(cls, core: Core, aggregate: IPlayer) -> 'Player':
         tour = core.get_tournament(aggregate.tour)
-        return cls(tour, aggregate.name)
+        return cls(tour, aggregate.name, aggregate)
 
 
-class Pod(IPod):
+class Pod(AggregateWrapper):
     def __init__(self, tour: Tournament, round: Round, table:int, cap=0):
         super().__init__(tour.ID, round.ID, table, cap)
 
@@ -731,16 +740,30 @@ class Pod(IPod):
         return ret
 
 
-class Round(IRound):
+class Round(AggregateWrapper):
+    def __init__(
+        self,
+        seq: int,
+        pairing_logic: IPairingLogic,
+        tour: Tournament,
+        aggregate: IRound|None = None
+    ):
+        self.tour = tour
+        if aggregate is None:
+            self.aggregate = IRound(tour.id, seq, pairing_logic)
+            self.tour.save(self.aggregate)
+        else:
+            self.aggregate = aggregate
 
-    def __init__(self, seq: int, pairing_logic:IPairingLogic, tour: Tournament, ID: UUID|None = None):
-        super().__init__()
-        self.ID: UUID = ID if ID else uuid4()
-        self._tour: UUID = tour.ID
-        self.CACHE[self.ID] = self
-        self._players: list[UUID] = [p.ID for p in self.tour.players]
-        self.seq:int = seq
-        self.logic = pairing_logic
+    @classmethod
+    def from_aggregate(cls, core: Core, aggregate: IRound) -> 'Round':
+        tour = core.get_tournament(aggregate._tour)
+        return cls(
+            aggregate.seq,
+            aggregate.logic,
+            tour,
+            aggregate
+        )
 
     @property
     def CACHE(self) -> dict[UUID, Round]:
@@ -761,10 +784,6 @@ class Round(IRound):
     @property
     def pods(self) -> list[Pod]:
         return [Pod.get(self.tour, x) for x in self._pods]
-
-    @property
-    def tour(self) -> Tournament:
-        return Tournament.get(self._tour)
 
     @property
     def done(self):

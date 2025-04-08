@@ -11,13 +11,14 @@ TournamentAction.logf = False #type: ignore
 
 class TestPlayer(unittest.TestCase):
     def setUp(self) -> None:
-        self.t = Tournament()
+        core = Core()
+        self.t = Tournament(core, TournamentConfiguration(core=core))
 
     def test_illegal_names(self):
         with open('tests/blns.txt', 'r') as f:
             name = f.readline()
             with self.subTest(name=name):
-                p = Player(name, self.t)
+                p = Player(self.t, name)
 
 class TestTournamentPodSizing(unittest.TestCase):
 
@@ -183,8 +184,11 @@ class TestTournamentPodSizing(unittest.TestCase):
 
 class TestScoring(unittest.TestCase):
     def setUp(self) -> None:
+        self.core = Core()
         self.t = Tournament(
+            self.core,
             TournamentConfiguration(
+                core=self.core,
                 pod_sizes=[4],
                 allow_bye=True,
                 bye_points=4,
@@ -294,11 +298,11 @@ class TestCore(unittest.TestCase):
 
 class TestITournamentConfiguration(unittest.TestCase):
     def test_tournament_configuration(self):
-        config = ITournamentConfiguration()
+        config = ITournamentConfiguration({})
         self.assertIsNotNone(config)
 
     def test_tournament_configuration_update(self):
-        config = ITournamentConfiguration()
+        config = ITournamentConfiguration({})
         properties = {
             'pod_sizes': [4, 3, 2, 1],
             'n_rounds': 5,
@@ -316,7 +320,7 @@ class TestITournamentConfiguration(unittest.TestCase):
         pass
 
     def test_tournament_configuration_restore(self):
-        config = ITournamentConfiguration()
+        config = ITournamentConfiguration({})
         properties = {
             'pod_sizes': [4, 3, 2, 1],
             'n_rounds': 5,
@@ -341,13 +345,31 @@ class TestTournamentApplication(unittest.TestCase):
         t = Tournament(core, TournamentConfiguration(core=core))
         self.assertIsNotNone(t)
 
-    def test_rehydrate(self):
+    def test_persistance(self):
+        core = Core()
+
+        t = Tournament(core, TournamentConfiguration(core=core))
+        t.add_player(fkr.name())
+
+    def test_rehydrate_tour(self):
         core = Core()
         t = Tournament(core, TournamentConfiguration(core=core))
         aggregate = t.aggregate
         del t
         t2 = core.get_tournament(aggregate.id)
         self.assertIsNotNone(t2)
+
+    def test_rehydrate_player(self):
+        core = Core()
+        t = Tournament(core, TournamentConfiguration(core=core))
+        name = fkr.name()
+
+        p = t.add_player(name)[0]
+        pid = p.id
+        del p
+        p2 = core.get_player(pid)
+        self.assertEqual(p2.name, name)
+        self.assertEqual(p2.tour, t)
 
     def test_add_player(self):
         core = Core()
@@ -357,3 +379,24 @@ class TestTournamentApplication(unittest.TestCase):
 
         self.assertEqual(len(t.players), 1)
         self.assertEqual(t.players[0].name, name)
+
+'''class TestPlayerAggregate(unittest.TestCase):
+    def setUp(self) -> None:
+        self.core = Core()
+        self.t = Tournament(self.core, TournamentConfiguration(core=self.core))
+
+    def test_rehydrate(self):
+        name = fkr.name()
+        p = self.t.add_player(name)[0]
+        self.assertEqual(len(self.t.players), 1)
+        self.assertEqual(self.t.players[0].name, name)
+
+        pid = p.id
+        del p
+
+        agg =
+        p2 = self.core.from_aggregate(self.core, self.t, pid)
+        self.assertEqual(p2.name, name)
+
+        pass'''
+

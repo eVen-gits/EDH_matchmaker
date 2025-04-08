@@ -32,7 +32,7 @@ class IPlayer(Aggregate):
     class Registered(Aggregate.Created):
         name: str
         tour: UUID
-        
+
     @event(Registered)
     def __init__(self, name:str, tour: UUID):
         self.name: str = name
@@ -73,7 +73,7 @@ class ITournamentConfiguration(Aggregate):
         self.n_rounds: int = 5
         self.snake_pods: bool = True
 
-        self.auto_export: bool = False
+        self.auto_export: bool = True
         #standings_export: IStandingsExport
 
         self.global_wr_seats: Sequence[float] = [0.2553, 0.2232, 0.1847, 0.1428]
@@ -96,13 +96,19 @@ class ITournament(Aggregate):
     class ConfigurationUpdated(Aggregate.Event):
         config: UUID
 
+    class RoundAdded(Aggregate.Event):
+        round: UUID
+
+    class CurrentRoundSet(Aggregate.Event):
+        round: UUID
+
     @event(Registered)
     def __init__(self, config: UUID):
 
         self.config: UUID = config #type: ignore
         self.players: list[UUID] = []
-        #self.rounds: list[IRound] = list()
-        #self.round: IRound|None = None
+        self.round: IRound|None = None
+        self.rounds: list[IRound] = list()
 
     @event(PlayerAdded)
     def add_player(self, player: IPlayer|list[IPlayer]):
@@ -114,6 +120,15 @@ class ITournament(Aggregate):
     @event(ConfigurationUpdated)
     def update_configuration(self, config: ITournamentConfiguration):
         self.config = config.id
+
+    @event(RoundAdded)
+    def add_round(self, round: IRound):
+        if round.id not in self.rounds:
+            self.rounds.append(round.id)
+
+    @event(CurrentRoundSet)
+    def set_current_round(self, round: IRound):
+        self.round = round.id
 
     def get_pod_sizes(self, n:int) -> Sequence[int]|None:
         pass
@@ -177,14 +192,42 @@ class IPod(Aggregate):
         return len(self.players)
 
 class IRound(Aggregate):
-    def __init__(self):
-        super().__init__()
-        self.seq:int = -1
-        self.logic: IPairingLogic
+    class Registered(Aggregate.Created):
+        tour: UUID
+        seq: int
+        logic: IPairingLogic
+
+    class PlayerAdded(Aggregate.Event):
+        player: UUID
+
+    class PodAdded(Aggregate.Event):
+        pod: UUID
+
+    class RoundConcluded(Aggregate.Event):
+        concluded: datetime
+
+    @event(Registered)
+    def __init__(self, tour: UUID, seq: int, logic: IPairingLogic):
+        self._tour: UUID = tour
+        self.seq: int = seq
+        self.logic: IPairingLogic = logic
+        self._players: list[UUID] = []
+        self._pods: list[UUID] = []
         self.concluded: bool|datetime = False
-        self._tour: UUID = uuid4()
-        self._pods: list[UUID] = list()
-        self._players: list[UUID] = list()
+
+    @event(PlayerAdded)
+    def add_player(self, player: IPlayer):
+        if player.id not in self._players:
+            self._players.append(player.id)
+
+    @event(PodAdded)
+    def add_pod(self, pod: IPod):
+        if pod.id not in self._pods:
+            self._pods.append(pod.id)
+
+    @event(RoundConcluded)
+    def conclude(self, concluded: datetime):
+        self.concluded = concluded
 
     @property
     @abstractmethod
