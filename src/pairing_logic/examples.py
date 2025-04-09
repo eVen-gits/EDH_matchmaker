@@ -9,6 +9,9 @@ import sys
 import numpy as np
 
 class CommonPairing(IPairingLogic):
+    def __init__(self, name: str):
+        super().__init__(name)
+
     def evaluate_pod(self, player: IPlayer, pod:IPod) -> int:
         score = 0
         if len(pod) == pod.cap:

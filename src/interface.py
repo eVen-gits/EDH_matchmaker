@@ -109,7 +109,6 @@ class IRound(IHashable):
         super().__init__()
         self.seq:int = -1
         self.logic: IPairingLogic
-        self.concluded: bool|datetime = False
         self._tour: UUID = uuid4()
         self._pods: list[UUID] = list()
         self._players: list[UUID] = list()
@@ -132,8 +131,8 @@ class IRound(IHashable):
 class IPairingLogic:
     IS_COMPLETE=False
 
-    def __init__(self, path: str):
-        self.path = path
+    def __init__(self, name: str):
+        self.name = name
 
     def make_pairings(self, players: Sequence[IPlayer], pods:Sequence[IPod]) -> Sequence[IPlayer]:
         raise NotImplementedError('PairingLogic.make_pairings not implemented - use subclass')

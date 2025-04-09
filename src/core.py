@@ -251,8 +251,8 @@ class StandingsExport(DataExport):
 
     def serialize(self):
         return {
-            'fields': [f for f in self.fields],
-            'format': self.format,
+            'fields': [f.value for f in self.fields],
+            'format': self.format.value,
             'dir': self.dir
         }
 
@@ -260,7 +260,7 @@ class StandingsExport(DataExport):
     def inflate(cls, data:dict):
         return cls(
             [StandingsExport.Field(f) for f in data['fields']],
-            data['format'],
+            StandingsExport.Format(data['format']),
             data['dir']
         )
 
@@ -504,7 +504,7 @@ class Tournament(ITournament):
     _pairing_logic_cache: dict[str, type[IPairingLogic]] = {}
 
     @classmethod
-    def _discover_pairing_logic(cls) -> None:
+    def discover_pairing_logic(cls) -> None:
         """Discover and cache all pairing logic implementations from src/pairing_logic."""
         if cls._pairing_logic_cache:
             return
@@ -531,7 +531,7 @@ class Tournament(ITournament):
                         obj != IPairingLogic and
                         obj.IS_COMPLETE
                     ):
-                        cls._pairing_logic_cache[obj.__name__] = obj(path=f'src.pairing_logic.{module_info.name}') # type: ignore
+                        cls._pairing_logic_cache[obj.__name__] = obj(name=f'src.pairing_logic.{module_info.name}')
             except Exception as e:
                 Log.log(f"Failed to import pairing logic module {module_info.name}: {e}",
                        level=Log.Level.WARNING)
@@ -539,20 +539,22 @@ class Tournament(ITournament):
     @classmethod
     def get_pairing_logic(cls, logic_name: str) -> IPairingLogic:
         """Get a pairing logic instance by name."""
-        cls._discover_pairing_logic()
+        cls.discover_pairing_logic()
 
         if logic_name not in cls._pairing_logic_cache:
             Log.log(f"Unknown pairing logic: {logic_name}, falling back to default",
                    level=Log.Level.WARNING)
             logic_name = "PairingDefault"
 
-        return cls._pairing_logic_cache[logic_name] # type: ignore
+        return cls._pairing_logic_cache[logic_name]
 
-    def __init__(self, config: Union[TournamentConfiguration, None] = None) :  # type: ignore
+    def __init__(self, config: Union[TournamentConfiguration, None]=None, uid: UUID|None=None) :  # type: ignore
         TournamentAction.reset()
         if config is None:
             config = TournamentConfiguration()
-        self.uid: UUID = uuid4()
+        self._config = config
+        self.uid: UUID = uuid4() if uid is None else uid
+
         self.CACHE[self.uid] = self
         self._rounds: list[UUID] = list()
         self._players: list[UUID] = list()
@@ -563,7 +565,6 @@ class Tournament(ITournament):
         self.POD_CACHE: dict[UUID, Pod] = {}
         self.ROUND_CACHE: dict[UUID, Round] = {}
         # Direct setting - don't want to overwrite old log file
-        self._config = config
 
 
     # TOURNAMENT ACTIONS
@@ -729,11 +730,13 @@ class Tournament(ITournament):
                 logic = self.get_pairing_logic("PairingSnake")
             else:
                 logic = self.get_pairing_logic("PairingDefault")
-            self._round = Round(
+            new_round = Round(
                 self,
                 len(self.rounds),
                 logic,
-            ).uid
+            )
+            self._rounds.append(new_round.uid)
+            self.round = new_round
         assert self.round is not None
         if not self.round.all_players_seated:
             self.round.create_pairings()
@@ -762,8 +765,13 @@ class Tournament(ITournament):
                 logic = self.get_pairing_logic("PairingSnake")
             else:
                 logic = self.get_pairing_logic("PairingDefault")
-            round = Round(self, seq, logic)
-            self._round = round.uid
+            new_round = Round(
+                self,
+                len(self.rounds),
+                logic,
+            )
+            self._round = new_round.uid
+            self._rounds.append(new_round.uid)
             return True
         else:
             if self.round.pods:
@@ -828,10 +836,10 @@ class Tournament(ITournament):
     @TournamentAction.action
     def random_results(self):
         if not self.round:
-            Log.log(
-                'A round is not in progress.\nCreate pods first!',
-                level=Log.Level.ERROR
-            )
+            #Log.log(
+            #    'A round is not in progress.\nCreate pods first!',
+            #    level=Log.Level.ERROR
+            #)
             return
         if self.round.pods:
             draw_rate = 1-sum(self.config.global_wr_seats)
@@ -848,17 +856,15 @@ class Tournament(ITournament):
                 draw = result > np.cumsum(rates)[-2]
                 if not draw:
                     win = np.argmax([result < x for x in rates])
-                    Log.log('won "{}"'.format(pod.players[win].name))
+                    #Log.log('won "{}"'.format(pod.players[win].name))
                     self.round.assign_win([pod.players[win]])
                     #player = random.sample(pod.players, 1)[0]
                     #Log.log('won "{}"'.format(player.name))
                     #self.round.won([player])
                 else:
-                    #players = random.sample(
-                    #    pod.players, random.randint(1, len(pod)))
                     players = pod.players
-                    Log.log('draw {}'.format(
-                        ' '.join(['"{}"'.format(p.name) for p in players])))
+                    #Log.log('draw {}'.format(
+                    #    ' '.join(['"{}"'.format(p.name) for p in players])))
                     self.round.assign_draw([p for p in players])
         pass
 
@@ -1067,12 +1073,27 @@ class Tournament(ITournament):
         """
 
         data: dict[str, Any] = {}
-        data['uid'] = self.uid
+        data['uid'] = str(self.uid)
         data['config'] = self.config.serialize()
         data['players'] = [p.serialize() for p in self.players]
         data['rounds'] = [r.serialize() for r in self.rounds]
-        data['pods'] = [p.serialize() for p in self.pods]
         return data
+
+    @classmethod
+    def inflate(cls, data: dict[str, Any]) -> Tournament:
+        config = TournamentConfiguration.inflate(data['config'])
+        tour_uid = UUID(data['uid'])
+        if tour_uid in Tournament.CACHE:
+            tour = Tournament.CACHE[tour_uid]
+        else:
+            tour = cls(config, tour_uid)
+        tour._players = [UUID(d_player['uid']) for d_player in data['players']]
+        for d_player in data['players']:
+            Player.inflate(tour, d_player)
+        tour._rounds = [UUID(d_round['uid']) for d_round in data['rounds']]
+        for d_round in data['rounds']:
+            Round.inflate(tour, d_round)
+        return tour
 
 
 class Player(IPlayer):
@@ -1088,7 +1109,6 @@ class Player(IPlayer):
         self.name = name
         self.points = 0
         self.CACHE[self.uid] = self
-        self.opponents_beaten = set()
         self._pod_id: UUID|None = None  # Direct reference to current pod
 
     @property
@@ -1392,13 +1412,15 @@ class Player(IPlayer):
 
     def serialize(self) -> dict[str, Any]:
         return {
-            'uid': self.uid,
+            'tour': str(self._tour),
+            'uid': str(self.uid),
             'name': self.name,
         }
 
     @classmethod
     def inflate(cls, tour: Tournament, data: dict[str, Any]) -> Player:
-        return cls(tour, data['name'], data['uid'])
+        assert tour.uid == UUID(data['tour'])
+        return cls(tour, data['name'], UUID(data['uid']))
 
 
 class Pod(IPod):
@@ -1559,17 +1581,21 @@ class Pod(IPod):
 
     def serialize(self) -> dict[str, Any]:
         return {
-            'uid': self.uid,
+            'uid': str(self.uid),
+            'round': str(self._round),
             'table': self.table,
             'cap': self.cap,
-            'result': self.result,
-            'players': self._players,
-            'round': self._round,
+            'result': sorted([str(p) for p in self.result]),
+            'players': [str(p) for p in self._players],
         }
 
     @classmethod
     def inflate(cls, round: Round, data: dict[str, Any]) -> Pod:
-        return cls(round, data['table'], data['cap'], data['uid'])
+        assert round.uid == UUID(data['round'])
+        pod = cls(round, data['table'], data['cap'], UUID(data['uid']))
+        pod._players = [x for x in data['players']]
+        pod.result = {x for x in data['result']}
+        return pod
 
 
 class Round(IRound):
@@ -1579,10 +1605,10 @@ class Round(IRound):
         if uid is not None:
             self.uid = uid
         self._tour: UUID = tour.uid
-        self.CACHE[self.uid] = self
+        self.tour.ROUND_CACHE[self.uid] = self
         self._players: list[UUID] = [p.uid for p in self.tour.players]
         self.seq:int = seq
-        self.logic = pairing_logic
+        self._logic = pairing_logic.name
 
     @property
     def CACHE(self) -> dict[UUID, Round]:
@@ -1598,7 +1624,7 @@ class Round(IRound):
 
     @logic.setter
     def logic(self, logic: IPairingLogic):
-        self._logic = logic.path
+        self._logic = logic.name
 
     @property
     def players(self) -> list[Player]:
@@ -1701,8 +1727,8 @@ class Round(IRound):
 
                 pod.result.add(player.uid)
 
-            if self.done:
-                self.conclude()
+            #if self.done:
+            #    self.conclude()
 
     def assign_draw(self, players: list[Player]|Player):
         if not isinstance(players, list):
@@ -1713,10 +1739,18 @@ class Round(IRound):
 
                 player.pod.result.add(player.uid)
 
-        if self.done and not self.concluded:
-            self.conclude()
+        #if self.done and not self.concluded:
+        #    self.conclude()
+
+    @property
+    def concluded(self) -> bool:
+        for pod in self.pods:
+            if not pod.done:
+                return False
+        return True
 
     def conclude(self):
+        raise DeprecationWarning('Round.conclude is deprecated. Rounds are no longer concluded manually.')
         for pod in self.pods:
            for p in pod.players:
                p.pods.append(pod)
@@ -1742,10 +1776,20 @@ class Round(IRound):
 
     def serialize(self) -> dict[str, Any]:
         return {
-            'tour': self._tour,
-            'uid': self.uid,
+            'tour': str(self._tour),
+            'uid': str(self.uid),
             'seq': self.seq,
-            'pods': self._pods,
-            'players': self._players,
+            'pods': [pod.serialize() for pod in self.pods],
+            'players': [str(p) for p in self._players],
             'logic': self._logic,
         }
+
+    @classmethod
+    def inflate(cls, tour: Tournament, data: dict[str, Any]) -> Round:
+        assert tour.uid == UUID(data['tour'])
+        tour.discover_pairing_logic()
+        logic = tour.get_pairing_logic(data['logic'])
+        new_round = cls(tour, data['seq'], logic, UUID(data['uid']))
+        pods = [Pod.inflate(new_round, pod) for pod in data['pods']]
+        new_round._pods = [pod.uid for pod in pods]
+        return new_round
