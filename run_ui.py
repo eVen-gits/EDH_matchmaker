@@ -15,7 +15,7 @@ from PyQt6.QtWidgets import *
 from PyQt6.QtWidgets import QListWidgetItem
 
 from src.interface import *
-from src.core import (SORT_METHOD, SORT_ORDER, StandingsExport, Log, Player, Pod,
+from src.core import (SortMethod, SortOrder, StandingsExport, Log, Player, Pod,
                   Tournament, TournamentAction, TournamentConfiguration)
 from src.misc import generate_player_names
 
@@ -53,7 +53,7 @@ class PlayerListItem(QListWidgetItem):
         self.setFont(monospace_font)
         self.player = player
 
-    def __lt__(self, other):
+    def __lt__(self, other:PlayerListItem):
         return self.player.__lt__(other.player)
 
     def __gt__(self, other):
@@ -61,8 +61,8 @@ class PlayerListItem(QListWidgetItem):
 
 
     @staticmethod
-    def SORT_ORDER():
-        if Player.SORT_ORDER == SORT_ORDER.ASCENDING:
+    def sort_order():
+        if Player.SORT_ORDER == SortOrder.ASCENDING:
             return Qt.SortOrder.AscendingOrder
         return Qt.SortOrder.DescendingOrder
 
@@ -268,12 +268,12 @@ class MainWindow(QMainWindow):
 
     def init_sort_dropdown(self):
         values = [
-            (SORT_METHOD.ID, SORT_ORDER.ASCENDING),
-            (SORT_METHOD.ID, SORT_ORDER.DESCENDING),
-            (SORT_METHOD.NAME, SORT_ORDER.ASCENDING),
-            (SORT_METHOD.NAME, SORT_ORDER.DESCENDING),
-            (SORT_METHOD.RANK, SORT_ORDER.ASCENDING),
-            (SORT_METHOD.RANK, SORT_ORDER.DESCENDING),
+            (SortMethod.RANK, SortOrder.ASCENDING),
+            (SortMethod.RANK, SortOrder.DESCENDING),
+            (SortMethod.NAME, SortOrder.ASCENDING),
+            (SortMethod.NAME, SortOrder.DESCENDING),
+            (SortMethod.ID, SortOrder.ASCENDING),
+            (SortMethod.ID, SortOrder.DESCENDING),
         ]
 
         for tup in values:
@@ -421,10 +421,8 @@ class MainWindow(QMainWindow):
         self.ui_update_pods()
 
     def cb_sort_set(self, idx):
-        method, order = self.ui.cb_sort.itemData(idx) # pyright: ignore
-        Player.SORT_METHOD = method
-        Player.SORT_ORDER = order
-        self.ui.lv_players.sortItems(order=PlayerListItem.SORT_ORDER()) # pyright: ignore
+        self.update_player_sort_method()
+        self.ui.lv_players.sortItems(order=PlayerListItem.sort_order()) # pyright: ignore
         pass
 
     @UILog.with_status
@@ -511,7 +509,14 @@ class MainWindow(QMainWindow):
             else:
                 item.setBackground(self.unseated_color)
             item.setText(data.__repr__(self.PLIST_FMT))
-        self.ui.lv_players.sortItems(order=PlayerListItem.SORT_ORDER())
+        self.ui.lv_players.sortItems(order=PlayerListItem.sort_order())
+
+    def update_player_sort_method(self):
+        sort_method, sort_order = self.ui.cb_sort.itemData(self.ui.cb_sort.currentIndex()) # type: ignore
+        if Player.SORT_METHOD != sort_method:
+            Player.SORT_METHOD = sort_method
+        if Player.SORT_ORDER != sort_order:
+            Player.SORT_ORDER = sort_order
 
     def ui_create_player_list(self):
         for p in self.core.players:
@@ -524,7 +529,8 @@ class MainWindow(QMainWindow):
             else:
                 list_item.setBackground(self.unseated_color)
             self.ui.lv_players.addItem(list_item)
-        self.ui.lv_players.sortItems(order=PlayerListItem.SORT_ORDER())
+        self.update_player_sort_method()
+        self.ui.lv_players.sortItems(order=PlayerListItem.sort_order()) # type: ignore
 
     @UILog.with_status
     def random_results(self):

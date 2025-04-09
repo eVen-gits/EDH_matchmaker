@@ -251,13 +251,13 @@ class StandingsExport(DataExport):
         return auto_standings_export_wrapper
 
 
-class SORT_METHOD(Enum):
+class SortMethod(Enum):
     ID = 0
     NAME = 1
     RANK = 2
 
 
-class SORT_ORDER(Enum):
+class SortOrder(Enum):
     ASCENDING = 0
     DESCENDING = 1
 
@@ -405,16 +405,15 @@ class TournamentAction:
 class TournamentConfiguration(ITournamentConfiguration):
     def __init__(self, **kwargs):
         self.pod_sizes = kwargs.get('pod_sizes', [4, 3])
-        self.allow_bye = kwargs.get('allow_bye', False)
+        self.allow_bye = kwargs.get('allow_bye', True)
         self.win_points = kwargs.get('win_points', 5)
         self.bye_points = kwargs.get('bye_points', 2)
         self.draw_points = kwargs.get('draw_points', 1)
-        self.snake_pods = kwargs.get('snake_pods', False)
+        self.snake_pods = kwargs.get('snake_pods', True)
         self.n_rounds = kwargs.get('n_rounds', 5)
         self.max_byes = kwargs.get('max_byes', 2)
-        self.auto_export = kwargs.get('auto_export', False)
-        self.standings_export = kwargs.get(
-            'standings_export', StandingsExport())
+        self.auto_export = kwargs.get('auto_export', True)
+        self.standings_export = kwargs.get('standings_export', StandingsExport())
         self.player_id = kwargs.get('player_id', ID())
         self.global_wr_seats = kwargs.get('global_wr_seats', [
             0.2553,
@@ -785,8 +784,8 @@ class Tournament(ITournament):
     def get_standings(self) -> list[Player]:
         method = Player.SORT_METHOD
         order = Player.SORT_ORDER
-        Player.SORT_METHOD = SORT_METHOD.RANK
-        Player.SORT_ORDER = SORT_ORDER.ASCENDING
+        Player.SORT_METHOD = SortMethod.RANK
+        Player.SORT_ORDER = SortOrder.ASCENDING
         standings = sorted(self.players, key=self.TC.ranking, reverse=True)
         Player.SORT_METHOD = method
         Player.SORT_ORDER = order
@@ -904,8 +903,8 @@ class Tournament(ITournament):
 
 class Player(IPlayer):
     CACHE: dict[UUID, IPlayer|Player] = {}
-    SORT_METHOD: SORT_METHOD = SORT_METHOD.ID
-    SORT_ORDER: SORT_ORDER = SORT_ORDER.ASCENDING
+    SORT_METHOD: SortMethod = SortMethod.ID
+    SORT_ORDER: SortOrder = SortOrder.ASCENDING
     FORMATTING = ['-p']
 
     def __init__(self, name:str, tour: Tournament|ITournament):
@@ -1097,11 +1096,11 @@ class Player(IPlayer):
 
     def __gt__(self, other):
         b = False
-        if self.SORT_METHOD == SORT_METHOD.ID:
+        if self.SORT_METHOD == SortMethod.ID:
             b = self.ID > other.ID
-        elif self.SORT_METHOD == SORT_METHOD.NAME:
+        elif self.SORT_METHOD == SortMethod.NAME:
             b = self.name > other.name
-        elif self.SORT_METHOD == SORT_METHOD.RANK:
+        elif self.SORT_METHOD == SortMethod.RANK:
             my_score = self.tour.TC.ranking(self)
             other_score = self.tour.TC.ranking(other)
             b = None
@@ -1113,11 +1112,11 @@ class Player(IPlayer):
 
     def __lt__(self, other):
         b = False
-        if self.SORT_METHOD == SORT_METHOD.ID:
+        if self.SORT_METHOD == SortMethod.ID:
             b = self.ID < other.ID
-        elif self.SORT_METHOD == SORT_METHOD.NAME:
+        elif self.SORT_METHOD == SortMethod.NAME:
             b = self.name < other.name
-        elif self.SORT_METHOD == SORT_METHOD.RANK:
+        elif self.SORT_METHOD == SortMethod.RANK:
             my_score = self.tour.TC.ranking(self)
             other_score = self.tour.TC.ranking(other)
             b = None
