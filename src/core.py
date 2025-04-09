@@ -413,16 +413,15 @@ class TournamentAction:
 class TournamentConfiguration(ITournamentConfiguration):
     def __init__(self, **kwargs):
         self.pod_sizes = kwargs.get('pod_sizes', [4, 3])
-        self.allow_bye = kwargs.get('allow_bye', False)
+        self.allow_bye = kwargs.get('allow_bye', True)
         self.win_points = kwargs.get('win_points', 5)
         self.bye_points = kwargs.get('bye_points', 2)
         self.draw_points = kwargs.get('draw_points', 1)
-        self.snake_pods = kwargs.get('snake_pods', False)
+        self.snake_pods = kwargs.get('snake_pods', True)
         self.n_rounds = kwargs.get('n_rounds', 5)
         self.max_byes = kwargs.get('max_byes', 2)
-        self.auto_export = kwargs.get('auto_export', False)
-        self.standings_export = kwargs.get(
-            'standings_export', StandingsExport())
+        self.auto_export = kwargs.get('auto_export', True)
+        self.standings_export = kwargs.get('standings_export', StandingsExport())
         self.player_id = kwargs.get('player_id', ID())
         self.global_wr_seats = kwargs.get('global_wr_seats', [
             0.2553,
