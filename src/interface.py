@@ -18,7 +18,7 @@ class IHashable:
     CACHE: dict[UUID, Any] = {}
 
     def __init__(self):
-        self.ID: UUID = uuid4()
+        self.uid: UUID = uuid4()
 
     @classmethod
     @abstractmethod

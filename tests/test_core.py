@@ -17,7 +17,7 @@ class TestPlayer(unittest.TestCase):
         with open('tests/blns.txt', 'r') as f:
             name = f.readline()
             with self.subTest(name=name):
-                p = Player(name, self.t)
+                p = Player(self.t, name)
 
 class TestTournamentPodSizing(unittest.TestCase):
 
