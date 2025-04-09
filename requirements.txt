@@ -6,3 +6,6 @@ numpy
 qt-material
 faker
 typing_extensions
+discord
+dotenv
+requests

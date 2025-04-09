@@ -2,7 +2,6 @@ from __future__ import annotations
 from typing import List, Sequence, Union, Callable, Any
 from typing_extensions import override
 
-import sys
 import argparse
 import math
 import os
@@ -12,18 +11,40 @@ from copy import deepcopy
 from datetime import datetime
 from enum import Enum
 
+from .discord_engine import DiscordPoster
 from .interface import IPlayer, ITournament, IPod, IRound, IPairingLogic, ITournamentConfiguration
 from .misc import Json2Obj
 import numpy as np
 from tqdm import tqdm # pyright: ignore
-import json # pyright: ignore
 from .pairing_logic.examples import PairingRandom, PairingSnake, PairingDefault
 from uuid import UUID, uuid4
+
+from dotenv import load_dotenv
+import requests
+import threading
+
+
+# Load configuration from .env file
+load_dotenv()
 
 import sys
 #sys.setrecursionlimit(5000)  # Increase recursion limit
 
-class PodsExport:
+class DataExport:
+    class Format(Enum):
+        PLAIN = 0
+        DISCORD = 1
+        CSV = 2
+        JSON = 3
+
+    class Target(Enum):
+        CONSOLE = 0
+        FILE = 1
+        WEB = 2
+        DISCORD = 3
+
+
+class PodsExport(DataExport):
     @classmethod
     def auto_export(cls, func):
         def auto_pods_export_wrapper(self: Tournament, *original_args, **original_kwargs):
@@ -41,14 +62,14 @@ class PodsExport:
                         for pod in tour_round.pods
                     ])
                     game_lost: list[IPlayer|Player] = [x for x in tour_round.players if x.result == IPlayer.EResult.LOSS]
-                    byes = [x for x in tour_round.unseated if x.location == IPlayer.ELocation.UNSEATED and x.result != IPlayer.EResult.LOSS]
+                    byes = [x for x in tour_round.unseated if x.location == IPlayer.ELocation.UNSEATED and x.result == IPlayer.EResult.BYE]
                     if len(game_lost) + len(byes) > 0:
                         max_len = max([len(p.name) for p in game_lost + byes])
                         if self.TC.allow_bye and byes:
                             export_str += '\n\nByes:\n' + '\n'.join([
                                 "\t{} | pts: {}".format(p.name.ljust(max_len), p.points)
                                 for p in tour_round.unseated
-                                if not p.result == IPlayer.EResult.LOSS
+                                if p.result == IPlayer.EResult.BYE
                             ])
                         if game_lost:
                             export_str += '\n\nGame losses:\n' + '\n'.join([
@@ -66,16 +87,19 @@ class PodsExport:
                     )
                     if not os.path.exists(os.path.dirname(path)):
                         os.makedirs(os.path.dirname(path))
-                    self.export_str(path, export_str)
+
+                    self.export_str(export_str, path, DataExport.Target.FILE)
+                    self.export_str(export_str, None, DataExport.Target.WEB)
+
 
                     path = os.path.join(os.path.dirname(logf), 'pods.txt')
-                    self.export_str(path, export_str)
+                    self.export_str(export_str, path, DataExport.Target.FILE)
 
             return ret
         return auto_pods_export_wrapper
 
 
-class StandingsExport:
+class StandingsExport(DataExport):
     class Field(Enum):
         STANDING = 0  # Standing
         ID = 1  # Player ID
@@ -90,12 +114,6 @@ class StandingsExport:
         GAMES = 10  # Number of games played
         SEAT_HISTORY = 11  # Seat record
         AVG_SEAT = 12  # Average seat
-
-    class Format(Enum):
-        TXT = 0
-        CSV = 1
-        DISCORD = 2
-        JSON = 3
 
     info = {
         Field.STANDING: Json2Obj({
@@ -192,9 +210,9 @@ class StandingsExport:
     }
 
     ext = {
-        Format.DISCORD: '.txt',
-        Format.TXT: '.txt',
-        Format.CSV: '.csv'
+        DataExport.Format.DISCORD: '.txt',
+        DataExport.Format.PLAIN: '.txt',
+        DataExport.Format.CSV: '.csv'
     }
 
     DEFAULT_FIELDS = [
@@ -208,7 +226,7 @@ class StandingsExport:
         Field.AVG_SEAT,
     ]
 
-    def __init__(self, fields=None, format: Format = Format.TXT, dir: Union[str, None] = None):
+    def __init__(self, fields=None, format: DataExport.Format = DataExport.Format.PLAIN, dir: Union[str, None] = None):
         if fields is None:
             self.fields = self.DEFAULT_FIELDS
         else:
@@ -224,10 +242,10 @@ class StandingsExport:
         def auto_standings_export_wrapper(self: Tournament, *original_args, **original_kwargs):
             ret = func(self, *original_args, **original_kwargs)
             if self.TC.auto_export:
-                self.export_standings(
-                    fdir=self.TC.standings_export.dir,
-                    fields=self.TC.standings_export.fields,
-                    style=self.TC.standings_export.format,
+                self.export_str(
+                    self.get_standings_str(),
+                    self.TC.standings_export.dir,
+                    DataExport.Target.FILE
                 )
             return ret
         return auto_standings_export_wrapper
@@ -332,10 +350,10 @@ class TournamentAction:
         @StandingsExport.auto_export
         @PodsExport.auto_export
         def wrapper(self, *original_args, **original_kwargs):
-            memo = {}
-            before = deepcopy(self, memo=memo)
+
+            before = deepcopy(self)
             ret = func(self, *original_args, **original_kwargs)
-            after = deepcopy(self, memo=memo)
+            after = deepcopy(self)
             cls.ACTIONS.append(TournamentAction(
                 before, ret, after, func.__name__, *original_args, **original_kwargs,
             ))
@@ -431,32 +449,6 @@ class TournamentConfiguration(ITournamentConfiguration):
             '{}:{}'.format(key, val)
             for key, val in self.__dict__.items()
         ])
-
-#TODO: Implement
-class TournamentLog:
-    class Format(Enum):
-        TXT = 0
-        DISCORD = 1
-        JSON = 2
-
-    def __init__(self, tournament: Tournament):
-        self.tournament = tournament
-        self.log = []
-
-    def construct(self):
-        players = set()
-        log_json = {
-            "history": []
-        }
-        for i, round in enumerate(self.tournament.rounds):
-            if isinstance(round.concluded, datetime):
-                round_json = {
-                    "round": i,
-                    "timestamp": round.concluded.strftime('%Y-%m-%d %H:%M:%S'),
-                    "players": [],
-                }
-                for p in round.players:
-                    pass
 
 
 class Tournament(ITournament):
@@ -598,6 +590,9 @@ class Tournament(ITournament):
             self.round.create_pairings()
             for pod in self.round.pods:
                 pod.sort()
+            for p in self.round.unseated:
+                if p.result != IPlayer.EResult.LOSS:
+                    p.result = IPlayer.EResult.BYE
         else:
             Log.log(30*'*', level=Log.Level.WARNING)
             Log.log('Please report results of following pods: {}'.format(
@@ -643,6 +638,9 @@ class Tournament(ITournament):
     def reset_pods(self):
         if self.round:
             self.round.pods = []
+            for p in self.round.players:
+                if p.result != IPlayer.EResult.LOSS:
+                    p.result = IPlayer.EResult.PENDING
             self.round = None
             for player in self.players:
                 player.location = IPlayer.ELocation.UNSEATED
@@ -771,17 +769,18 @@ class Tournament(ITournament):
 
     # MISC ACTIONS
 
-    def show_pods(self):
-        if self.round and self.round.pods:
-            self.round.print_pods()
-        else:
-            Log.log('No pods currently created.')
+    def get_pods_str(self) -> str:
+        export_str = '\n\n'.join([
+            pod.__repr__()
+            for pod in self.round.pods
+        ])
 
-    def export_str(self, fdir, str):
-        if not os.path.exists(os.path.dirname(fdir)):
-            os.makedirs(os.path.dirname(fdir))
-        with open(fdir, 'w', encoding='utf-8') as f:
-            f.writelines(str)
+        if self.TC.allow_bye and self.round.unseated:
+            export_str += '\n\nByes:\n' + '\n:'.join([
+                "\t{}\t| pts: {}".format(p.name, p.points)
+                for p in self.round.unseated
+            ])
+        return export_str
 
     def get_standings(self) -> list[Player]:
         method = Player.SORT_METHOD
@@ -793,16 +792,12 @@ class Tournament(ITournament):
         Player.SORT_ORDER = order
         return standings
 
-    def export_standings(
-        self,
-        fdir: str,
-        fields: list[StandingsExport.Field]|None = None,
-        style: StandingsExport.Format|None = None,
-    ):
-        if fields is None:
-            fields = StandingsExport.DEFAULT_FIELDS
-        if style is None:
-            style = StandingsExport.Format.TXT
+    def get_standings_str(
+            self,
+            fields: list[StandingsExport.Field] = StandingsExport.DEFAULT_FIELDS,
+            style: StandingsExport.Format = StandingsExport.Format.PLAIN
+    ) -> str:
+        #fdir = os.path.join(self.TC.log_dir, 'standings.txt')
         standings = self.get_standings()
         lines = [[StandingsExport.info[f].name for f in fields]] # pyright: ignore
         lines += [
@@ -817,7 +812,7 @@ class Tournament(ITournament):
             ]
             for p in standings
         ]
-        if style == StandingsExport.Format.TXT:
+        if style == StandingsExport.Format.PLAIN:
             col_len = [0] * len(fields)
             for col in range(len(fields)):
                 for line in lines:
@@ -829,8 +824,9 @@ class Tournament(ITournament):
             # add new line at index 1
             lines.insert(1, ['-' * width for width in col_len])
             lines = '\n'.join([' | '.join(line) for line in lines])
+            return lines
 
-            self.export_str(fdir, lines)
+
             # Log.log('Log saved: {}.'.format(
             #    fdir), level=Log.Level.INFO)
         elif style == StandingsExport.Format.CSV:
@@ -843,7 +839,67 @@ class Tournament(ITournament):
             Log.log('Log not saved - JSON not implemented.'.format(
                 fdir), level=Log.Level.WARNING)
 
+        raise ValueError('Invalid style: {}'.format(style))
 
+    @staticmethod
+    def send_request(api, data, headers):
+        try:
+            response = requests.post(
+                api,
+                json=data,
+                headers=headers,
+                timeout=10
+            )
+            if response.status_code == 200:
+                Log.log("Data successfully sent to the server!")
+            else:
+                Log.log(f"Failed to send data. Status code: {response.status_code}")
+        except Exception as e:
+            Log.log(f"Error sending data: {e}", level=Log.Level.ERROR)
+
+    def export_str(
+            self,
+            data: str,
+            var_export_param: Any,
+            target_type: StandingsExport.Target,
+
+    ):
+        if StandingsExport.Target.FILE == target_type:
+            if not os.path.exists(os.path.dirname(var_export_param)):
+                os.makedirs(os.path.dirname(var_export_param))
+            with open(var_export_param, 'w', encoding='utf-8') as f:
+                f.writelines(data)
+
+        if StandingsExport.Target.WEB == target_type:
+            api = os.getenv("EXPORT_ONLINE_API_URL")
+            key = os.getenv("EXPORT_ONLINE_API_KEY")
+            tournament_id = os.getenv("TOURNAMENT_ID")
+            url = f"{api}?tournamentId={tournament_id}"
+            if not key or not api:
+                Log.log("Error: EXPORT_ONLINE_API_URL or EXPORT_ONLINE_API_KEY not set in the environment variables.")
+                return
+
+            # Send as POST request to the Express app with authentication
+            headers = {
+                "x-api-key": key
+            }
+            request_data = {
+                "title": "Tournament Update",
+                "timestamp": f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                "text": data,
+            }
+
+            thread = threading.Thread(target=self.send_request, args=(url, request_data, headers))
+            thread.start()
+
+        if StandingsExport.Target.DISCORD == target_type:
+            instance = DiscordPoster.instance()
+            instance.post_message(data)
+
+        if StandingsExport.Target.CONSOLE == target_type:
+            if not isinstance(var_export_param, Log.Level):
+                var_export_param = Log.Level.INFO
+            Log.log(data, level=var_export_param)
 
 
 class Player(IPlayer):
@@ -1164,6 +1220,7 @@ class Pod(IPod):
         self.result: None|Player|IPlayer|Sequence[IPlayer|Player] = None
         self.winner: None|Player = None
         self.draw: list[Player] = list()
+        self.discord_message_id: None|int = None
 
     #@property
     #def players(self) -> list[Player]:
@@ -1263,7 +1320,7 @@ class Pod(IPod):
             '\n\t'.join(
                 [
                     '[{}] {}\t'.format(
-                        '  ' if not self.done else
+                        ' ' if not self.done else
                         'W' if p == self.winner else
                         'D' if p in self.draw else
                         'L',
@@ -1281,7 +1338,7 @@ class Round(IRound):
         self.players.extend(tour.players)
         self.seq = seq
         self.logic = pairing_logic
-        self.tour = tour
+        self.tour: Tournament = tour
 
     @property
     def done(self):
@@ -1340,15 +1397,11 @@ class Round(IRound):
         ])]
         self.logic.make_pairings(self.unseated, pods)
         self.sort_pods()
-        self.print_pods()
+        for pod in self.pods:
+            Log.log(pod.__repr__(), Log.Level.NONE)
 
     def sort_pods(self):
         self.pods[:] = sorted(self.pods, key=lambda x: (len(x.players), np.average([p.points for p in x.players])), reverse=True)
-
-    def print_pods(self):
-        for p in self.pods:
-            Log.log(p)
-            Log.log('-'*80)
 
     def won(self, players: list[IPlayer|Player]|IPlayer|Player):
         if not isinstance(players, list):
@@ -1404,6 +1457,6 @@ class Round(IRound):
         self.tour.round = None
         for p in self.tour.players:
             p.location = IPlayer.ELocation.UNSEATED
-            p.result = IPlayer.EResult.PENDING
+            #p.result = IPlayer.EResult.PENDING
         pass
 
