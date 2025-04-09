@@ -16,7 +16,6 @@ from .interface import IPlayer, ITournament, IPod, IRound, IPairingLogic, ITourn
 from .misc import Json2Obj, generate_player_names
 import numpy as np
 from tqdm import tqdm # pyright: ignore
-from .pairing_logic.examples import PairingRandom, PairingSnake, PairingDefault
 from uuid import UUID, uuid4
 
 from dotenv import load_dotenv
@@ -501,6 +500,54 @@ class Tournament(ITournament):
     # then ID - this last one is to ensure deterministic sorting in case of equal values (start of tournament for example)
     CACHE: dict[UUID, Tournament] = {}
 
+
+    _pairing_logic_cache: dict[str, type[IPairingLogic]] = {}
+
+    @classmethod
+    def _discover_pairing_logic(cls) -> None:
+        """Discover and cache all pairing logic implementations from src/pairing_logic."""
+        if cls._pairing_logic_cache:
+            return
+
+        import importlib
+        import pkgutil
+        import os
+        from pathlib import Path
+
+        # Get the base directory of the project
+        base_dir = Path(__file__).parent.parent
+        pairing_logic_dir = base_dir / 'src' / 'pairing_logic'
+
+        # Walk through all Python files in the pairing_logic directory
+        for module_info in pkgutil.iter_modules([str(pairing_logic_dir)]):
+            try:
+                # Import the module
+                module = importlib.import_module(f'src.pairing_logic.{module_info.name}')
+
+                # Find all classes that implement IPairingLogic
+                for name, obj in module.__dict__.items():
+                    if (isinstance(obj, type) and
+                        issubclass(obj, IPairingLogic) and
+                        obj != IPairingLogic and
+                        obj.IS_COMPLETE
+                    ):
+                        cls._pairing_logic_cache[obj.__name__] = obj(path=f'src.pairing_logic.{module_info.name}') # type: ignore
+            except Exception as e:
+                Log.log(f"Failed to import pairing logic module {module_info.name}: {e}",
+                       level=Log.Level.WARNING)
+
+    @classmethod
+    def get_pairing_logic(cls, logic_name: str) -> IPairingLogic:
+        """Get a pairing logic instance by name."""
+        cls._discover_pairing_logic()
+
+        if logic_name not in cls._pairing_logic_cache:
+            Log.log(f"Unknown pairing logic: {logic_name}, falling back to default",
+                   level=Log.Level.WARNING)
+            logic_name = "PairingDefault"
+
+        return cls._pairing_logic_cache[logic_name] # type: ignore
+
     def __init__(self, config: Union[TournamentConfiguration, None] = None) :  # type: ignore
         TournamentAction.reset()
         if config is None:
@@ -677,11 +724,11 @@ class Tournament(ITournament):
         if self.round is None or self.round.concluded:
             seq = len(self.rounds)
             if seq == 0:
-                logic = PairingRandom()
+                logic = self.get_pairing_logic("PairingRandom")
             elif seq == 1 and self.config.snake_pods:
-                logic = PairingSnake()
+                logic = self.get_pairing_logic("PairingSnake")
             else:
-                logic = PairingDefault()
+                logic = self.get_pairing_logic("PairingDefault")
             self._round = Round(
                 self,
                 len(self.rounds),
@@ -710,12 +757,12 @@ class Tournament(ITournament):
         if not self.round or self.round.concluded:
             seq = len(self.rounds)
             if seq == 0:
-                logic = PairingRandom()
+                logic = self.get_pairing_logic("PairingRandom")
             elif seq == 1 and self.config.snake_pods:
-                logic = PairingSnake()
+                logic = self.get_pairing_logic("PairingSnake")
             else:
-                logic = PairingDefault()
-            round = Round(seq, logic, self)
+                logic = self.get_pairing_logic("PairingDefault")
+            round = Round(self, seq, logic)
             self._round = round.uid
             return True
         else:
@@ -1524,6 +1571,7 @@ class Pod(IPod):
     def inflate(cls, round: Round, data: dict[str, Any]) -> Pod:
         return cls(round, data['table'], data['cap'], data['uid'])
 
+
 class Round(IRound):
 
     def __init__(self, tour: Tournament, seq: int, pairing_logic:IPairingLogic, uid: UUID|None = None):
@@ -1543,6 +1591,14 @@ class Round(IRound):
     @staticmethod
     def get(tour: Tournament, uid: UUID) -> Round:
         return tour.ROUND_CACHE[uid]
+
+    @property
+    def logic(self) -> IPairingLogic:
+        return self.tour.get_pairing_logic(self._logic)
+
+    @logic.setter
+    def logic(self, logic: IPairingLogic):
+        self._logic = logic.path
 
     @property
     def players(self) -> list[Player]:
@@ -1691,5 +1747,5 @@ class Round(IRound):
             'seq': self.seq,
             'pods': self._pods,
             'players': self._players,
-            'logic': self._logic, #TODO: serialize logic
+            'logic': self._logic,
         }

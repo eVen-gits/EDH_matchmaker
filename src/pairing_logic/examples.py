@@ -54,6 +54,8 @@ class CommonPairing(IPairingLogic):
         return byes
 
 class PairingRandom(CommonPairing):
+    IS_COMPLETE=True
+
     @override
     def make_pairings(self, players: list[IPlayer], pods: list[IPod]) -> list[IPlayer]:
         byes = self.assign_byes(players, pods)
@@ -69,11 +71,13 @@ class PairingRandom(CommonPairing):
         return players
 
 class PairingSnake(CommonPairing):
+    IS_COMPLETE=True
+
     #Snake pods logic for 2nd round
     #First bucket is players with most points and least unique opponents
     #Players are then distributed in buckets based on points and unique opponents
     #Players are then distributed in pods based on bucket order
-    #elif self.tour.config.snake_pods and self.seq == 1:
+
     @override
     def make_pairings(self, players: list[IPlayer], pods: list[IPod]) -> list[IPlayer]:
         byes = self.assign_byes(players, pods)
@@ -130,6 +134,8 @@ class PairingSnake(CommonPairing):
         return players
 
 class PairingDefault(CommonPairing):
+    IS_COMPLETE=True
+
     @override
     def make_pairings(self, players: Sequence[IPlayer], pods: Sequence[IPod]) -> Sequence[IPlayer]:
         matching = lambda x: (

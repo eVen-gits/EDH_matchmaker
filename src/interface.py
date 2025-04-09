@@ -130,6 +130,11 @@ class IRound(IHashable):
         raise NotImplementedError('Round.pods not implemented - use subclass')
 
 class IPairingLogic:
+    IS_COMPLETE=False
+
+    def __init__(self, path: str):
+        self.path = path
+
     def make_pairings(self, players: Sequence[IPlayer], pods:Sequence[IPod]) -> Sequence[IPlayer]:
         raise NotImplementedError('PairingLogic.make_pairings not implemented - use subclass')
 
