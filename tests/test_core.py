@@ -6,7 +6,7 @@ from tqdm import tqdm
 from faker import Faker
 fkr = Faker()
 
-TournamentAction.logf = False #type: ignore
+TournamentAction.LOGF = False #type: ignore
 
 
 class TestPlayer(unittest.TestCase):
@@ -26,6 +26,7 @@ class TestTournamentPodSizing(unittest.TestCase):
             TournamentConfiguration(
                 pod_sizes=[4, 3],
                 allow_bye=False,
+                auto_export=False,
             )
         )
 
@@ -63,6 +64,7 @@ class TestTournamentPodSizing(unittest.TestCase):
                 pod_sizes=[4],
                 allow_bye=True,
                 max_byes=3,
+                auto_export=False,
             )
         )
         pod_sizes = (
@@ -103,6 +105,7 @@ class TestTournamentPodSizing(unittest.TestCase):
             TournamentConfiguration(
                 pod_sizes=[4],
                 allow_bye=False,
+                auto_export=False,
             )
         )
 
@@ -187,9 +190,10 @@ class TestScoring(unittest.TestCase):
             TournamentConfiguration(
                 pod_sizes=[4],
                 allow_bye=True,
-                bye_points=4,
                 win_points=4,
+                bye_points=4,
                 draw_points=1,
+                auto_export=False,
             )
         )
         Player.FORMATTING = ['-p', '-w', '-o']
@@ -257,6 +261,7 @@ class TestLarge(unittest.TestCase):
                         pod_sizes=[4, 3],
                         allow_bye=False,
                         snake_pods=True,
+                        auto_export=False,
                     )
                 )
                 t.add_player([
@@ -276,6 +281,7 @@ class TestLarge(unittest.TestCase):
                 pod_sizes=[4, 3],
                 allow_bye=False,
                 snake_pods=True,
+                auto_export=False,
             )
         )
         t.add_player([

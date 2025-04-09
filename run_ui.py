@@ -65,8 +65,6 @@ class PlayerListItem(QListWidgetItem):
     @staticmethod
     def sort_order():
         if Player.SORT_ORDER == SortOrder.ASCENDING:
-    def SORT_ORDER():
-        if Player.SORT_ORDER == SortOrder.ASCENDING:
             return Qt.SortOrder.AscendingOrder
         return Qt.SortOrder.DescendingOrder
 
