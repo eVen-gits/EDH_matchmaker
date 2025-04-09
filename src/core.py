@@ -51,7 +51,7 @@ class PodsExport(DataExport):
             tour_round = self.round
             ret = func(self, *original_args, **original_kwargs)
             tour_round = tour_round or self.round
-            if self.TC.auto_export:
+            if self.config.auto_export:
                 logf = TournamentAction.LOGF
                 if logf and tour_round:
                     # Export pods to a file named {tournament_name}_round_{round_number}.txt
@@ -65,7 +65,7 @@ class PodsExport(DataExport):
                     byes = [x for x in tour_round.unseated if x.location == Player.ELocation.UNSEATED and x.result == Player.EResult.BYE]
                     if len(game_lost) + len(byes) > 0:
                         max_len = max([len(p.name) for p in game_lost + byes])
-                        if self.TC.allow_bye and byes:
+                        if self.config.allow_bye and byes:
                             export_str += '\n\nByes:\n' + '\n'.join([
                                 "\t{} | pts: {}".format(p.name.ljust(max_len), p.points)
                                 for p in tour_round.unseated
@@ -241,10 +241,10 @@ class StandingsExport(DataExport):
     def auto_export(cls, func):
         def auto_standings_export_wrapper(self: Tournament, *original_args, **original_kwargs):
             ret = func(self, *original_args, **original_kwargs)
-            if self.TC.auto_export:
+            if self.config.auto_export:
                 self.export_str(
                     self.get_standings_str(),
-                    self.TC.standings_export.dir,
+                    self.config.standings_export.dir,
                     DataExport.Target.FILE
                 )
             return ret
@@ -481,7 +481,7 @@ class Tournament(ITournament):
         self.POD_CACHE: dict[UUID, Pod] = {}
         self.ROUND_CACHE: dict[UUID, Round] = {}
         # Direct setting - don't want to overwrite old log file
-        self._tc = config
+        self._config = config
 
 
     # TOURNAMENT ACTIONS
@@ -535,13 +535,13 @@ class Tournament(ITournament):
         return n_draws/n_matches
 
     @property
-    def TC(self) -> TournamentConfiguration:
-        return self._tc
+    def config(self) -> TournamentConfiguration:
+        return self._config
 
-    @TC.setter
+    @config.setter
     @TournamentAction.action
-    def TC(self, config: TournamentConfiguration):
-        self._tc = config
+    def config(self, config: TournamentConfiguration):
+        self._config = config
 
     @TournamentAction.action
     def add_player(self, names: str|list[str]|None=None):
@@ -605,10 +605,10 @@ class Tournament(ITournament):
             remaining, pod_size_idx, current_solution = stack.pop()
 
             # If we've processed all pod sizes, continue to next iteration
-            if pod_size_idx >= len(self.TC.pod_sizes):
+            if pod_size_idx >= len(self.config.pod_sizes):
                 continue
 
-            pod_size = self.TC.pod_sizes[pod_size_idx]
+            pod_size = self.config.pod_sizes[pod_size_idx]
             rem = remaining - pod_size
 
             # Skip if this pod size would exceed remaining players
@@ -621,17 +621,17 @@ class Tournament(ITournament):
                 return current_solution + [pod_size]
 
             # Handle case where remaining players is less than minimum pod size
-            if rem < self.TC.min_pod_size:
-                if self.TC.allow_bye and rem <= self.TC.max_byes:
+            if rem < self.config.min_pod_size:
+                if self.config.allow_bye and rem <= self.config.max_byes:
                     return current_solution + [pod_size]
-                elif pod_size == self.TC.pod_sizes[-1]:
+                elif pod_size == self.config.pod_sizes[-1]:
                     continue
                 else:
                     stack.append((remaining, pod_size_idx + 1, current_solution))
                     continue
 
             # If remaining players is valid, try this pod size and continue with remaining players
-            if rem >= self.TC.min_pod_size:
+            if rem >= self.config.min_pod_size:
                 stack.append((remaining, pod_size_idx + 1, current_solution))
                 stack.append((rem, 0, current_solution + [pod_size]))
 
@@ -643,7 +643,7 @@ class Tournament(ITournament):
             seq = len(self.rounds)
             if seq == 0:
                 logic = PairingRandom()
-            elif seq == 1 and self.TC.snake_pods:
+            elif seq == 1 and self.config.snake_pods:
                 logic = PairingSnake()
             else:
                 logic = PairingDefault()
@@ -676,7 +676,7 @@ class Tournament(ITournament):
             seq = len(self.rounds)
             if seq == 0:
                 logic = PairingRandom()
-            elif seq == 1 and self.TC.snake_pods:
+            elif seq == 1 and self.config.snake_pods:
                 logic = PairingSnake()
             else:
                 logic = PairingDefault()
@@ -719,7 +719,7 @@ class Tournament(ITournament):
            if not self.new_round():
                 return
         assert isinstance(self.round, Round)
-        cap = min(self.TC.max_pod_size, len(self.round.unseated))
+        cap = min(self.config.max_pod_size, len(self.round.unseated))
         pod = Pod(self.round, len(self.round.pods), cap=cap)
         self.round._pods.append(pod.ID)
 
@@ -752,7 +752,7 @@ class Tournament(ITournament):
             )
             return
         if self.round.pods:
-            draw_rate = 1-sum(self.TC.global_wr_seats)
+            draw_rate = 1-sum(self.config.global_wr_seats)
             #for each pod
             #generate a random result based on global_winrates_by_seat
             #each value corresponds to the winrate of the player in that seat
@@ -761,7 +761,7 @@ class Tournament(ITournament):
             for pod in [x for x in self.round.pods if not x.done]:
                 #generate a random result
                 result = random.random()
-                rates = np.array(self.TC.global_wr_seats[0:len(pod.players)] + [draw_rate])
+                rates = np.array(self.config.global_wr_seats[0:len(pod.players)] + [draw_rate])
                 rates = rates/sum(rates)
                 draw = result > np.cumsum(rates)[-2]
                 if not draw:
@@ -846,7 +846,7 @@ class Tournament(ITournament):
             for pod in self.round.pods
         ])
 
-        if self.TC.allow_bye and self.round.unseated:
+        if self.config.allow_bye and self.round.unseated:
             export_str += '\n\nByes:\n' + '\n:'.join([
                 "\t{}\t| pts: {}".format(p.name, p.points)
                 for p in self.round.unseated
@@ -858,7 +858,7 @@ class Tournament(ITournament):
         order = Player.SORT_ORDER
         Player.SORT_METHOD = SortMethod.RANK
         Player.SORT_ORDER = SortOrder.ASCENDING
-        standings = sorted(self.players, key=self.TC.ranking, reverse=True)
+        standings = sorted(self.players, key=self.config.ranking, reverse=True)
         Player.SORT_METHOD = method
         Player.SORT_ORDER = order
         return standings
@@ -972,6 +972,21 @@ class Tournament(ITournament):
                 var_export_param = Log.Level.INFO
             Log.log(data, level=var_export_param)
 
+    def serialize(self):
+        """
+        Returns a JSON string of the tournament, that can be serialized.
+        It contains:
+            - tournament configuration json (serialized from class)
+            - a list of player jsons (serialized from class)
+            - a list of pod jsons (serialized from class)
+            - a list of round jsons (serialized from class)
+
+        Objects are referenced to each other by ids.
+        """
+
+        data = {}
+        data['config'] = self.config.serialize()
+
 
 class Player(IPlayer):
     SORT_METHOD: SortMethod = SortMethod.ID
@@ -983,7 +998,7 @@ class Player(IPlayer):
         self._tour = tour.ID
         self.name = name
         self.points = 0
-        self.ID:UUID = tour.TC.player_id.next()
+        self.ID:UUID = tour.config.player_id.next()
         self.CACHE[self.ID] = self
         self.opponents_beaten = set()
         self._pod_id: UUID|None = None  # Direct reference to current pod
@@ -1047,7 +1062,7 @@ class Player(IPlayer):
                 elif index == len(pod) - 1:
                     continue
                 else:
-                    rates = self.tour.TC.global_wr_seats[0:len(pod)]
+                    rates = self.tour.config.global_wr_seats[0:len(pod)]
                     norm_scale = 1-(np.cumsum(rates)-rates[0])/(np.sum(rates)-rates[0])
                     score += norm_scale[index]
         return score/n_pods
@@ -1181,8 +1196,8 @@ class Player(IPlayer):
         elif self.SORT_METHOD == SortMethod.NAME:
             b = self.name > other.name
         elif self.SORT_METHOD == SortMethod.RANK:
-            my_score = self.tour.TC.ranking(self)
-            other_score = self.tour.TC.ranking(other)
+            my_score = self.tour.config.ranking(self)
+            other_score = self.tour.config.ranking(other)
             b = None
             for i in range(len(my_score)):
                 if my_score[i] != other_score[i]:
@@ -1197,8 +1212,8 @@ class Player(IPlayer):
         elif self.SORT_METHOD == SortMethod.NAME:
             b = self.name < other.name
         elif self.SORT_METHOD == SortMethod.RANK:
-            my_score = self.tour.TC.ranking(self)
-            other_score = self.tour.TC.ranking(other)
+            my_score = self.tour.config.ranking(self)
+            other_score = self.tour.config.ranking(other)
             b = None
             for i in range(len(my_score)):
                 if my_score[i] != other_score[i]:
@@ -1560,7 +1575,7 @@ class Round(IRound):
                 continue
 
             if not pod.done:
-                player.points = player.points + self.tour.TC.win_points
+                player.points = player.points + self.tour.config.win_points
 
                 pod.result.add(player.ID)
 
@@ -1572,7 +1587,7 @@ class Round(IRound):
             players = [players]
         for player in players:
             if player.pod is not None:
-                player.points = player.points + self.tour.TC.draw_points
+                player.points = player.points + self.tour.config.draw_points
 
                 player.pod.result.add(player.ID)
 
@@ -1587,8 +1602,8 @@ class Round(IRound):
         for p in self.unseated:
             if p.result == Player.EResult.LOSS:
                 p.pods.append(Player.EResult.LOSS)
-            elif self.tour.TC.allow_bye:
-                p.points += self.tour.TC.bye_points
+            elif self.tour.config.allow_bye:
+                p.points += self.tour.config.bye_points
                 p.result = Player.EResult.BYE
                 p.pods.append(Player.EResult.BYE)
 

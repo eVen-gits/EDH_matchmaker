@@ -15,14 +15,14 @@ class CommonPairing(IPairingLogic):
             return -sys.maxsize
         for p in pod.players:
             score -= player.played.count(p) ** 2
-        if pod.cap < player.tour.TC.max_pod_size:
+        if pod.cap < player.tour.config.max_pod_size:
             for prev_pod in player.pods:
                 if isinstance(prev_pod, IPod):
                     score -= sum([
                         10
                         for _
                         in prev_pod.players
-                        if prev_pod.cap < player.tour.TC.max_pod_size
+                        if prev_pod.cap < player.tour.config.max_pod_size
                     ])
         return score
 
@@ -73,7 +73,7 @@ class PairingSnake(CommonPairing):
     #First bucket is players with most points and least unique opponents
     #Players are then distributed in buckets based on points and unique opponents
     #Players are then distributed in pods based on bucket order
-    #elif self.tour.TC.snake_pods and self.seq == 1:
+    #elif self.tour.config.snake_pods and self.seq == 1:
     @override
     def make_pairings(self, players: list[IPlayer], pods: list[IPod]) -> list[IPlayer]:
         byes = self.assign_byes(players, pods)

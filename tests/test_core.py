@@ -212,9 +212,9 @@ class TestScoring(unittest.TestCase):
         for pod in self.t.round.pods:
             self.t.report_win(pod.players[0])
 
-        leaders = [p for p in self.t.players if p.points == self.t.TC.win_points]
+        leaders = [p for p in self.t.players if p.points == self.t.config.win_points]
         self.assertEqual(len(leaders), 3)
-        self.assertEqual(benched.points, self.t.TC.bye_points)
+        self.assertEqual(benched.points, self.t.config.bye_points)
         standings = self.t.get_standings()
         self.assertEqual(standings[2], benched)
 

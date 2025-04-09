@@ -68,7 +68,7 @@ class ITournament(IHashable):
         pass
 
     @property
-    def TC(self) -> ITournamentConfiguration:
+    def config(self) -> ITournamentConfiguration:
         raise NotImplementedError()
 
 class IPod(IHashable):

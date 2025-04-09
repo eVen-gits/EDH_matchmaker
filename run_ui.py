@@ -874,19 +874,19 @@ class TournamentConfigDialog(QDialog):
 
     def restore_ui(self):
         # Load current pod sizes
-        for psize in self.core.TC.pod_sizes:
+        for psize in self.core.config.pod_sizes:
             self.create_psize_widget(psize)
         # Load and set bye option
-        self.cb_allow_bye.setChecked(self.core.TC.allow_bye)
+        self.cb_allow_bye.setChecked(self.core.config.allow_bye)
         self.check_pod_sizes()
         # Load and set scoring
-        self.sb_win.setValue(self.core.TC.win_points)
-        self.sb_draw.setValue(self.core.TC.draw_points)
-        self.sb_bye.setValue(self.core.TC.bye_points)
-        self.sb_nRounds.setValue(self.core.TC.n_rounds)
-        self.cb_snakePods.setChecked(self.core.TC.snake_pods)
-        self.sb_max_byes.setValue(self.core.TC.max_byes)
-        self.ui.cb_auto_export.setChecked(self.core.TC.auto_export)
+        self.sb_win.setValue(self.core.config.win_points)
+        self.sb_draw.setValue(self.core.config.draw_points)
+        self.sb_bye.setValue(self.core.config.bye_points)
+        self.sb_nRounds.setValue(self.core.config.n_rounds)
+        self.cb_snakePods.setChecked(self.core.config.snake_pods)
+        self.sb_max_byes.setValue(self.core.config.max_byes)
+        self.ui.cb_auto_export.setChecked(self.core.config.auto_export)
 
         if TournamentAction.LOGF:
             self.ui.le_log_location.setText(TournamentAction.LOGF)
@@ -900,7 +900,7 @@ class TournamentConfigDialog(QDialog):
             TournamentAction.LOGF = self.ui.le_log_location.text()
             TournamentAction.reset()
 
-        TC = TournamentConfiguration(
+       .config = TournamentConfiguration(
             allow_bye = self.cb_allow_bye.isChecked(),
             win_points = self.sb_win.value(),
             draw_points = self.sb_draw.value(),
@@ -911,7 +911,7 @@ class TournamentConfigDialog(QDialog):
             max_byes = self.sb_max_byes.value(),
             auto_export = self.cb_auto_export.isChecked(),
         )
-        self.parent().core.TC = TC
+        self.parent().core.config =.config
         self.close()
 
     @staticmethod
@@ -947,14 +947,14 @@ class ExportStandingsDialog(QDialog):
     def update_export_format(self, idx):
         data = self.ui.cb_format.itemData(idx)
         #StandingsExport.instance().format = data
-        self.core.TC.standings_export.format = data
+        self.core.config.standings_export.format = data
 
     def restore_ui(self):
-        self.ui.le_export_dir.setText(self.core.TC.standings_export.dir)
+        self.ui.le_export_dir.setText(self.core.config.standings_export.dir)
 
         for f in StandingsExport.Field:
-            info = self.core.TC.standings_export.info[f]
-            if f in self.core.TC.standings_export.fields:
+            info = self.core.config.standings_export.info[f]
+            if f in self.core.config.standings_export.fields:
                 item = QListWidgetItem(
                     '{} ({})'.format(info.name, info.description))
                 item.setData(Qt.ItemDataRole.UserRole, f)
@@ -966,13 +966,13 @@ class ExportStandingsDialog(QDialog):
             self.ui.cb_format.addItem(s.name, userData=s)
 
         self.ui.cb_format.setCurrentIndex(
-            self.ui.cb_format.findData(self.core.TC.standings_export.format))
+            self.ui.cb_format.findData(self.core.config.standings_export.format))
 
     def add_field(self):
         f = self.ui.cb_fields.currentData(Qt.ItemDataRole.UserRole)
         if f is None:
             return
-        info = self.core.TC.standings_export.info[f]
+        info = self.core.config.standings_export.info[f]
         self.ui.cb_fields.removeItem(self.ui.cb_fields.currentIndex())
         item = QListWidgetItem('{} ({})'.format(info.name, info.description))
         item.setData(Qt.ItemDataRole.UserRole, f)
@@ -981,7 +981,7 @@ class ExportStandingsDialog(QDialog):
     def remove_field(self):
         item = self.ui.lw_fields.currentItem()
         f = item.data(Qt.ItemDataRole.UserRole)
-        info = self.core.TC.standings_export.info[f]
+        info = self.core.config.standings_export.info[f]
         self.ui.cb_fields.addItem(info.name, userData=f)
         self.ui.lw_fields.takeItem(self.ui.lw_fields.row(item))
 
@@ -989,26 +989,26 @@ class ExportStandingsDialog(QDialog):
         file, ext = QFileDialog.getSaveFileName(
             caption="Specify standings location...",
             filter='*{}'.format(
-                self.core.TC.standings_export.ext[self.core.TC.standings_export.format]),
+                self.core.config.standings_export.ext[self.core.config.standings_export.format]),
             initialFilter='*{}'.format(
-                self.core.TC.standings_export.ext[self.core.TC.standings_export.format]),
-            directory=os.path.dirname(self.core.TC.standings_export.dir)
+                self.core.config.standings_export.ext[self.core.config.standings_export.format]),
+            directory=os.path.dirname(self.core.config.standings_export.dir)
         )
         if file:
             if not file.endswith(ext.replace('*', '')):
                 file = ext.replace('*', '{}').format(file)
             self.ui.le_export_dir.setText(file)
-            self.core.TC.standings_export.dir = file
+            self.core.config.standings_export.dir = file
 
     def export(self):
-        self.core.TC.standings_export.format = self.ui.cb_format.currentData()
-        self.core.TC.standings_export.fields = [
+        self.core.config.standings_export.format = self.ui.cb_format.currentData()
+        self.core.config.standings_export.fields = [
             self.ui.lw_fields.item(i).data(Qt.ItemDataRole.UserRole)
             for i
             in range(self.ui.lw_fields.count())
         ]
-        self.core.TC.standings_export.dir = self.ui.le_export_dir.text()
-        self.core.TC = self.core.TC
+        self.core.config.standings_export.dir = self.ui.le_export_dir.text()
+        self.core.config = self.core.config
 
         self.core.export_str(
             self.core.get_standings_str(),
@@ -1055,11 +1055,11 @@ if __name__ == '__main__':
         core = Tournament()
 
     if args.pod_sizes:
-        core.TC.pod_sizes = args.pod_sizes
+        core.config.pod_sizes = args.pod_sizes
     if args.allow_bye:
-        core.TC.allow_bye = True
+        core.config.allow_bye = True
     if args.scoring:
-        core.TC.scoring(args.scoring)
+        core.config.scoring(args.scoring)
     if args.number_of_mock_players:
         fkr = Faker()
         core.add_player([
@@ -1067,9 +1067,9 @@ if __name__ == '__main__':
             for i in range(args.number_of_mock_players)
         ])
     if args.snake:
-        core.TC.snake_pods = True
+        core.config.snake_pods = True
     if args.rounds:
-        core.TC.n_rounds = args.rounds
+        core.config.n_rounds = args.rounds
 
     # for i in range(7):
     #   core.make_pods()
