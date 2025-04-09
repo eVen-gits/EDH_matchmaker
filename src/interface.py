@@ -20,7 +20,9 @@ class IPlayer(Aggregate):
     class ELocation(IntEnum):
         UNSEATED = 0
         SEATED = 1
-        DROPPED = 2
+        BYE = 2
+        GAMELOSS = 3
+        DROPPED = 4
 
     class EResult(IntEnum):
         LOSS = 0
@@ -28,10 +30,18 @@ class IPlayer(Aggregate):
         WIN = 2
         BYE = 3
         PENDING = 4
+        DROPPED = 5
 
     class Registered(Aggregate.Created):
         name: str
         tour: UUID
+
+    class SetPod(Aggregate.Event):
+        pod: UUID
+
+    class SetResult(Aggregate.Event):
+        result: IPlayer.EResult
+
 
     @event(Registered)
     def __init__(self, name:str, tour: UUID):
@@ -42,14 +52,28 @@ class IPlayer(Aggregate):
         self.rounds: list[UUID] = []
 
         self.location: IPlayer.ELocation = IPlayer.ELocation.UNSEATED
+
         self.result: IPlayer.EResult = IPlayer.EResult.PENDING
 
-        self.record: list[IPlayer.EResult] = []
+    @event(SetPod)
+    def set_pod(self, pod: UUID):
+        if pod not in self.pods:
+            self.pods.append(pod)
+        raise NotImplementedError() #TODO: Implement
 
-    @property
-    @abstractmethod
-    def pod(self) -> IPod|None:
-        raise NotImplementedError()
+    @event(SetResult)
+    def set_result(self, result: IPlayer.EResult):
+        self.result = result
+
+        if self.result == IPlayer.EResult.BYE:
+            self.location = IPlayer.ELocation.BYE
+        elif self.result == IPlayer.EResult.DROPPED:
+            self.location = IPlayer.ELocation.DROPPED
+        if self.location == IPlayer.ELocation.UNSEATED:
+            if result == IPlayer.EResult.LOSS:
+                self.location = IPlayer.ELocation.GAMELOSS
+
+
 
 class ITournamentConfiguration(Aggregate):
     class Registered(Aggregate.Created):
@@ -107,15 +131,15 @@ class ITournament(Aggregate):
 
         self.config: UUID = config #type: ignore
         self.players: list[UUID] = []
-        self.round: IRound|None = None
+        self._round: UUID|None = None
         self.rounds: list[IRound] = list()
 
     @event(PlayerAdded)
-    def add_player(self, player: IPlayer|list[IPlayer]):
-        if isinstance(player, IPlayer):
-            self.players.append(player.id)
-        elif isinstance(player, list):
-            self.players.extend([p.id for p in player])
+    def add_player(self, player: UUID|list[UUID]):
+        if isinstance(player, UUID):
+            self.players.append(player)
+        elif isinstance(player, Sequence):
+            self.players.extend([p for p in player])
 
     @event(ConfigurationUpdated)
     def update_configuration(self, config: ITournamentConfiguration):
@@ -126,15 +150,16 @@ class ITournament(Aggregate):
         if round.id not in self.rounds:
             self.rounds.append(round.id)
 
+    @property
+    def round(self) -> UUID|None:
+        return self._round
+
     @event(CurrentRoundSet)
-    def set_current_round(self, round: IRound):
-        self.round = round.id
+    @round.setter
+    def round(self, round: UUID|None):
+        self._round = round
 
     def get_pod_sizes(self, n:int) -> Sequence[int]|None:
-        pass
-
-    @property
-    def TC(self) -> ITournamentConfiguration:
         raise NotImplementedError()
 
 class IPod(Aggregate):
@@ -149,44 +174,36 @@ class IPod(Aggregate):
         table: int
         cap: int
 
-        result: list[UUID]
-        result_type: IPod.EResultType
-
     class PlayerAdded(Aggregate.Event):
+        player: UUID
+
+    class PlayerRemoved(Aggregate.Event):
         player: UUID
 
     @event(Registered)
     def __init__(self, tour:UUID, round: UUID, table: int, cap: int):
 
-        self._tour: UUID = tour
-        self._round: UUID = round
+        self.tour: UUID = tour
+        self.round: UUID = round
+        self.players: list[UUID] = []
 
         self.table: int = table
         self.cap: int = cap
 
-        self._players: list[UUID] = []
-
         self.result: set[UUID] = set()
-
-    @property
-    @abstractmethod
-    def players(self) -> list[IPlayer]:
-        raise NotImplementedError('Pod.players not implemented - use subclass')
 
 
     @event(PlayerAdded)
-    def add_player(self, player: IPlayer):
-        self._players.append(player.id)
-
+    def add_player(self, player: UUID):
+        self.players.append(player)
 
     @abstractmethod
     def assign_seats(self):
         pass
 
-
-    @abstractmethod
-    def remove_player(self, player: IPlayer):
-        pass
+    @event(PlayerRemoved)
+    def remove_player(self, player: UUID):
+        self.players.remove(player)
 
     def __len__(self):
         return len(self.players)
@@ -195,7 +212,7 @@ class IRound(Aggregate):
     class Registered(Aggregate.Created):
         tour: UUID
         seq: int
-        logic: IPairingLogic
+        logic: str
 
     class PlayerAdded(Aggregate.Event):
         player: UUID
@@ -207,46 +224,25 @@ class IRound(Aggregate):
         concluded: datetime
 
     @event(Registered)
-    def __init__(self, tour: UUID, seq: int, logic: IPairingLogic):
+    def __init__(self, tour: UUID, seq: int, logic: str):
         self._tour: UUID = tour
         self.seq: int = seq
-        self.logic: IPairingLogic = logic
+        self.logic: str = logic
         self._players: list[UUID] = []
         self._pods: list[UUID] = []
         self.concluded: bool|datetime = False
 
     @event(PlayerAdded)
-    def add_player(self, player: IPlayer):
-        if player.id not in self._players:
-            self._players.append(player.id)
+    def add_player(self, player: UUID):
+        if player not in self._players:
+            self._players.append(player)
 
     @event(PodAdded)
-    def add_pod(self, pod: IPod):
-        if pod.id not in self._pods:
-            self._pods.append(pod.id)
+    def add_pod(self, pod: UUID):
+        if pod not in self._pods:
+            self._pods.append(pod)
 
     @event(RoundConcluded)
     def conclude(self, concluded: datetime):
         self.concluded = concluded
-
-    @property
-    @abstractmethod
-    def players(self) -> list[IPlayer]:
-        raise NotImplementedError('Round.players not implemented - use subclass')
-
-    @property
-    @abstractmethod
-    def tour(self) -> ITournament:
-        raise NotImplementedError('Round.tour not implemented - use subclass')
-
-    @property
-    @abstractmethod
-    def pods(self) -> list[IPod]:
-        raise NotImplementedError('Round.pods not implemented - use subclass')
-
-class IPairingLogic:
-    def make_pairings(self, players: Sequence[IPlayer], pods:Sequence[IPod]) -> Sequence[IPlayer]:
-        raise NotImplementedError('PairingLogic.make_pairings not implemented - use subclass')
-
-
 

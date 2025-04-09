@@ -196,7 +196,6 @@ class TestScoring(unittest.TestCase):
                 draw_points=1,
             )
         )
-        Player.FORMATTING = ['-p', '-w', '-o']
 
     def test_bye_scoring(self):
         self.t.add_player([

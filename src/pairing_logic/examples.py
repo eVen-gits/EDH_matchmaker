@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Sequence
 
-from ..interface import IPlayer, IPod, ITournament, IRound, IPairingLogic
+from ..core import Player, Pod, IPairingLogic
 
 from typing_extensions import override
 import random
@@ -9,29 +9,30 @@ import sys
 import numpy as np
 
 class CommonPairing(IPairingLogic):
-    def evaluate_pod(self, player: IPlayer, pod:IPod) -> int:
+
+    def evaluate_pod(self, player: Player, pod:Pod) -> int:
         score = 0
         if len(pod) == pod.cap:
             return -sys.maxsize
         for p in pod.players:
             score -= player.played.count(p) ** 2
-        if pod.cap < player.tour.TC.max_pod_size:
+        if pod.cap < player.tour.config.max_pod_size:
             for prev_pod in player.pods:
-                if isinstance(prev_pod, IPod):
+                if isinstance(prev_pod, Pod):
                     score -= sum([
                         10
                         for _
                         in prev_pod.players
-                        if prev_pod.cap < player.tour.TC.max_pod_size
+                        if prev_pod.cap < player.tour.config.max_pod_size
                     ])
         return score
 
-    def make_pairings(self, players: list[IPlayer], pods: list[IPod]) -> list[IPlayer]:
+    def make_pairings(self, players: Sequence[Player], pods: Sequence[Pod]) -> Sequence[Player]:
         raise NotImplementedError('PairingLogic.make_pairings not implemented - use subclass')
 
-    def assign_byes(self, players: list[IPlayer], pods: list[IPod]) -> list[IPlayer]:
+    def assign_byes(self, players: Sequence[Player], pods: Sequence[Pod]) -> Sequence[Player]:
         matching = lambda x: (
-            -len(x.games),
+            -len(x.record),
             -len(x.played),
             x.points,
             x.opponent_winrate
@@ -54,8 +55,10 @@ class CommonPairing(IPairingLogic):
         return byes
 
 class PairingRandom(CommonPairing):
+    IS_COMPLETE=True
+
     @override
-    def make_pairings(self, players: list[IPlayer], pods: list[IPod]) -> list[IPlayer]:
+    def make_pairings(self, players: list[Player], pods: list[Pod]) -> list[Player]:
         byes = self.assign_byes(players, pods)
         active_players = [p for p in players if p not in byes]
         random.shuffle(active_players)
@@ -69,13 +72,15 @@ class PairingRandom(CommonPairing):
         return players
 
 class PairingSnake(CommonPairing):
+    IS_COMPLETE=True
+
     #Snake pods logic for 2nd round
     #First bucket is players with most points and least unique opponents
     #Players are then distributed in buckets based on points and unique opponents
     #Players are then distributed in pods based on bucket order
-    #elif self.tour.TC.snake_pods and self.seq == 1:
+    #elif self.tour.config.snake_pods and self.seq == 1:
     @override
-    def make_pairings(self, players: list[IPlayer], pods: list[IPod]) -> list[IPlayer]:
+    def make_pairings(self, players: list[Player], pods: list[Pod]) -> list[Player]:
         byes = self.assign_byes(players, pods)
         active_players = [p for p in players if p not in byes]
 
@@ -130,10 +135,12 @@ class PairingSnake(CommonPairing):
         return players
 
 class PairingDefault(CommonPairing):
+    IS_COMPLETE=True
+
     @override
-    def make_pairings(self, players: Sequence[IPlayer], pods: Sequence[IPod]) -> Sequence[IPlayer]:
+    def make_pairings(self, players: Sequence[Player], pods: Sequence[Pod]) -> Sequence[Player]:
         matching = lambda x: (
-            -len(x.games),
+            -len(x.pods),
             -len(x.played),
             x.points,
             x.opponent_winrate

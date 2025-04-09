@@ -12,11 +12,10 @@ from datetime import datetime
 from enum import Enum
 
 from .discord_engine import DiscordPoster
-from .interface import IPlayer, ITournament, IPod, IRound, IPairingLogic, ITournamentConfiguration
+from .interface import IPlayer, ITournament, IPod, IRound, ITournamentConfiguration
 from .misc import Json2Obj, generate_player_names
 import numpy as np
 from tqdm import tqdm # pyright: ignore
-from .pairing_logic.examples import PairingRandom, PairingSnake, PairingDefault
 from uuid import UUID, uuid4
 
 from dotenv import load_dotenv
@@ -53,7 +52,7 @@ class PodsExport(DataExport):
             tour_round = self.round
             ret = func(self, *original_args, **original_kwargs)
             tour_round = tour_round or self.round
-            if self.TC.auto_export:
+            if self.config.auto_export:
                 logf = TournamentAction.LOGF
                 if logf and tour_round:
                     # Export pods to a file named {tournament_name}_round_{round_number}.txt
@@ -67,7 +66,7 @@ class PodsExport(DataExport):
                     byes = [x for x in tour_round.unseated if x.location == Player.ELocation.UNSEATED and x.result == Player.EResult.BYE]
                     if len(game_lost) + len(byes) > 0:
                         max_len = max([len(p.name) for p in game_lost + byes])
-                        if self.TC.allow_bye and byes:
+                        if self.config.allow_bye and byes:
                             export_str += '\n\nByes:\n' + '\n'.join([
                                 "\t{} | pts: {}".format(p.name.ljust(max_len), p.points)
                                 for p in tour_round.unseated
@@ -243,10 +242,10 @@ class StandingsExport(DataExport):
     def auto_export(cls, func):
         def auto_standings_export_wrapper(self: Tournament, *original_args, **original_kwargs):
             ret = func(self, *original_args, **original_kwargs)
-            if self.TC.auto_export:
+            if self.config.auto_export:
                 self.export_str(
                     self.get_standings_str(),
-                    self.TC.standings_export.dir,
+                    self.config.standings_export.dir,
                     DataExport.Target.FILE
                 )
             return ret
@@ -326,6 +325,15 @@ class ID:
         #self._last_ID += 1
         #return self._last_ID
         return uuid4()
+
+class IPairingLogic:
+    IS_COMPLETE=False
+
+    def __init__(self, path: str):
+        self.path = path
+
+    def make_pairings(self, players: Sequence[Player], pods:Sequence[Pod]) -> Sequence[Player]:
+        raise NotImplementedError('PairingLogic.make_pairings not implemented - use subclass')
 
 
 class TournamentAction:
@@ -419,11 +427,19 @@ class Core(Application):
     def get_player(self, id: UUID) -> Player:
         return Player.from_aggregate(self, self.repository.get(id))
 
+
 class AggregateWrapper:
     def __getattr__(self, item):
-        if item in self.__dict__:
-            return self.__dict__[item]
-        return getattr(self.aggregate, item)
+        # First try to get from object's own attributes
+        try:
+            return object.__getattribute__(self, item)
+        except AttributeError as e:
+            # If not found in object, try to get from aggregate
+            try:
+                return object.__getattribute__(self.aggregate, item)
+            except AttributeError:
+                raise e
+
 
 class TournamentConfiguration(AggregateWrapper):
     def __init__(
@@ -493,32 +509,53 @@ class Tournament(AggregateWrapper):
     is_snapshotting_enabled = True
     _instance_cache: dict[UUID, 'Tournament'] = {}
 
-    def __init__(
-        self,
-        core: Core,
-        config: TournamentConfiguration,
-        aggregate: ITournament|None=None
-    ):
-        """Wrap ITournament with a repository for dynamic behavior."""
-        self._core = core  # Store repository
-        if aggregate is None:
-            self.aggregate = ITournament(config.id)
-            self._core.save(self.aggregate)
-        else:
-            self.aggregate = aggregate
-        # Cache the instance
-        Tournament._instance_cache[self.aggregate.id] = self
+    # Cache for discovered pairing logic classes
+    _pairing_logic_cache: dict[str, type[IPairingLogic]] = {}
 
-    def save(self, aggregate: Aggregate):
-        self._core.save(aggregate)
+    @classmethod
+    def _discover_pairing_logic(cls) -> None:
+        """Discover and cache all pairing logic implementations from src/pairing_logic."""
+        if cls._pairing_logic_cache:
+            return
 
-    @property
-    def id(self) -> UUID:
-        return self.aggregate.id
+        import importlib
+        import pkgutil
+        import os
+        from pathlib import Path
 
-    @property
-    def config(self) -> TournamentConfiguration:
-        return TournamentConfiguration.from_aggregate(self._core, self._core.repository.get(self.aggregate.config))
+        # Get the base directory of the project
+        base_dir = Path(__file__).parent.parent
+        pairing_logic_dir = base_dir / 'src' / 'pairing_logic'
+
+        # Walk through all Python files in the pairing_logic directory
+        for module_info in pkgutil.iter_modules([str(pairing_logic_dir)]):
+            try:
+                # Import the module
+                module = importlib.import_module(f'src.pairing_logic.{module_info.name}')
+
+                # Find all classes that implement IPairingLogic
+                for name, obj in module.__dict__.items():
+                    if (isinstance(obj, type) and
+                        issubclass(obj, IPairingLogic) and
+                        obj != IPairingLogic and
+                        obj.IS_COMPLETE
+                    ):
+                        cls._pairing_logic_cache[obj.__name__] = obj(path=f'src.pairing_logic.{module_info.name}')
+            except Exception as e:
+                Log.log(f"Failed to import pairing logic module {module_info.name}: {e}",
+                       level=Log.Level.WARNING)
+
+    @classmethod
+    def get_pairing_logic(cls, logic_name: str) -> IPairingLogic:
+        """Get a pairing logic instance by name."""
+        cls._discover_pairing_logic()
+
+        if logic_name not in cls._pairing_logic_cache:
+            Log.log(f"Unknown pairing logic: {logic_name}, falling back to default",
+                   level=Log.Level.WARNING)
+            logic_name = "PairingDefault"
+
+        return cls._pairing_logic_cache[logic_name]
 
     @classmethod
     def from_aggregate(cls, core: Core, aggregate: ITournament) -> "Tournament":
@@ -531,10 +568,53 @@ class Tournament(AggregateWrapper):
 
         return cls(core, config, aggregate)
 
+    def __init__(
+        self,
+        core: Core,
+        config: TournamentConfiguration,
+        aggregate: ITournament|None=None
+    ):
+        """Wrap ITournament with a repository for dynamic behavior."""
+        self.core = core  # Store repository
+        if aggregate is None:
+            self.aggregate = ITournament(config.id)
+            self.core.save(self.aggregate)
+        else:
+            self.aggregate = aggregate
+        # Cache the instance
+        Tournament._instance_cache[self.aggregate.id] = self
+
+    def save(self, aggregate: Aggregate):
+        self.core.save(aggregate)
+
+    @property
+    def id(self) -> UUID:
+        return self.aggregate.id
+
+    @property
+    def config(self) -> TournamentConfiguration:
+        return TournamentConfiguration.from_aggregate(self.core, self.core.repository.get(self.aggregate.config))
+
     @property
     def players(self) -> list[Player]:
         """Automatically resolve player objects from repository."""
-        return [Player.from_aggregate(self._core, self._core.repository.get(player_id)) for player_id in self.aggregate.players]
+        return [Player.from_aggregate(self.core, self.core.repository.get(player_id)) for player_id in self.aggregate.players]
+
+    @property
+    def round(self) -> Round|None:
+        if self.aggregate.round is None:
+            return None
+        return Round.from_aggregate(
+            self.core,
+            self.core.repository.get(self.aggregate.round)
+        )
+
+    @round.setter
+    def round(self, round: Round|None):
+        if round is None:
+            self.aggregate.round = None
+        else:
+            self.aggregate.round = round.id
 
     def add_player(self, names: str|list[str]|None=None):
         new_players = []
@@ -548,27 +628,29 @@ class Tournament(AggregateWrapper):
                 continue
             if name:
                 p = Player(self, name)
-                self.aggregate.add_player(p.aggregate)
+                self.aggregate.add_player(p.aggregate.id)
                 new_players.append(p)
                 existing_names.add(name)
                 #Log.log('\tAdded player {}'.format(
                 #    p.name), level=Log.Level.INFO)
+        self.core.save(self.aggregate)
+
         return new_players
 
     def create_pairings(self):
         if self.round is None or self.round.concluded:
             seq = len(self.rounds)
             if seq == 0:
-                logic = PairingRandom()
-            elif seq == 1 and self.TC.snake_pods:
-                logic = PairingSnake()
+                logic = self.get_pairing_logic("PairingRandom")
+            elif seq == 1 and self.config.snake_pods:
+                logic = self.get_pairing_logic("PairingSnake")
             else:
-                logic = PairingDefault()
-            self._round = Round(
+                logic = self.get_pairing_logic("PairingDefault")
+            self.round = Round(
+                self,
                 len(self.rounds),
                 logic,
-                self
-            ).ID
+            )
         assert self.round is not None
         if not self.round.all_players_seated:
             self.round.create_pairings()
@@ -587,8 +669,36 @@ class Tournament(AggregateWrapper):
             ), level=Log.Level.WARNING)
             Log.log(30*'*', level=Log.Level.WARNING)
 
+    def get_pod_sizes(self, n) -> list[int]|None:
+        for pod_size in self.config.pod_sizes:
+            rem = n-pod_size
+            if rem < 0:
+                continue
+            if rem == 0:
+                return [pod_size]
+            if rem < self.config.min_pod_size:
+                if self.config.allow_bye and rem <= self.config.max_byes:
+                    return [pod_size]
+                elif pod_size == self.config.pod_sizes[-1]:
+                    return None
+            if rem >= self.config.min_pod_size:
+                # This following code prefers smaller pods over byes
+                # tails[(rem, pod_size)] = self.get_pod_sizes(rem)
+                # if tails[(rem, pod_size)] is not None:
+                #    if sum(tails[(rem, pod_size)]) == rem:
+                #        return sorted([pod_size] + tails[(rem, pod_size)], reverse=True)
+                tail = self.get_pod_sizes(rem)
+                if tail is not None:
+                    return [pod_size] + tail
+
+        return None
+
 
 class Player(AggregateWrapper):
+    SORT_METHOD: SortMethod = SortMethod.ID
+    SORT_ORDER: SortOrder = SortOrder.ASCENDING
+    FORMATTING = ['-p']
+
     def __init__(
         self,
         tour: Tournament,
@@ -607,41 +717,104 @@ class Player(AggregateWrapper):
         tour = core.get_tournament(aggregate.tour)
         return cls(tour, aggregate.name, aggregate)
 
+    @property
+    def played(self) -> list[Player]:
+        players = set()
+        for p in self.pods:
+            if isinstance(p, Pod):
+                players.update(p.players)
+        return list(players)
+
+    @property
+    def points(self) -> float:
+        points = 0
+        for record in self.record:
+            if record == IPlayer.EResult.WIN:
+                points += self.tour.config.win_points
+            elif record == IPlayer.EResult.DRAW:
+                points += self.tour.config.draw_points
+            elif record == IPlayer.EResult.LOSS:
+                points += self.tour.config.loss_points
+        return points
+
+    @property
+    def opponent_winrate(self) -> float:
+        if not self.played:
+            return 0
+        oppwr = [opp.winrate for opp in self.played]
+        return sum(oppwr)/len(oppwr)
+
+    @property
+    def record(self) -> list[IPlayer.EResult]:
+        #total_rounds = len(self.tour.rounds) + (1 if self.tour.round else 0)
+        seq = list()
+        for _, pod in enumerate(self.pods + ([self.pod] if self.tour.round else [])):
+            if pod == IPlayer.EResult.BYE:
+                seq.append(IPlayer.EResult.BYE)
+            elif pod is None:
+                if self.result == IPlayer.EResult.LOSS:
+                    seq.append(IPlayer.EResult.LOSS)
+                else:
+                    seq.append(IPlayer.EResult.BYE)
+            elif isinstance(pod, Pod):
+                if pod.done:
+                    if pod.winner is not None:
+                        if pod.winner is self:
+                            seq.append(IPlayer.EResult.WIN)
+                        else:
+                            seq.append(IPlayer.EResult.LOSS)
+                    else:
+                        if self in pod.draw:
+                            seq.append(IPlayer.EResult.DRAW)
+                        else:
+                            seq.append(IPlayer.EResult.LOSS)
+                else:
+                    seq.append(IPlayer.EResult.PENDING)
+        return seq
+
+    @property
+    def pod(self) -> Pod|None:
+        if self.location is IPlayer.ELocation.SEATED:
+            return Pod.from_aggregate(self.tour.core, self.pods[-1])
+        return None
+
 
 class Pod(AggregateWrapper):
-    def __init__(self, tour: Tournament, round: Round, table:int, cap=0):
-        super().__init__(tour.ID, round.ID, table, cap)
+    def __init__(self, tour: Tournament, round: Round, table:int, cap=0, aggregate: IPod|None = None):
+        self.tour = tour
+        if aggregate is None:
+            self.aggregate = IPod(tour.id, round.id, table, cap)
+            self.tour.save(self.aggregate)
+        else:
+            self.aggregate = aggregate
 
+    @classmethod
+    def from_aggregate(cls, core: Core, aggregate: IPod) -> 'Pod':
+        tour = core.get_tournament(aggregate.tour)
+        p_round = Round.from_aggregate(core, core.repository.get(aggregate.round))
+        return cls(tour, p_round, aggregate.table, aggregate.cap, aggregate)
 
     @property
     def done(self) -> bool:
         return len(self.result) > 0
 
     @property
-    def tour(self) -> Tournament:
-        return Tournament.get(self._tour)
-
-    @tour.setter
-    def tour(self, tour: Tournament):
-        self._tour = tour.ID
-
-    @property
     def round(self) -> Round:
-        return Round.get(self.tour, self._round)
+        return Round.from_aggregate(self.tour.core, self.tour.core.repository.get(self.aggregate.round))
 
     @property
     def players(self) -> list[Player]:
         return [Player.get(self.tour, x) for x in self._players]
 
-    @override
-    def add_player(self, player: Player, manual=False, player_pod_map=None) -> bool:
+    def add_player(self, player: Player, manual=False) -> bool:
         if len(self) >= self.cap and self.cap and not manual:
             return False
         if player.pod is not None:
-            player.pod.remove_player(player)
-        super().add_player(player)
-        player.location = Player.ELocation.SEATED
-        player.pod = self  # Update player's pod reference
+            current_pod = player.pod
+            player.pod.remove_player(player.id)
+            self.core.save(current_pod.aggregate)
+        self.aggregate.add_player(player.id)
+        self.core.save(self.aggregate)
         return True
 
     def remove_player(self, player: Player, cleanup=True) -> Player|None:
@@ -715,6 +888,9 @@ class Pod(AggregateWrapper):
     def name(self):
         return 'Pod {}'.format(self.table)
 
+    def __len__(self):
+        return len(self.aggregate.players)
+
     @override
     def __repr__(self):
         if not self.players:
@@ -743,31 +919,32 @@ class Pod(AggregateWrapper):
 class Round(AggregateWrapper):
     def __init__(
         self,
+        tour: Tournament,
         seq: int,
         pairing_logic: IPairingLogic,
-        tour: Tournament,
         aggregate: IRound|None = None
     ):
         self.tour = tour
         if aggregate is None:
-            self.aggregate = IRound(tour.id, seq, pairing_logic)
+            self.aggregate = IRound(tour.id, seq, pairing_logic.path)
+            for p in self.tour.players:
+                self.add_player(p)
             self.tour.save(self.aggregate)
         else:
             self.aggregate = aggregate
+
+    def add_player(self, player: Player):
+        self.aggregate.add_player(player.aggregate.id)
 
     @classmethod
     def from_aggregate(cls, core: Core, aggregate: IRound) -> 'Round':
         tour = core.get_tournament(aggregate._tour)
         return cls(
+            tour,
             aggregate.seq,
             aggregate.logic,
-            tour,
             aggregate
         )
-
-    @property
-    def CACHE(self) -> dict[UUID, Round]:
-        return self.tour.ROUND_CACHE
 
     @staticmethod
     def get(tour: Tournament, ID: UUID) -> Round:
@@ -775,15 +952,21 @@ class Round(AggregateWrapper):
 
     @property
     def players(self) -> list[Player]:
-        return [Player.get(self.tour, x) for x in self._players]
-
-    @players.setter
-    def players(self, players: list[Player]):
-        self._players = [p.ID for p in players]
+        return [
+            Player.from_aggregate(self.tour.core, self.tour.core.repository.get(player_id))
+            for player_id
+            in self.aggregate._players
+        ]
 
     @property
     def pods(self) -> list[Pod]:
-        return [Pod.get(self.tour, x) for x in self._pods]
+        pass
+        pods = [
+            Pod.from_aggregate(self.tour.core, self.tour.core.repository.get(x))
+            for x
+            in self.aggregate._pods
+        ]
+        return pods
 
     @property
     def done(self):
@@ -793,7 +976,7 @@ class Round(AggregateWrapper):
         return True
 
     @property
-    def all_players_seated(self):
+    def all_players_seated(self) -> bool:
         seated = len(self.seated)
         n_players_to_play = seated + len(self.unseated)
         if self.tour.get_pod_sizes(n_players_to_play) is None:
@@ -805,15 +988,18 @@ class Round(AggregateWrapper):
 
     @property
     def seated(self) -> list[Player]:
-        return [p for p in self.players if p.location == Player.ELocation.SEATED]
+        return [
+            p for p in self.players
+            if p.location == IPlayer.ELocation.SEATED
+        ]
 
     @property
     def unseated(self) -> list[Player]:
         return [
             p
             for p in self.players
-            if p.location == Player.ELocation.UNSEATED
-            and not p.result == Player.EResult.LOSS
+            if p.location == IPlayer.ELocation.UNSEATED
+            and not p.result == IPlayer.EResult.LOSS
         ]
 
     def remove_pod(self, pod: Pod):
@@ -833,8 +1019,8 @@ class Round(AggregateWrapper):
             return None
         start_table = len(self.pods) + 1
         for i, size in enumerate(pod_sizes):
-            pod = Pod(self, start_table + i, cap=size)
-            self._pods.append(pod.ID)
+            pod = Pod(self.tour, self, start_table + i, cap=size)
+            self.aggregate.add_pod(pod.id)
 
     def create_pairings(self):
         self.create_pods()
@@ -843,7 +1029,8 @@ class Round(AggregateWrapper):
                     not p.done,
                     len(p) < p.cap
         ])]
-        self.logic.make_pairings(self.unseated, pods)
+        logic = self.tour.get_pairing_logic(self.aggregate.logic)
+        logic.make_pairings(self.unseated, pods)
         for pod in self.pods:
             pod.assign_seats()
         self.sort_pods()
@@ -866,7 +1053,7 @@ class Round(AggregateWrapper):
                 continue
 
             if not pod.done:
-                player.points = player.points + self.tour.TC.win_points
+                player.points = player.points + self.tour.config.win_points
 
                 pod.result.add(player.ID)
 
@@ -878,7 +1065,7 @@ class Round(AggregateWrapper):
             players = [players]
         for player in players:
             if player.pod is not None:
-                player.points = player.points + self.tour.TC.draw_points
+                player.points = player.points + self.tour.config.draw_points
 
                 player.pod.result.add(player.ID)
 
@@ -893,8 +1080,8 @@ class Round(AggregateWrapper):
         for p in self.unseated:
             if p.result == Player.EResult.LOSS:
                 p.pods.append(Player.EResult.LOSS)
-            elif self.tour.TC.allow_bye:
-                p.points += self.tour.TC.bye_points
+            elif self.tour.config.allow_bye:
+                p.points += self.tour.config.bye_points
                 p.result = Player.EResult.BYE
                 p.pods.append(Player.EResult.BYE)
 
