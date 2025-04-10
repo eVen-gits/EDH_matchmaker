@@ -219,22 +219,22 @@ class MainWindow(QMainWindow):
         ExportStandingsDialog.show_dialog(self)
 
     def export_pods_discord(self):
-        if self.core.round:
-            round = self.core.round
+        if self.core.tour_round:
+            tour_round = self.core.tour_round
             self.core.export_str(
-                f"# Round {round.seq}\n",
+                f"# Round {tour_round.seq}\n",
                 None,
                 StandingsExport.Target.DISCORD
             )
         else:
-            round = self.core.rounds[-1]
+            tour_round = self.core.rounds[-1]
             self.core.export_str(
-                f"# Round {round.seq} results\n",
+                f"# Round {tour_round.seq} results\n",
                 None,
                 StandingsExport.Target.DISCORD
             )
 
-        for pod in round.pods:
+        for pod in tour_round.pods:
             try:
                 self.core.export_str(
                     f"```\n{pod.__repr__()}\n```\n",
@@ -245,7 +245,7 @@ class MainWindow(QMainWindow):
                 pass
 
     def export_pods_online(self):
-        if self.core.round:
+        if self.core.tour_round:
             try:
                 self.core.export_str(
                     self.core.get_pods_str(),
@@ -256,7 +256,7 @@ class MainWindow(QMainWindow):
                 pass
 
     def export_pods(self):
-        if self.core.round:
+        if self.core.tour_round:
             file, ext = QFileDialog.getSaveFileName(
                 caption="Specify pods printout location...",
                 filter='*.txt',
@@ -330,11 +330,11 @@ class MainWindow(QMainWindow):
             # pop_menu.addAction(rename_player_action)
             # rename_player_action.triggered.connect(self.lva_rename_player)
 
-            if self.core.round:
-                if self.core.round.pods:
+            if self.core.tour_round:
+                if self.core.tour_round.pods:
                     add_to_pod_action = QMenu('Move to pod')
                     pop_menu.addMenu(add_to_pod_action)
-                    for pod in self.core.round.pods:
+                    for pod in self.core.tour_round.pods:
                         add_to_pod_action.addAction(
                             pod.name,
                             #lambda pod=pod: self.lva_add_to_pod(pod)
@@ -468,8 +468,8 @@ class MainWindow(QMainWindow):
 
     def ui_create_pods(self):
         layout = self.ui.saw_content.layout()
-        if self.core.round:
-            for pod in self.core.round.pods:
+        if self.core.tour_round:
+            for pod in self.core.tour_round.pods:
                 if not pod.done:
                     layout.addWidget(PodWidget(self, pod))
 
@@ -658,10 +658,10 @@ class PodWidget(QWidget):
 
         move_pod = QMenu('Move to pod')
         pop_menu.addMenu(move_pod)
-        for p in self.app.core.round.pods:
-            if p != self.pod:
-                move_pod.addAction(p.name,
-                                   lambda pod=p, players=selected_pod_players:
+        for pod in self.app.core.tour_round.pods:
+            if pod != self.pod:
+                move_pod.addAction(pod.name,
+                                   lambda pod=pod, players=selected_pod_players:
                                    self.app.move_players_to_pod(
                                        pod, players
                                    )
@@ -1079,8 +1079,6 @@ if __name__ == '__main__':
     window.show()
 
     app.exec()
-    #for p in core.get_standings():
-    #    print(p.unique_opponents)
+
     sys.exit(app.exit())
-    # app.exec_()
-    # sys.exit(app.exit())
+

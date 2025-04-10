@@ -90,13 +90,14 @@ class TestTournamentPodSizing(unittest.TestCase):
             (19, [4, 4, 4, 4], 3),
             (20, [4, 4, 4, 4, 4], 0),
         )
+
         for n, expected_sizes, bench in pod_sizes:
             with self.subTest(n=str(n).zfill(2)):
                 t.create_pairings()
-                assert t.round is not None
-                sizes = [len(p) for p in t.round.pods]
+                assert t.tour_round is not None
+                sizes = [len(p) for p in t.tour_round.pods]
                 self.assertListEqual(sizes, expected_sizes)
-                self.assertEqual(len(t.round.unseated), bench)
+                self.assertEqual(len(t.tour_round.byes), bench)
                 t.reset_pods()
                 t.add_player(fkr.name())
 
@@ -135,10 +136,10 @@ class TestTournamentPodSizing(unittest.TestCase):
         for n, expected_sizes, bench in pod_sizes:
             with self.subTest(n=str(n).zfill(2)):
                 t.create_pairings()
-                assert t.round is not None
-                sizes = [len(p) for p in t.round.pods]
+                assert t.tour_round is not None
+                sizes = [len(p) for p in t.tour_round.pods]
                 self.assertListEqual(sizes, expected_sizes)
-                self.assertEqual(len(t.round.unseated), bench)
+                self.assertEqual(len(t.tour_round.byes), bench)
                 t.reset_pods()
                 t.add_player(fkr.name())
 
@@ -148,6 +149,7 @@ class TestTournamentPodSizing(unittest.TestCase):
                 pod_sizes=[4, 3],
                 allow_bye=True,
                 max_byes=2,
+                auto_export=False,
             )
         )
 
@@ -177,10 +179,10 @@ class TestTournamentPodSizing(unittest.TestCase):
         for n, expected_sizes, bench in pod_sizes:
             with self.subTest(n=str(n).zfill(2)):
                 t.create_pairings()
-                assert t.round is not None
-                sizes = [len(p) for p in t.round.pods]
+                assert t.tour_round is not None
+                sizes = [len(p) for p in t.tour_round.pods]
                 self.assertListEqual(sizes, expected_sizes)
-                self.assertEqual(len(t.round.unseated), bench)
+                self.assertEqual(len(t.tour_round.byes), bench)
                 t.reset_pods()
                 t.add_player(fkr.name())
 
@@ -206,26 +208,26 @@ class TestScoring(unittest.TestCase):
 
         self.t.create_pairings()
 
-        assert self.t.round is not None
-        benched = self.t.round.unseated[0]
+        assert self.t.tour_round is not None
+        bye = self.t.tour_round.byes[0]
 
-        for pod in self.t.round.pods:
+        for pod in self.t.tour_round.pods:
             self.t.report_win(pod.players[0])
 
-        leaders = [p for p in self.t.players if p.points == self.t.config.win_points]
+        leaders = [p for p in self.t.players if p.rating(self.t.tour_round) == self.t.config.win_points]
         self.assertEqual(len(leaders), 3)
-        self.assertEqual(benched.points, self.t.config.bye_points)
-        standings = self.t.get_standings()
-        self.assertEqual(standings[2], benched)
+        self.assertEqual(bye.rating(self.t.tour_round), self.t.config.bye_points)
+        standings = self.t.get_standings(self.t.tour_round)
+        self.assertEqual(standings[2], bye)
 
-        self.t.manual_pod([benched, standings[3]])
+        self.t.manual_pod([bye, standings[3]])
         self.t.manual_pod([standings[0], standings[1]])
-        self.t.toggle_game_loss(self.t.round.unseated)
-        self.t.report_win([benched, standings[0]])
+        self.t.toggle_game_loss(self.t.tour_round.unseated)
+        self.t.report_win([bye, standings[0]])
 
-        new_standings = self.t.get_standings()
+        new_standings = self.t.get_standings(self.t.tour_round)
         self.assertEqual(new_standings[0], standings[0])
-        self.assertEqual(new_standings[1], benched)
+        self.assertEqual(new_standings[1], bye)
 
     def test_standings_constant(self):
         self.t.add_player([
@@ -234,17 +236,17 @@ class TestScoring(unittest.TestCase):
         ])
 
         self.t.create_pairings()
-        assert self.t.round is not None
-        for pod in self.t.round.pods:
+        assert self.t.tour_round is not None
+        for pod in self.t.tour_round.pods:
             self.t.report_win(pod.players[0])
 
-        orig_standings = self.t.get_standings()
+        orig_standings = self.t.get_standings(self.t.tour_round)
 
         for _ in range(100):
             #shuffle players
             random.shuffle(self.t.players)
 
-            self.assertEqual(self.t.get_standings(), orig_standings)
+            self.assertEqual(self.t.get_standings(self.t.tour_round), orig_standings)
 
 class TestLarge(unittest.TestCase):
 
