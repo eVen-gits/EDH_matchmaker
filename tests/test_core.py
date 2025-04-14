@@ -220,6 +220,7 @@ class TestScoring(unittest.TestCase):
         standings = self.t.get_standings(self.t.tour_round)
         self.assertEqual(standings[2], bye)
 
+        self.t.new_round()
         self.t.manual_pod([bye, standings[3]])
         self.t.manual_pod([standings[0], standings[1]])
         self.t.toggle_game_loss(self.t.tour_round.unseated)

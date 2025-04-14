@@ -270,12 +270,12 @@ class MainWindow(QMainWindow):
 
     def init_sort_dropdown(self):
         values = [
+            (SortMethod.RANK, SortOrder.ASCENDING),
+            (SortMethod.RANK, SortOrder.DESCENDING),
             (SortMethod.ID, SortOrder.ASCENDING),
             (SortMethod.ID, SortOrder.DESCENDING),
             (SortMethod.NAME, SortOrder.ASCENDING),
             (SortMethod.NAME, SortOrder.DESCENDING),
-            (SortMethod.RANK, SortOrder.ASCENDING),
-            (SortMethod.RANK, SortOrder.DESCENDING),
         ]
 
         for tup in values:
@@ -470,8 +470,7 @@ class MainWindow(QMainWindow):
         layout = self.ui.saw_content.layout()
         if self.core.tour_round:
             for pod in self.core.tour_round.pods:
-                if not pod.done:
-                    layout.addWidget(PodWidget(self, pod))
+                layout.addWidget(PodWidget(self, pod))
 
     def ui_clear_pods(self):
         layout = self.ui.saw_content.layout()
@@ -502,8 +501,10 @@ class MainWindow(QMainWindow):
     def ui_update_player_list(self):
         for row in range(self.ui.lv_players.count()):
             item = self.ui.lv_players.item(row)
-            data = item.data(Qt.ItemDataRole.UserRole)
-            if data.result == Player.EResult.LOSS:
+            data: Player = item.data(Qt.ItemDataRole.UserRole)
+            result = data.result(self.core.tour_round)
+
+            if result == Player.EResult.LOSS:
                 item.setBackground(self.game_loss_color)
             elif data.seated:
                 item.setBackground(self.seated_color)
@@ -699,7 +700,7 @@ class PodWidget(QWidget):
             player.name), 'Confirm result')
         if ok:
             self.app.report_win(player)
-            self.deleteLater()
+            #self.deleteLater()
 
     def report_draw(self):
         players = [
@@ -715,7 +716,7 @@ class PodWidget(QWidget):
         )
         if ok:
             self.app.report_draw(players)
-            self.deleteLater()
+            #self.deleteLater()
 
     def bench_players(self):
         players = [
@@ -723,6 +724,8 @@ class PodWidget(QWidget):
             for item
             in self.lw_players.selectedItems()
         ]
+        if len(players) == self.pod._players:
+            self.deleteLater()
         self.app.bench_players(players)
         self.refresh_ui()
 
@@ -900,7 +903,7 @@ class TournamentConfigDialog(QDialog):
             TournamentAction.LOGF = self.ui.le_log_location.text()
             TournamentAction.reset()
 
-       .config = TournamentConfiguration(
+        self.config = TournamentConfiguration(
             allow_bye = self.cb_allow_bye.isChecked(),
             win_points = self.sb_win.value(),
             draw_points = self.sb_draw.value(),
@@ -911,7 +914,7 @@ class TournamentConfigDialog(QDialog):
             max_byes = self.sb_max_byes.value(),
             auto_export = self.cb_auto_export.isChecked(),
         )
-        self.parent().core.config =.config
+        self.parent().core.config = self.config
         self.close()
 
     @staticmethod
@@ -1079,6 +1082,8 @@ if __name__ == '__main__':
     window.show()
 
     app.exec()
-
+    #for p in core.get_standings():
+    #    print(p.unique_opponents)
     sys.exit(app.exit())
-
+    # app.exec_()
+    # sys.exit(app.exit())
