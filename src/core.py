@@ -729,22 +729,24 @@ class Tournament(ITournament):
 
         return None
 
-    def initialize_round(self):
-
-            seq = len(self.rounds)
-            if seq == 0:
-                logic = self.get_pairing_logic("PairingRandom")
-            elif seq == 1 and self.config.snake_pods:
-                logic = self.get_pairing_logic("PairingSnake")
-            else:
-                logic = self.get_pairing_logic("PairingDefault")
-            new_round = Round(
-                self,
-                len(self.rounds),
-                logic,
-            )
-            self._rounds.append(new_round.uid)
-            self.tour_round = new_round
+    def initialize_round(self) -> bool:
+        if not self.tour_round.concluded:
+            return False
+        seq = len(self.rounds)
+        if seq == 0:
+            logic = self.get_pairing_logic("PairingRandom")
+        elif seq == 1 and self.config.snake_pods:
+            logic = self.get_pairing_logic("PairingSnake")
+        else:
+            logic = self.get_pairing_logic("PairingDefault")
+        new_round = Round(
+            self,
+            len(self.rounds),
+            logic,
+        )
+        self._rounds.append(new_round.uid)
+        self.tour_round = new_round
+        return True
 
     @TournamentAction.action
     def create_pairings(self):
@@ -767,24 +769,8 @@ class Tournament(ITournament):
     @TournamentAction.action
     def new_round(self) -> bool:
         if not self.tour_round or self.tour_round.concluded:
-            self.initialize_round()
-        else:
-            if self.tour_round.pods:
-                Log.log(
-                    '{}\n{}\n{}'.format(
-                        30*'*',
-                        'Please report results of following pods:',
-                        30*'*',
-                    )
-                )
-                for pod in self.tour_round.pods:
-                    if not pod.done:
-                        Log.log(str(pod))
-            else:
-                Log.log(
-                    'Round has no pods - add some or cancel tour_round.'
-                )
-            return False
+            return self.initialize_round()
+        return False
 
     @TournamentAction.action
     def reset_pods(self) -> bool:
