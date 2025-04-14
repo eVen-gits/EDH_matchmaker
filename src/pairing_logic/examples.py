@@ -40,7 +40,7 @@ class CommonPairing(IPairingLogic):
             -len(x.games),
             -len(x.played),
             x.rating(tour_round),
-            x.opponent_winrate
+            x.opponent_pointrate
         )
         buckets = [
             [
@@ -148,7 +148,7 @@ class PairingDefault(CommonPairing):
             -len(x.games),
             -len(x.played),
             x.rating(x.tour.tour_round),
-            x.opponent_winrate
+            x.opponent_pointrate
         )
         byes = self.assign_byes(tour_round, players, pods)
 

@@ -141,7 +141,7 @@ class StandingsExport(DataExport):
             'format': '{:.2f}%',
             'denom': 100,
             'description': 'Opponents\' win percentage',
-            'getter': lambda p: p.opponent_winrate
+            'getter': lambda p: p.opponent_pointrate
         }),
         Field.RATING: Json2Obj({
             'name': 'pts',
@@ -162,7 +162,7 @@ class StandingsExport(DataExport):
             'format': '{:.2f}%',
             'denom': 100,
             'description': 'Winrate',
-            'getter': lambda p: p.winrate
+            'getter': lambda p: p.pointrate
         }),
         Field.UNIQUE: Json2Obj({
             'name': 'uniq. opp.',
@@ -447,7 +447,7 @@ class TournamentConfiguration(ITournamentConfiguration):
         return (
             x.rating(tour_round),
             len(x.games),
-            round(x.opponent_winrate, 10),
+            round(x.opponent_pointrate, 10),
             len(x.players_beaten),
             -x.average_seat(x.tour.rounds),
             -x.uid if isinstance(x.uid, int) else -int(x.uid.int)
@@ -495,7 +495,7 @@ class TournamentConfiguration(ITournamentConfiguration):
 class Tournament(ITournament):
     # CONFIGURATION
     # Logic: Points is primary sorting key,
-    # then opponent winrate, - CHANGE - moved this upwards and added dummy opponents with 33% winrate
+    # then opponent pointrate, - CHANGE - moved this upwards and added dummy opponents with 33% pointrate
     # then number of opponents beaten,
     # then ID - this last one is to ensure deterministic sorting in case of equal values (start of tournament for example)
     CACHE: dict[UUID, Tournament] = {}
@@ -838,7 +838,7 @@ class Tournament(ITournament):
             draw_rate = 1-sum(self.config.global_wr_seats)
             #for each pod
             #generate a random result based on global_winrates_by_seat
-            #each value corresponds to the winrate of the player in that seat
+            #each value corresponds to the pointrate of the player in that seat
             #the sum of percentages is less than 1, so there is a chance of a draw (1-sum(winrates))
 
             for pod in [x for x in self.tour_round.pods if not x.done]:
@@ -1272,16 +1272,18 @@ class Player(IPlayer):
         return list(set(self.tour.players) - set(self.played))
 
     @property
-    def winrate(self):
+    def pointrate(self, tour_round: Round|None=None):
         if len(self.games) == 0:
             return 0
-        return self.wins/len(self.games)
+        if tour_round is None:
+            tour_round = self.tour.tour_round
+        return self.rating(tour_round) / (self.tour.config.win_points * (tour_round.seq+1))
 
     @property
-    def opponent_winrate(self):
+    def opponent_pointrate(self):
         if not self.played:
             return 0
-        oppwr = [opp.winrate for opp in self.played]
+        oppwr = [opp.pointrate for opp in self.played]
         return sum(oppwr)/len(oppwr)
 
     @property
@@ -1459,7 +1461,7 @@ class Player(IPlayer):
         if args.w:
             fields.append('w: {}'.format(self.wins))
         if args.ow:
-            fields.append('o.wr.: {:.2f}'.format(self.opponent_winrate))
+            fields.append('o.wr.: {:.2f}'.format(self.opponent_pointrate))
         if args.u:
             fields.append('uniq: {}'.format(self.played))
         if args.s:
