@@ -13,7 +13,7 @@ from enum import Enum
 
 from .discord_engine import DiscordPoster
 from .interface import IPlayer, ITournament, IPod, IRound, IPairingLogic, ITournamentConfiguration
-from .misc import Json2Obj, generate_player_names
+from .misc import Json2Obj, generate_player_names, timeit
 import numpy as np
 from tqdm import tqdm # pyright: ignore
 from uuid import UUID, uuid4
@@ -114,98 +114,138 @@ class StandingsExport(DataExport):
         SEAT_HISTORY = 11  # Seat record
         AVG_SEAT = 12  # Average seat
 
+    class Formatting:
+        def __init__(self,
+                     label: str,
+                     format: str,
+                     denom: int|None,
+                     description: str,
+                     getter: Callable[..., Any],
+                     getter_args: dict[str, type] = {}):  # Dict of arg names to expected types
+            self.name = label
+            self.format = format
+            self.denom = denom
+            self.description = description
+            self.getter = getter
+            self.getter_args = getter_args
+
+        def get(self, player: Player, **kwargs) -> Any:
+            # Filter and validate kwargs
+            filtered_kwargs = {}
+            for name, expected_type in self.getter_args.items():
+                if name in kwargs:
+                    value = kwargs[name]
+                    if value is not None and not isinstance(value, expected_type):
+                        raise TypeError(f"Argument {name} must be of type {expected_type}")
+                    filtered_kwargs[name] = value
+            return self.getter(player, **filtered_kwargs)
+
     info = {
-        Field.STANDING: Json2Obj({
-            'name': '#',
-            'format': '{:d}',
-            'denom': None,
-            'description': 'Player\'s standing in the tournament.',
-            'getter': lambda p: p.standing,
-        }),
-        Field.ID: Json2Obj({
-            'name': 'ID',
-            'format': '{:s}',
-            'denom': None,
-            'description': 'Player ID',
-            'getter': lambda p: p.uid.hex
-        }),
-        Field.NAME: Json2Obj({
-            'name': 'name',
-            'format': '{:s}',
-            'denom': None,
-            'description': 'Player name',
-            'getter': lambda p: p.name
-        }),
-        Field.OPP_WINRATE: Json2Obj({
-            'name': 'opp. win %',
-            'format': '{:.2f}%',
-            'denom': 100,
-            'description': 'Opponents\' win percentage',
-            'getter': lambda p: p.opponent_pointrate
-        }),
-        Field.RATING: Json2Obj({
-            'name': 'pts',
-            'format': '{:d}',
-            'denom': None,
-            'description': 'Player rating',
-            'getter': lambda p: p.rating(p.tour.tour_round)
-        }),
-        Field.WINS: Json2Obj({
-            'name': '# wins',
-            'format': '{:d}',
-            'denom': None,
-            'description': 'Number of games won',
-            'getter': lambda p: p.games_won
-        }),
-        Field.WINRATE: Json2Obj({
-            'name': 'win %',
-            'format': '{:.2f}%',
-            'denom': 100,
-            'description': 'Winrate',
-            'getter': lambda p: p.pointrate
-        }),
-        Field.UNIQUE: Json2Obj({
-            'name': 'uniq. opp.',
-            'format': '{:d}',
-            'denom': None,
-            'description': 'Number of unique opponents',
-            'getter': lambda p: len(p.games)
-        }),
-        Field.GAMES: Json2Obj({
-            'name': '# games',
-            'format': '{:d}',
-            'denom': None,
-            'description': 'Number of games played',
-            'getter': lambda p: len(p.games)
-        }),
-        Field.OPP_BEATEN: Json2Obj({
-            'name': '# opp. beat',
-            'format': '{:d}',
-            'denom': None,
-            'description': 'Number of opponents beaten',
-            'getter': lambda p: len(p.players_beaten)
-        }),
-        Field.SEAT_HISTORY: Json2Obj({
-            'name': 'seat record',
-            'format': '{:s}',
-            'denom': None,
-            'description': 'Seat record',
-            'getter': lambda p: p.seat_history
-        }),
-        Field.AVG_SEAT: Json2Obj({
-            'name': 'avg. seat',
-            'format': '{:03.2f}%',
-            'denom': None,
-            'description': 'Average seat',
-            'getter': lambda p: p.average_seat(p.tour.rounds)*100
-        }),
-        Field.RECORD: Json2Obj({
-            'name': 'record',
-            'format': '{:s}',
-            'denom': None,
-            'description': 'Player\'s record',
-            'getter': lambda p: Player.fmt_record(p.record(p.tour.tour_round))
-        }),
+        Field.STANDING: Formatting(
+            label='#',
+            format='{:d}',
+            denom=None,
+            description='Player\'s standing in the tournament.',
+            getter=(lambda p, standings=None: p.standing(p.tour.tour_round, standings)),
+            getter_args={'standings': list},  # This getter accepts 'standings' as an optional arg
+        ),
+        Field.ID: Formatting(
+            label='ID',
+            format='{:s}',
+            denom=None,
+            description='Player ID',
+            getter=(lambda p: p.uid.hex),  # Simple getter with no additional args
+            getter_args={},
+        ),
+        Field.NAME: Formatting(
+            label='name',
+            format='{:s}',
+            denom=None,
+            description='Player name',
+            getter=(lambda p: p.name),
+            getter_args={},
+        ),
+        Field.OPP_WINRATE: Formatting(
+            label='opp. win %',
+            format='{:.2f}%',
+            denom=100,
+            description='Opponents\' win percentage',
+            getter=(lambda p: p.opponent_pointrate),
+            getter_args={},
+        ),
+        Field.RATING: Formatting(
+            label='pts',
+            format='{:d}',
+            denom=None,
+            description='Player rating',
+            getter=(lambda p: p.rating(p.tour.tour_round)),
+            getter_args={},
+        ),
+        Field.WINS: Formatting(
+            label='# wins',
+            format='{:d}',
+            denom=None,
+            description='Number of games won',
+            getter=(lambda p: p.wins(p.tour.tour_round)),
+            getter_args={},
+        ),
+        Field.WINRATE: Formatting(
+            label='win %',
+            format='{:.2f}%',
+            denom=100,
+            description='Winrate',
+            getter=(lambda p: p.pointrate),
+            getter_args={},
+        ),
+        Field.UNIQUE: Formatting(
+            label='uniq. opp.',
+            format='{:d}',
+            denom=None,
+            description='Number of unique opponents',
+            getter=(lambda p: len(p.games)),
+            getter_args={},
+        ),
+        Field.GAMES: Formatting(
+            label='# games',
+            format='{:d}',
+            denom=None,
+            description='Number of games played',
+            getter=(lambda p: len(p.games)),
+            getter_args={},
+        ),
+        Field.OPP_BEATEN: Formatting(
+            label='# opp. beat',
+            format='{:d}',
+            denom=None,
+            description='Number of opponents beaten',
+            getter=(lambda p: len(p.players_beaten)),
+            getter_args={},
+        ),
+        Field.SEAT_HISTORY: Formatting(
+            label='seat record',
+            format='{:s}',
+            denom=None,
+            description='Seat record',
+            getter=(lambda p: p.seat_history),
+            getter_args={},
+        ),
+        Field.AVG_SEAT: Formatting(
+            label='avg. seat',
+            format='{:03.2f}%',
+            denom=None,
+            description='Average seat',
+            getter=(lambda p: p.average_seat(p.tour.rounds)*100),
+            getter_args={},
+        ),
+        Field.RECORD: Formatting(
+            label='record',
+            format='{:s}',
+            denom=None,
+            description='Player\'s record',
+            getter=(lambda p, tour_round=None, standings=None:
+                   Player.fmt_record(p.record(tour_round))),
+            getter_args={'tour_round': Round, 'standings': list[Player]},
+        ),
     }
 
     ext = {
@@ -611,7 +651,6 @@ class Tournament(ITournament):
     def ended_rounds(self) -> list[Round]:
         return [r for r in self.rounds if r.concluded]
 
-
     @property
     def draw_rate(self):
         n_draws = 0
@@ -933,11 +972,14 @@ class Tournament(ITournament):
             ])
         return export_str
 
-    def get_standings(self, tour_round:Round) -> list[Player]:
+    @timeit
+    def get_standings(self, tour_round:Round|None=None) -> list[Player]:
         method = Player.SORT_METHOD
         order = Player.SORT_ORDER
         Player.SORT_METHOD = SortMethod.RANK
         Player.SORT_ORDER = SortOrder.ASCENDING
+        if tour_round is None:
+            tour_round = self.tour_round
         standings = sorted(self.players, key=lambda x: self.config.ranking(x, tour_round), reverse=True)
         Player.SORT_METHOD = method
         Player.SORT_ORDER = order
@@ -946,22 +988,31 @@ class Tournament(ITournament):
     def get_standings_str(
             self,
             fields: list[StandingsExport.Field] = StandingsExport.DEFAULT_FIELDS,
-            style: StandingsExport.Format = StandingsExport.Format.PLAIN
+            style: StandingsExport.Format = StandingsExport.Format.PLAIN,
+            tour_round: Round|None = None,
+            standings: list[Player]|None = None
     ) -> str:
-        #fdir = os.path.join(self.TC.log_dir, 'standings.txt')
-        if self.tour_round is None:
-            return ''
-        standings = self.get_standings(self.tour_round)
-        lines = [[StandingsExport.info[f].name for f in fields]] # pyright: ignore
+        if tour_round is None:
+            tour_round = self.tour_round
+        if standings is None:
+            standings = self.get_standings(tour_round)
+
+        # Create context with all available data
+        context = {
+            'tour_round': tour_round,
+            'standings': standings,
+            # Add any other context you might want available to getters
+        }
+
+        lines = [[StandingsExport.info[f].name for f in fields]]
         lines += [
             [
                 (StandingsExport.info[f].format).format(
-                    StandingsExport.info[f].getter(p)
+                    StandingsExport.info[f].get(p, **context)
                     if StandingsExport.info[f].denom is None
-                    else StandingsExport.info[f].getter(p) * StandingsExport.info[f].denom
+                    else StandingsExport.info[f].get(p, **context) * StandingsExport.info[f].denom
                 )
-                for f
-                in fields
+                for f in fields
             ]
             for p in standings
         ]
@@ -1228,9 +1279,11 @@ class Player(IPlayer):
                     score += norm_scale[index]
         return np.float64(score/n_pods)
 
-    @property
-    def standing(self) -> int:
-        standings = self.tour.get_standings(self.tour.tour_round)
+    def standing(self, tour_round: Round|None=None, standings:list[Player]|None=None) -> int:
+        if tour_round is None:
+            tour_round = self.tour.tour_round
+        if standings is None:
+            standings = self.tour.get_standings(tour_round)
         if self not in standings:
             return -1
         return standings.index(self) + 1
@@ -1281,8 +1334,7 @@ class Player(IPlayer):
     def byes(self):
         return len([p for p in self.pods if p is Player.EResult.BYE])
 
-    @property
-    def wins(self):
+    def wins(self, tour_round: Round|None=None):
         return len([p for p in self.games if p._result is self.uid])
 
     def record(self, tour_round: Round|None=None) -> list[Player.EResult]:
@@ -1423,17 +1475,19 @@ class Player(IPlayer):
         tsize = int(math.floor(math.log10(len(self.tour.players))) + 1)
         pname_size = max([len(p.name) for p in self.tour.players])
 
+        tour_round = self.tour.rounds[args.round]
+        standings = self.tour.get_standings(tour_round)
         if args.standing:
-            fields.append('#{:>{}}'.format(self.standing, tsize))
+            fields.append('#{:>{}}'.format(self.standing(tour_round, standings), tsize))
         if args.id:
             fields.append('[{:>{}}] {}'.format(
                 self.uid, tsize, self.name.ljust(pname_size)))
         else:
             fields.append(self.name.ljust(pname_size))
 
-        if args.pod and self.tour.tour_round and len(self.tour.tour_round.pods) > 0:
-            max_pod_id = max([len(str(p.table)) for p in self.tour.tour_round.pods])
-            pod = self.pod(self.tour.tour_round)
+        if args.pod and len(tour_round.pods) > 0:
+            max_pod_id = max([len(str(p.table)) for p in tour_round.pods])
+            pod = self.pod(tour_round)
             if pod:
                 #find number of digits in max pod id
                 fields.append('{}'.format(
@@ -1445,7 +1499,7 @@ class Player(IPlayer):
         if args.p:
             fields.append('pts: {}'.format(self.rating(self.tour.tour_round) or '0'))
         if args.w:
-            fields.append('w: {}'.format(self.wins))
+            fields.append('w: {}'.format(self.wins(tour_round)))
         if args.ow:
             fields.append('o.wr.: {:.2f}'.format(self.opponent_pointrate))
         if args.u:
@@ -1565,7 +1619,7 @@ class Pod(IPod):
 
     @property
     def average_seat(self) -> float:
-        return np.average([p.average_seat([self.tour_round]) for p in self.players]).astype(float)
+        return np.average([p.average_seat(self.tour.ended_rounds) for p in self.players]).astype(float)
 
     @property
     def balance(self) -> np.ndarray:
