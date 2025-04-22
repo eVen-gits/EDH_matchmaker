@@ -1,4 +1,5 @@
 from __future__ import annotations
+import time
 from typing import Sequence
 
 from ..interface import IPlayer, IPod, ITournament, IRound, IPairingLogic
@@ -7,7 +8,7 @@ from typing_extensions import override
 import random
 import sys
 import numpy as np
-
+from ..core import timeit
 class CommonPairing(IPairingLogic):
     def __init__(self, name: str):
         super().__init__(name)
@@ -32,22 +33,28 @@ class CommonPairing(IPairingLogic):
     def make_pairings(self, players: list[IPlayer], pods: list[IPod]) -> list[IPlayer]:
         raise NotImplementedError('PairingLogic.make_pairings not implemented - use subclass')
 
+    def bye_matching(self, player: IPlayer, tour_round: IRound) -> tuple:
+        return (
+            -len(player.games(tour_round)),
+            -len(player.played(tour_round)),
+            player.rating(tour_round),
+            player.opponent_pointrate(tour_round)
+        )
+
     def assign_byes(self, tour_round: IRound, players: Sequence[IPlayer], pods: Sequence[IPod]) -> list[IPlayer]:
         capacity = sum([pod.cap - len(pod.players) for pod in pods])
         n_byes = len(players) - capacity
 
-        matching = lambda x: (
-            -len(x.games(tour_round)),
-            -len(x.played(tour_round)),
-            x.rating(tour_round),
-            x.opponent_pointrate(tour_round)
-        )
+        matching = lambda x: self.bye_matching(x, tour_round)
+        player_matches = {p: matching(p) for p in players}
+        keys = sorted(set(player_matches.values()), reverse=True)
+
         buckets = [
             [
                 p for p in players
-                if matching(p) == k
+                if player_matches[p] == k
             ]
-            for k in sorted(set([matching(p) for p in players]), reverse=True)
+            for k in keys
         ]
         byes = []
         for b in buckets[::-1]:
@@ -142,14 +149,26 @@ class PairingSnake(CommonPairing):
 class PairingDefault(CommonPairing):
     IS_COMPLETE=True
 
-    @override
-    def make_pairings(self, tour_round: IRound, players: Sequence[IPlayer], pods: Sequence[IPod]) -> Sequence[IPlayer]:
-        matching = lambda x: (
-            -len(x.games(tour_round)),
-            -len(x.played(tour_round)),
-            x.rating(tour_round),
-            x.opponent_pointrate(tour_round)
+    def matching(self, player: IPlayer, tour_round: IRound) -> tuple:
+        return (
+            -len(player.games(tour_round)),
+            -len(player.played(tour_round)),
+            player.rating(tour_round),
+            player.opponent_pointrate(tour_round)
         )
+
+    @override
+    @timeit
+    def make_pairings(self, tour_round: IRound, players: Sequence[IPlayer], pods: Sequence[IPod]) -> Sequence[IPlayer]:
+        #matching = lambda x: (
+        #    -len(x.games(tour_round)),
+        #    -len(x.played(tour_round)),
+        #    x.rating(tour_round),
+        #    x.opponent_pointrate(tour_round)
+        #)
+        #standings = tour_round.tour.get_standings(tour_round)
+        matching = lambda x: self.matching(x, tour_round)
+
         byes = self.assign_byes(tour_round, players, pods)
 
         active_players = [p for p in players if p not in byes]
@@ -159,5 +178,4 @@ class PairingDefault(CommonPairing):
             pod_scores = [self.evaluate_pod(p, pod, tour_round) for pod in pods]
             index = pod_scores.index(max(pod_scores))
             pods[index].add_player(p)
-
         return players

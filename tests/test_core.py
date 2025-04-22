@@ -255,10 +255,11 @@ class TestScoring(unittest.TestCase):
             fkr.name()
             for _ in range(128)
         ])
-        for _ in range(10):
+        for _ in tqdm(range(10)):
             self.t.create_pairings()
             self.t.random_results()
             self.assertTrue(self.t.tour_round.done)
+
             self.t.reset_pods()
 
 

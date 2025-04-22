@@ -105,6 +105,7 @@ class TournamentContext:
         self.tour_round = tour_round
         self.standings = standings
 
+
 class StandingsExport(DataExport):
     class Field(Enum):
         STANDING = 0  # Standing
@@ -114,9 +115,9 @@ class StandingsExport(DataExport):
         RATING = 4  # Number of points
         WINS = 5  # Number of wins
         OPP_BEATEN = 6  # Number of opponents beaten
-        OPP_WINRATE = 7  # Opponents' win percentage
+        OPP_POINTRATE = 7  # Opponents' win percentage
         UNIQUE = 8  # Number of unique opponents
-        WINRATE = 9  # Winrate
+        POINTRATE = 9  # Winrate
         GAMES = 10  # Number of games played
         SEAT_HISTORY = 11  # Seat record
         AVG_SEAT = 12  # Average seat
@@ -136,13 +137,59 @@ class StandingsExport(DataExport):
             self.getter = getter
 
         def get(self, player: Player, context: TournamentContext) -> Any:
-            #get getter signature
-            sig = inspect.signature(self.getter)
-            #filter kwargs
-            kwargs = {k: v for k, v in sig.parameters.items() if k != 'player' and k != 'context'}
-            #call getter with proper arugments
-            return self.getter(player, **kwargs)
+            return self.getter(player, tour=context.tour, tour_round=context.tour_round, standings=context.standings)
 
+    @staticmethod
+    def _get_standing(player: Player, context: TournamentContext) -> int:
+        return player.standing(context.tour_round, context.standings)
+
+    @staticmethod
+    def _get_id(player: Player, context: TournamentContext) -> str:
+        return player.uid.hex
+
+    @staticmethod
+    def _get_name(player: Player, context: TournamentContext) -> str:
+        return player.name
+
+    @staticmethod
+    def _get_opp_winrate(player: Player, context: TournamentContext) -> float:
+        return player.opponent_pointrate(context.tour_round)
+
+    @staticmethod
+    def _get_rating(player: Player, context: TournamentContext) -> float|None:
+        return player.rating(context.tour_round)
+
+    @staticmethod
+    def _get_wins(player: Player, context: TournamentContext) -> int:
+        return player.wins(context.tour_round)
+
+    @staticmethod
+    def _get_winrate(player: Player, context: TournamentContext) -> float:
+        return player.pointrate(context.tour_round)
+
+    @staticmethod
+    def _get_unique_opponents(player: Player, context: TournamentContext) -> int:
+        return len(player.games(context.tour_round))
+
+    @staticmethod
+    def _get_games(player: Player, context: TournamentContext) -> int:
+        return len(player.games(context.tour_round))
+
+    @staticmethod
+    def _get_opponents_beaten(player: Player, context: TournamentContext) -> int:
+        return len(player.players_beaten(context.tour_round))
+
+    @staticmethod
+    def _get_seat_history(player: Player, context: TournamentContext) -> str:
+        return player.seat_history(context.tour_round)
+
+    @staticmethod
+    def _get_avg_seat(player: Player, context: TournamentContext) -> float:
+        return player.average_seat(context.tour.rounds)
+
+    @staticmethod
+    def _get_record(player: Player, context: TournamentContext) -> str:
+        return Player.fmt_record(player.record(context.tour_round))
 
     info = {
         Field.STANDING: Formatting(
@@ -150,92 +197,91 @@ class StandingsExport(DataExport):
             format='{:d}',
             denom=None,
             description='Player\'s standing in the tournament.',
-            getter=(lambda p, c: p.standing(c.tour_round, c.standings))  # This getter accepts 'standings' as an optional arg
+            getter=_get_standing
         ),
         Field.ID: Formatting(
             label='ID',
             format='{:s}',
             denom=None,
             description='Player ID',
-            getter=(lambda p: p.uid.hex),  # Simple getter with no additional args
+            getter=_get_id
         ),
         Field.NAME: Formatting(
             label='name',
             format='{:s}',
             denom=None,
             description='Player name',
-            getter=(lambda p: p.name),
+            getter=_get_name
         ),
-        Field.OPP_WINRATE: Formatting(
+        Field.OPP_POINTRATE: Formatting(
             label='opp. win %',
             format='{:.2f}%',
             denom=100,
-            description='Opponents\' win percentage',
-            getter=(lambda p, c: p.opponent_pointrate(c.tour_round)),
+            description='Opponents\' point rate',
+            getter=_get_opp_winrate
         ),
         Field.RATING: Formatting(
             label='pts',
             format='{:d}',
             denom=None,
             description='Player rating',
-            getter=(lambda p: p.rating(p.tour.tour_round)),
+            getter=_get_rating
         ),
         Field.WINS: Formatting(
             label='# wins',
             format='{:d}',
             denom=None,
             description='Number of games won',
-            getter=(lambda p: p.wins(p.tour.tour_round)),
+            getter=_get_wins
         ),
-        Field.WINRATE: Formatting(
+        Field.POINTRATE: Formatting(
             label='win %',
             format='{:.2f}%',
             denom=100,
-            description='Winrate',
-            getter=(lambda p: p.pointrate),
+            description='Player\'s point rate',
+            getter=_get_winrate
         ),
         Field.UNIQUE: Formatting(
             label='uniq. opp.',
             format='{:d}',
             denom=None,
             description='Number of unique opponents',
-            getter=(lambda p: len(p.games(p.tour.tour_round))),
+            getter=_get_unique_opponents
         ),
         Field.GAMES: Formatting(
             label='# games',
             format='{:d}',
             denom=None,
             description='Number of games played',
-            getter=(lambda p: len(p.games(p.tour.tour_round))),
+            getter=_get_games
         ),
         Field.OPP_BEATEN: Formatting(
             label='# opp. beat',
             format='{:d}',
             denom=None,
             description='Number of opponents beaten',
-            getter=(lambda p: len(p.players_beaten(p.tour.tour_round))),
+            getter=_get_opponents_beaten
         ),
         Field.SEAT_HISTORY: Formatting(
             label='seat record',
             format='{:s}',
             denom=None,
             description='Seat record',
-            getter=(lambda p: p.seat_history),
+            getter=_get_seat_history
         ),
         Field.AVG_SEAT: Formatting(
             label='avg. seat',
             format='{:03.2f}%',
-            denom=None,
+            denom=100,
             description='Average seat',
-            getter=(lambda p: p.average_seat(p.tour.rounds)*100),
+            getter=_get_avg_seat
         ),
         Field.RECORD: Formatting(
             label='record',
             format='{:s}',
             denom=None,
             description='Player\'s record',
-            getter=(lambda p, tour_round=None, standings=None:
-                   Player.fmt_record(p.record(tour_round))),
+            getter=_get_record
         ),
     }
 
@@ -250,7 +296,7 @@ class StandingsExport(DataExport):
         Field.NAME,
         Field.RATING,
         Field.RECORD,
-        Field.OPP_WINRATE,
+        Field.OPP_POINTRATE,
         Field.OPP_BEATEN,
         Field.SEAT_HISTORY,
         Field.AVG_SEAT,
@@ -1197,7 +1243,6 @@ class Player(IPlayer):
                 players.update(p.players)
         return list(players)
 
-    #TODO: Update calls
     def games(self, tour_round: Round|None=None):
         if tour_round is None:
             tour_round = self.tour.tour_round
@@ -1357,12 +1402,7 @@ class Player(IPlayer):
     def tour(self, tour: Tournament):
         self._tour = tour.uid
 
-
-
     #STATICMETHOD
-
-
-
 
     @staticmethod
     def get(tour: Tournament, uid: UUID):
@@ -1851,7 +1891,9 @@ class Round(IRound):
                     not p.done,
                     len(p) < p.cap
         ])]
+
         self.logic.make_pairings(self, self.unseated, pods)
+
         for pod in self.pods:
             pod.assign_seats()
         self.sort_pods()

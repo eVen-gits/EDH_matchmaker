@@ -71,6 +71,18 @@ class IPlayer(IHashable):
     def pods(self, tour_round: IRound) -> list[IPod]:
         raise NotImplementedError()
 
+    @abstractmethod
+    def rating(self, tour_round: IRound) -> float:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def opponent_pointrate(self, tour_round: IRound) -> float:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def games(self, tour_round: IRound) -> list[IRound]:
+        raise NotImplementedError()
+
 class ITournament(IHashable):
     def __init__(self, config: ITournamentConfiguration | None = None):
         super().__init__()
@@ -78,8 +90,13 @@ class ITournament(IHashable):
         self.rounds: list[IRound] = list()
         self.tour_round: IRound|None = None
 
+    @abstractmethod
     def get_pod_sizes(self, n:int) -> Sequence[int]|None:
-        pass
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_standings(self, tour_round: IRound) -> list[tuple[IPlayer, float]]:
+        raise NotImplementedError()
 
     @property
     def config(self) -> ITournamentConfiguration:
