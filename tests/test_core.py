@@ -4,6 +4,7 @@ import names
 import random
 from tqdm import tqdm
 from faker import Faker
+import time
 fkr = Faker()
 
 TournamentAction.LOGF = False #type: ignore
@@ -249,6 +250,73 @@ class TestScoring(unittest.TestCase):
 
             self.assertEqual(self.t.get_standings(self.t.tour_round), orig_standings)
 
+    def test_random_results(self):
+        self.t.add_player([
+            fkr.name()
+            for _ in range(128)
+        ])
+        for _ in range(10):
+            self.t.create_pairings()
+            self.t.random_results()
+            self.assertTrue(self.t.tour_round.done)
+            self.t.reset_pods()
+
+
+class TestPerformance(unittest.TestCase):
+    def test_new_round_speed(self):
+        t = Tournament(
+            TournamentConfiguration(
+                pod_sizes=[4],
+                allow_bye=False,
+                auto_export=False,
+            )
+        )
+        t.add_player([
+            fkr.name()
+            for _ in range(128)
+        ])
+
+        n = 100
+        total_time = 0
+        for _ in range(n):
+            time_start = time.time()
+            t.new_round()
+            delta_time = time.time() - time_start
+            total_time += delta_time
+            self.assertLess(delta_time, 0.5)
+            t.create_pairings()
+            t.random_results()
+        self.assertLess(total_time/n, 0.5)
+
+    def test_create_pairings_speed(self):
+        tour_sizes = [16, 32, 64, 128, 256, 512, 1024]
+        for n in tour_sizes:
+            with self.subTest(n=str(n).zfill(2)):
+                t = Tournament(
+                    TournamentConfiguration(
+                        pod_sizes=[4],
+                        allow_bye=False,
+                        auto_export=False,
+                    )
+                )
+                t.add_player([
+                    fkr.name()
+                    for _ in range(n)
+                ])
+                total_time = 0
+                n_rounds = 7
+                for _ in range(n_rounds):
+                    player_time_ratio = 0.05 * 1.02**(n/128)
+                    time_start = time.time()
+                    t.create_pairings()
+                    delta_time = time.time() - time_start
+                    self.assertLess(delta_time, n*player_time_ratio)
+                    total_time += delta_time
+                    t.random_results()
+                    t.new_round()
+                self.assertLess(total_time/n_rounds, n*player_time_ratio)
+
+
 class TestLarge(unittest.TestCase):
 
     def test_many_players(self):
@@ -272,7 +340,8 @@ class TestLarge(unittest.TestCase):
                     for _ in range(n)
                 ])
                 for _ in range(n_rounds):
-                    t.create_pairings()
+                    ok = t.create_pairings()
+                    self.assertTrue(ok)
                     t.random_results()
 
     def test_many_rounds(self):

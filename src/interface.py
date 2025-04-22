@@ -44,7 +44,6 @@ class IPlayer(IHashable):
         super().__init__()
         self.name: str = str()
         self.rounds: list[IRound] = list()
-        self.played: list[IPlayer]
         self.tour: ITournament
         #self.location: IPlayer.ELocation = IPlayer.ELocation.UNSEATED
         #self.result: IPlayer.EResult = IPlayer.EResult.PENDING
@@ -52,20 +51,24 @@ class IPlayer(IHashable):
         self.byes: int
         self.wins: int
 
-
-    @property
     @abstractmethod
-    def pod(self) -> IPod|None:
+    def played(self, tour_round: IRound) -> list[IPlayer]:
         raise NotImplementedError()
 
-    #@property
+    @abstractmethod
+    def location(self, tour_round: IRound) -> IPlayer.ELocation:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def pod(self, tour_round: IRound) -> IPod|None:
+        raise NotImplementedError()
+
     @abstractmethod
     def set_result(self, tour_round: IRound, result: IPlayer.EResult) -> IPlayer.EResult:
         raise NotImplementedError()
 
-    @property
     @abstractmethod
-    def pods(self) -> IRound:
+    def pods(self, tour_round: IRound) -> list[IPod]:
         raise NotImplementedError()
 
 class ITournament(IHashable):

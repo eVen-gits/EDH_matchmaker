@@ -12,14 +12,14 @@ class CommonPairing(IPairingLogic):
     def __init__(self, name: str):
         super().__init__(name)
 
-    def evaluate_pod(self, player: IPlayer, pod:IPod) -> int:
+    def evaluate_pod(self, player: IPlayer, pod:IPod, tour_round: IRound) -> int:
         score = 0
         if len(pod) == pod.cap:
             return -sys.maxsize
         for p in pod.players:
-            score -= player.played.count(p) ** 2
+            score -= player.played(tour_round).count(p) ** 2
         if pod.cap < player.tour.config.max_pod_size:
-            for prev_pod in player.pods:
+            for prev_pod in player.pods(tour_round):
                 if isinstance(prev_pod, IPod):
                     score -= sum([
                         10
@@ -37,10 +37,10 @@ class CommonPairing(IPairingLogic):
         n_byes = len(players) - capacity
 
         matching = lambda x: (
-            -len(x.games),
-            -len(x.played),
+            -len(x.games(tour_round)),
+            -len(x.played(tour_round)),
             x.rating(tour_round),
-            x.opponent_pointrate
+            x.opponent_pointrate(tour_round)
         )
         buckets = [
             [
@@ -91,7 +91,7 @@ class PairingSnake(CommonPairing):
 
         pod_sizes = [pod.cap for pod in pods]
         bye_count = len(players) - sum(pod_sizes)
-        snake_ranking = lambda x: (x.rating(tour_round), -len(x.played))
+        snake_ranking = lambda x: (x.rating(tour_round), -len(x.played(tour_round)))
         active_players = sorted(players, key=snake_ranking, reverse=True)
         bucket_order = sorted(
             list(set(
@@ -129,7 +129,7 @@ class PairingSnake(CommonPairing):
                     ok = True
                 while not ok:
                     curr_pod = pods[i % len(pods)]
-                    pod_evals = [self.evaluate_pod(p, curr_pod) for p in bucket]
+                    pod_evals = [self.evaluate_pod(p, curr_pod, tour_round) for p in bucket]
                     index = pod_evals.index(max(pod_evals))
                     p = bucket[index]
                     ok = curr_pod.add_player(p)
@@ -145,10 +145,10 @@ class PairingDefault(CommonPairing):
     @override
     def make_pairings(self, tour_round: IRound, players: Sequence[IPlayer], pods: Sequence[IPod]) -> Sequence[IPlayer]:
         matching = lambda x: (
-            -len(x.games),
-            -len(x.played),
-            x.rating(x.tour.tour_round),
-            x.opponent_pointrate
+            -len(x.games(tour_round)),
+            -len(x.played(tour_round)),
+            x.rating(tour_round),
+            x.opponent_pointrate(tour_round)
         )
         byes = self.assign_byes(tour_round, players, pods)
 
@@ -156,7 +156,7 @@ class PairingDefault(CommonPairing):
 
         assignment_order = sorted(active_players, key=matching, reverse=True)
         for i, p in enumerate(assignment_order):
-            pod_scores = [self.evaluate_pod(p, pod) for pod in pods]
+            pod_scores = [self.evaluate_pod(p, pod, tour_round) for pod in pods]
             index = pod_scores.index(max(pod_scores))
             pods[index].add_player(p)
 
