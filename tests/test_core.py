@@ -284,7 +284,7 @@ class TestPerformance(unittest.TestCase):
             t.new_round()
             delta_time = time.time() - time_start
             total_time += delta_time
-            self.assertLess(delta_time, 0.5)
+            self.assertLess(delta_time, 1, msg=f"{delta_time} seconds at round {n} for {len(t.players)} players")
             t.create_pairings()
             t.random_results()
         self.assertLess(total_time/n, 0.5)

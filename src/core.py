@@ -56,9 +56,9 @@ class PodsExport(DataExport):
                 if logf and tour_round:
                     # Export pods to a file named {tournament_name}_round_{round_number}.txt
                     # And also export it into {log_directory}/pods.txt
-
+                    context = TournamentContext(self, tour_round, self.get_standings(tour_round))
                     export_str: str = '\n\n'.join([
-                        pod.__repr__()
+                        pod.__repr__(context=context)
                         for pod in tour_round.pods
                     ])
                     game_lost: list[Player] = [x for x in tour_round.players if x.result == Player.EResult.LOSS]
@@ -137,7 +137,8 @@ class StandingsExport(DataExport):
             self.getter = getter
 
         def get(self, player: Player, context: TournamentContext) -> Any:
-            return self.getter(player, tour=context.tour, tour_round=context.tour_round, standings=context.standings)
+            # Call the static method through the class
+            return self.getter.__func__(player, context)
 
     @staticmethod
     def _get_standing(player: Player, context: TournamentContext) -> int:
@@ -830,7 +831,7 @@ class Tournament(ITournament):
             ok = self.initialize_round()
             if not ok:
                 return False
-
+        self.tour_round._byes.clear()
         if not self.tour_round.all_players_assigned:
             self.tour_round.create_pairings()
             return True
@@ -924,14 +925,13 @@ class Tournament(ITournament):
         if not isinstance(players, list):
             players = [players]
         for player in players:
-            if player.pod and player.pod != pod:
-                old_pod = player.pod.name
-                player.pod.remove_player(player)
-                Log.log('Removed player {} from {}.'.format(
-                    player.name, old_pod), level=Log.Level.INFO)
-            if player.pod != pod:
-                if pod.add_player(player, manual=manual):
-                    pass
+            if player.pod(self.tour_round) == pod:
+                continue
+                #player.pod(self.tour_round).remove_player(player)
+                #Log.log('Removed player {} from {}.'.format(
+                #    player.name, old_pod), level=Log.Level.INFO)
+            if ok:=pod.add_player(player, manual=manual):
+                pass
                     #Log.log('Added player {} to {}'.format(
                     #    player.name, pod.name), level=Log.Level.INFO)
                 #else:
@@ -952,11 +952,11 @@ class Tournament(ITournament):
             players = [players]
 
         for player in players:
-            if player.result(self.tour_round) == Player.EResult.LOSS:
+            if player.uid in self.tour_round._game_loss:
                 self.tour_round._game_loss.remove(player.uid)
             else:
-                if player.pod(self.tour_round) is not None:
-                    self.remove_player_from_pod(player)
+                #if player.pod(self.tour_round) is not None:
+                #    self.remove_player_from_pod(player)
                 player.set_result(self.tour_round, Player.EResult.LOSS)
                 #Log.log('{} assigned a game loss.'.format(
                 #    player.name), level=Log.Level.INFO)
@@ -971,6 +971,8 @@ class Tournament(ITournament):
         pod = player.pod(self.tour_round)
         if pod:
             pod.remove_player(player)
+            if player.uid not in self.tour_round._game_loss:
+                self.tour_round.set_result(player, Player.EResult.BYE)
             #Log.log('Removed player {} from {}.'.format(
             #    player.name, pod.name), level=Log.Level.INFO)
 
@@ -1412,7 +1414,7 @@ class Player(IPlayer):
     def seated(self, tour_round: Round|None=None) -> bool:
         if tour_round is None:
             tour_round = self.tour.tour_round
-        return tour_round.get_location(self) is None
+        return tour_round.get_location(self) is not None
 
     @staticmethod
     def fmt_record(record:list[Player.EResult]) -> str:
@@ -1461,7 +1463,7 @@ class Player(IPlayer):
         return b
 
     @override
-    def __repr__(self, tokens=None):
+    def __repr__(self, tokens=None, context: TournamentContext|None=None):
         if len(self.tour.players) == 0:
             return ''
         if not tokens:
@@ -1511,7 +1513,10 @@ class Player(IPlayer):
         pname_size = max([len(p.name) for p in self.tour.players])
 
         tour_round = self.tour.rounds[args.round]
-        standings = self.tour.get_standings(tour_round)
+        if context is None:
+            standings = self.tour.get_standings(tour_round)
+        else:
+            standings = context.standings
         if args.standing:
             fields.append('#{:>{}}'.format(self.standing(tour_round, standings), tsize))
         if args.id:
@@ -1631,6 +1636,7 @@ class Pod(IPod):
             return False
         if pod:=player.pod(self.tour_round):
             pod.remove_player(player)
+        self.tour_round._byes.discard(player.uid)
         self._players.append(player.uid)
         self.tour_round.player_locations_map[player.uid] = self
         #player.location = Player.ELocation.SEATED
@@ -1712,7 +1718,7 @@ class Pod(IPod):
         return 'Pod {}'.format(self.table)
 
     @override
-    def __repr__(self):
+    def __repr__(self, context: TournamentContext|None=None):
         if not self.players:
             maxlen = 0
         else:
@@ -1728,7 +1734,7 @@ class Pod(IPod):
                         'W' if self.result_type == Pod.EResult.WIN and p.uid in self._result else
                         'D' if self.result_type == Pod.EResult.DRAW and p.uid in self._result else
                         'L',
-                        p.__repr__(['-s', str(maxlen), '-p']))
+                        p.__repr__(['-s', str(maxlen), '-p'], context=context))
                     for _, p in
                     zip(range(1, len(self)+1), self.players)
                 ]

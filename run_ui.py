@@ -18,13 +18,29 @@ from src.interface import *
 from src.core import (SortMethod, SortOrder, StandingsExport, Log, Player, Pod,
                   Tournament, TournamentAction, TournamentConfiguration)
 from src.core import (StandingsExport, Log, Player, Pod,
-                  Tournament, TournamentConfiguration, TournamentAction)
+                  Tournament, TournamentConfiguration, TournamentAction, TournamentContext)
 from src.misc import generate_player_names
 
 
 # from PySide2 import QtWidgets
 # from PyQt5 import QtWidgets
 #from qt_material import apply_stylesheet
+
+class PlayerColor:
+    list_seated = QColor(58, 170, 186)
+    list_unseated = QColor(12, 89, 100)
+
+    list_win = QColor(24, 165, 85)
+    list_bye = QColor(121, 196, 140)
+    list_draw = QColor(186, 84, 207)
+    list_defeat = QColor(241, 118, 120)
+    list_gameloss = QColor(219, 7, 61)
+
+    pod_win = QColor(24, 165, 85)
+    pod_defeat = QColor(241, 118, 120)
+    pod_gameloss = QColor(219, 7, 61)
+    pod_draw = QColor(186, 84, 207)
+
 
 class UILog:
     backlog = 0
@@ -46,10 +62,10 @@ class UILog:
 
 
 class PlayerListItem(QListWidgetItem):
-    def __init__(self, player: Player, p_fmt=None, parent=None):
+    def __init__(self, player: Player, p_fmt=None, parent=None, context: TournamentContext|None=None):
         if p_fmt is None:
             p_fmt = '-n -p -l'.split()
-        QListWidgetItem.__init__(self, player.__repr__(p_fmt), parent=parent)
+        QListWidgetItem.__init__(self, player.__repr__(tokens=p_fmt, context=context), parent=parent)
 
         monospace_font = QFont("Monospace")  # Use the generic "Monospace" font family
         self.setFont(monospace_font)
@@ -60,7 +76,6 @@ class PlayerListItem(QListWidgetItem):
 
     def __gt__(self, other: PlayerListItem):
         return self.player.__gt__(other.player)
-
 
     @staticmethod
     def sort_order():
@@ -152,9 +167,6 @@ class MainWindow(QMainWindow):
         self.ui = uic.loadUi('./ui/MainWindow.ui')
         self.setCentralWidget(self.ui)
 
-        self.seated_color = QColor(0, 204, 102)
-        self.unseated_color = QColor(117, 117, 163)
-        self.game_loss_color = QColor(255, 128, 128)
         # self.changeTitle()
         self.resize(900, 750)
 
@@ -458,19 +470,21 @@ class MainWindow(QMainWindow):
 
     @UILog.with_status
     def lva_manual_pod(self):
-        self.core.manual_pod([
+        players = [
             p.data(Qt.ItemDataRole.UserRole)
             for p in self.ui.lv_players.selectedItems()
-            if not p.data(Qt.ItemDataRole.UserRole).seated
-        ])
+            if not p.data(Qt.ItemDataRole.UserRole).seated(self.core.tour_round)
+        ]
+        self.core.manual_pod(players)
         self.restore_ui()
         self.ui_update_player_list()
 
     def ui_create_pods(self):
         layout = self.ui.saw_content.layout()
         if self.core.tour_round:
+            context = TournamentContext(self.core, self.core.tour_round, self.core.get_standings(self.core.tour_round))
             for pod in self.core.tour_round.pods:
-                layout.addWidget(PodWidget(self, pod))
+                layout.addWidget(PodWidget(self, pod, context=context))
 
     def ui_clear_pods(self):
         layout = self.ui.saw_content.layout()
@@ -498,20 +512,39 @@ class MainWindow(QMainWindow):
 
         return x == QMessageBox.StandardButton.Ok
 
+    def set_list_item_color(self, item: QListWidgetItem, context: TournamentContext):
+        player: Player = item.data(Qt.ItemDataRole.UserRole)
+        result = player.result(self.core.tour_round)
+
+        if player.seated(self.core.tour_round):
+            if result == Player.EResult.PENDING:
+                item.setBackground(PlayerColor.list_seated)
+            elif result == Player.EResult.LOSS:
+                if player in context.tour_round.game_loss:
+                    item.setBackground(PlayerColor.list_gameloss)
+                else:
+                    item.setBackground(PlayerColor.list_defeat)
+            elif result == Player.EResult.WIN:
+                item.setBackground(PlayerColor.list_win)
+            elif result == Player.EResult.DRAW:
+                item.setBackground(PlayerColor.list_draw)
+        else:
+            if player in context.tour_round.game_loss:
+                item.setBackground(PlayerColor.list_gameloss)
+            elif player in context.tour_round.byes:
+                item.setBackground(PlayerColor.list_bye)
+            else:
+                item.setBackground(PlayerColor.list_unseated)
+
     def ui_update_player_list(self):
+        context = TournamentContext(self.core, self.core.tour_round, self.core.get_standings(self.core.tour_round))
         for row in range(self.ui.lv_players.count()):
             item = self.ui.lv_players.item(row)
             data: Player = item.data(Qt.ItemDataRole.UserRole)
-            result = data.result(self.core.tour_round)
 
-            if result == Player.EResult.LOSS:
-                item.setBackground(self.game_loss_color)
-            elif data.seated:
-                item.setBackground(self.seated_color)
-                #item.setData(1, "background-color: {QTMATERIAL_PRIMARYCOLOR};")
-            else:
-                item.setBackground(self.unseated_color)
-            item.setText(data.__repr__(self.PLIST_FMT))
+            self.set_list_item_color(item, context)
+
+            item.setText(data.__repr__(self.PLIST_FMT, context=context))
         self.ui.lv_players.sortItems(order=PlayerListItem.sort_order())
 
     def update_player_sort_method(self):
@@ -522,15 +555,13 @@ class MainWindow(QMainWindow):
             Player.SORT_ORDER = sort_order
 
     def ui_create_player_list(self):
+        tour_round = self.core.tour_round
+        standings = self.core.get_standings(tour_round)
+        context = TournamentContext(self.core, tour_round, standings)
         for p in self.core.players:
-            list_item = PlayerListItem(p, p_fmt=self.PLIST_FMT)
+            list_item = PlayerListItem(p, p_fmt=self.PLIST_FMT, context=context)
             list_item.setData(Qt.ItemDataRole.UserRole, p)
-            if p.seated:
-                list_item.setBackground(self.seated_color)
-            elif p.result == IPlayer.EResult.LOSS:
-                list_item.setBackground(self.game_loss_color)
-            else:
-                list_item.setBackground(self.unseated_color)
+            self.set_list_item_color(list_item, context)
             self.ui.lv_players.addItem(list_item)
         self.update_player_sort_method()
         self.ui.lv_players.sortItems(order=PlayerListItem.sort_order()) # type: ignore
@@ -605,12 +636,12 @@ class MainWindow(QMainWindow):
 
 class PodWidget(QWidget):
     PLIST_FMT = '-n -p'.split()
-    def __init__(self, app: MainWindow, pod: Pod, parent=None):
+    def __init__(self, app: MainWindow, pod: Pod, parent=None, context: TournamentContext|None=None):
         QWidget.__init__(self, parent=parent)
         self.app = app
         self.pod = pod
         self.ui = uic.loadUi('./ui/PodWidget.ui', self)
-        self.refresh_ui()
+        self.refresh_ui(context=context)
 
         self.ui.lw_players.setContextMenuPolicy(
             Qt.ContextMenuPolicy.CustomContextMenu)
@@ -618,10 +649,18 @@ class PodWidget(QWidget):
             self.rightclick_menu
         )
 
-    def refresh_ui(self):
+    def refresh_ui(self, context: TournamentContext|None=None):
         if not self.pod.players:
             self.setParent(None)
             return
+
+        if context is None:
+            context = TournamentContext(
+                self.app.core,
+                self.pod.tour_round,
+                self.app.core.get_standings(self.pod.tour_round)
+            )
+
         self.ui.lbl_pod_id.setText(
             '{} - {} players'.format(
                 self.pod.name,
@@ -630,9 +669,22 @@ class PodWidget(QWidget):
         )
         self.lw_players.clear()
         for p in self.pod.players:
-            list_item = PlayerListItem(p, p_fmt=self.PLIST_FMT)
+            list_item = PlayerListItem(p, p_fmt=self.PLIST_FMT, context=context)
             list_item.setData(Qt.ItemDataRole.UserRole, p)
             self.lw_players.addItem(list_item)
+            if self.pod.done:
+                if p in context.tour_round.game_loss:
+                    list_item.setBackground(PlayerColor.pod_gameloss)
+                elif p in self.pod.result:
+                    if self.pod.result_type == Pod.EResult.DRAW:
+                        list_item.setBackground(PlayerColor.pod_draw)
+                    elif self.pod.result_type == Pod.EResult.WIN:
+                        list_item.setBackground(PlayerColor.pod_win)
+                else:
+                    list_item.setBackground(PlayerColor.pod_defeat)
+                    #    list_item.setBackground(PlayerColor.pod_loss)
+                #if p in self.pod.tour_round.game_loss:
+                #    list_item.setBackground(PlayerColor.pod_loss)
 
         self.lw_players.setFixedHeight(
             self.lw_players.sizeHintForRow(
@@ -677,11 +729,11 @@ class PodWidget(QWidget):
 
         )) # type: ignore
         pop_menu.addAction(QAction(
-            'Assign game loss'
+            'Toggle game loss'
             if n_selected == 1
-            else 'Assign game losses',
+            else 'Toggle game losses',
             self,
-            triggered=self.assign_game_loss
+            triggered=self.toggle_game_loss
         )) # type: ignore
         pop_menu.addSeparator()
         pop_menu.addAction(
@@ -701,6 +753,8 @@ class PodWidget(QWidget):
         if ok:
             self.app.report_win(player)
             #self.deleteLater()
+        context = TournamentContext(self.app.core, self.pod.tour_round, self.app.core.get_standings(self.pod.tour_round))
+        self.refresh_ui()
 
     def report_draw(self):
         players = [
@@ -717,6 +771,7 @@ class PodWidget(QWidget):
         if ok:
             self.app.report_draw(players)
             #self.deleteLater()
+        self.refresh_ui()
 
     def bench_players(self):
         players = [
@@ -733,7 +788,7 @@ class PodWidget(QWidget):
         self.app.delete_pod(self.pod)
         self.refresh_ui()
 
-    def assign_game_loss(self):
+    def toggle_game_loss(self):
         players = [
             item.data(Qt.ItemDataRole.UserRole)
             for item
