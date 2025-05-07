@@ -18,10 +18,12 @@ from .misc import Json2Obj, generate_player_names, timeit
 import numpy as np
 from tqdm import tqdm # pyright: ignore
 from uuid import UUID, uuid4
+import json
 
 from dotenv import load_dotenv
 import requests
 import threading
+
 
 
 # Load configuration from .env file
@@ -82,8 +84,8 @@ class PodsExport(DataExport):
 
                     path = os.path.join(
                         os.path.dirname(logf),
-                        os.path.basename(logf).replace('.log', ''),
-                        os.path.basename(logf).replace('.log', '_R{}.txt'.format(tour_round.seq)),
+                        os.path.basename(logf).replace('.json', ''),
+                        os.path.basename(logf).replace('.json', '_R{}.txt'.format(tour_round.seq)),
                     )
                     if not os.path.exists(os.path.dirname(path)):
                         os.makedirs(os.path.dirname(path))
@@ -413,9 +415,9 @@ class TournamentAction:
     '''
     ACTIONS: List = []
     LOGF: bool|str|None = None
-    DEFAULT_LOGF = 'logs/default.log'
+    DEFAULT_LOGF = 'logs/default.json'
 
-    def __init__(self, before: Tournament, ret, after: Tournament, func_name, *nargs, **kwargs):
+    def __init__(self, before: dict, ret, after: dict, func_name, *nargs, **kwargs):
         self.before = before
         self.ret = ret
         self.after = after
@@ -434,10 +436,10 @@ class TournamentAction:
     def action(cls, func) -> Callable:
         @StandingsExport.auto_export
         @PodsExport.auto_export
-        def wrapper(self, *original_args, **original_kwargs):
-            before = deepcopy(self)
+        def wrapper(self: Tournament, *original_args, **original_kwargs):
+            before = self.serialize()
             ret = func(self, *original_args, **original_kwargs)
-            after = deepcopy(self)
+            after = self.serialize()
             cls.ACTIONS.append(TournamentAction(
                 before, ret, after, func.__name__, *original_args, **original_kwargs,
             ))
@@ -453,11 +455,14 @@ class TournamentAction:
             assert isinstance(cls.LOGF, str)
             if not os.path.exists(os.path.dirname(cls.LOGF)):
                 os.makedirs(os.path.dirname(cls.LOGF))
-            with open(cls.LOGF, 'wb') as f:
-                pickle.dump(cls.ACTIONS, f)
+            #with open(cls.LOGF, 'w') as f:
+                #pickle.dump(cls.ACTIONS, f)
+            if cls.ACTIONS:
+                with open(cls.LOGF, 'w') as f:
+                    json.dump(cls.ACTIONS[-1].after, f, indent=4)
 
     @classmethod
-    def load(cls, logdir='logs/default.log'):
+    def load(cls, logdir='logs/default.json'):
         if os.path.exists(logdir):
             cls.LOGF = logdir
             try:
@@ -1554,14 +1559,14 @@ class Player(IPlayer):
 
     def serialize(self) -> dict[str, Any]:
         return {
-            'tour': str(self._tour),
+            #'tour': str(self._tour),
             'uid': str(self.uid),
             'name': self.name,
         }
 
     @classmethod
     def inflate(cls, tour: Tournament, data: dict[str, Any]) -> Player:
-        assert tour.uid == UUID(data['tour'])
+        #assert tour.uid == UUID(data['tour'])
         return cls(tour, data['name'], UUID(data['uid']))
 
 

@@ -600,8 +600,8 @@ class MainWindow(QMainWindow):
     def save_as(self):
         file, ext = QFileDialog.getSaveFileName(
             caption="Specify log location...",
-            filter='*.log',
-            initialFilter='*.log',
+            filter='*.json',
+            initialFilter='*.json',
             directory=os.path.dirname(TournamentAction.DEFAULT_LOGF)
         )
         if file:
@@ -622,8 +622,8 @@ class MainWindow(QMainWindow):
         file, ext = QFileDialog.getOpenFileName(
             caption='Select a log to open...',
             directory=os.path.dirname(TournamentAction.DEFAULT_LOGF),
-            filter='*.log',
-            initialFilter='*.log',
+            filter='*.json',
+            initialFilter='*.json',
         )
         if file:
             TournamentAction.load(file)
@@ -921,8 +921,8 @@ class TournamentConfigDialog(QDialog):
     def select_log_location(self):
         file, ext = QFileDialog.getSaveFileName(
             caption="Specify log location...",
-            filter='*.log',
-            initialFilter='*.log',
+            filter='*.json',
+            initialFilter='*.json',
             directory=os.path.dirname(TournamentAction.DEFAULT_LOGF)
         )
         if file:
