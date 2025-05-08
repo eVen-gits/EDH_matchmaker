@@ -86,7 +86,7 @@ class IPlayer(IHashable):
 class ITournament(IHashable):
     def __init__(self, config: ITournamentConfiguration | None = None):
         super().__init__()
-        self.players: list[IPlayer] = list()
+        self.active_players: list[IPlayer] = list()
         self.rounds: list[IRound] = list()
         self.tour_round: IRound|None = None
 
@@ -157,7 +157,7 @@ class IRound(IHashable):
 
     @property
     @abstractmethod
-    def players(self) -> list[IPlayer]:
+    def active_players(self) -> list[IPlayer]:
         raise NotImplementedError('Round.players not implemented - use subclass')
 
     @property

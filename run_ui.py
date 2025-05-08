@@ -26,20 +26,7 @@ from src.misc import generate_player_names
 # from PyQt5 import QtWidgets
 #from qt_material import apply_stylesheet
 
-class PlayerColor:
-    list_seated = QColor(58, 170, 186)
-    list_unseated = QColor(12, 89, 100)
 
-    list_win = QColor(24, 165, 85)
-    list_bye = QColor(121, 196, 140)
-    list_draw = QColor(186, 84, 207)
-    list_defeat = QColor(241, 118, 120)
-    list_gameloss = QColor(219, 7, 61)
-
-    pod_win = QColor(24, 165, 85)
-    pod_defeat = QColor(241, 118, 120)
-    pod_gameloss = QColor(219, 7, 61)
-    pod_draw = QColor(186, 84, 207)
 
 
 class UILog:
@@ -62,6 +49,24 @@ class UILog:
 
 
 class PlayerListItem(QListWidgetItem):
+    class Color:
+        list_seated = QColor(58, 170, 186)
+        list_unseated = QColor(12, 89, 100)
+
+        list_win = QColor(24, 165, 85)
+        list_bye = QColor(121, 196, 140)
+        list_draw = QColor(186, 84, 207)
+        list_defeat = QColor(241, 118, 120)
+        list_gameloss = QColor(219, 7, 61)
+
+        list_dropped = QColor(128, 128, 128)
+
+        pod_win = QColor(24, 165, 85)
+        pod_defeat = QColor(241, 118, 120)
+        pod_gameloss = QColor(219, 7, 61)
+        pod_draw = QColor(186, 84, 207)
+        pod_dropped = QColor(128, 128, 128)
+
     def __init__(self, player: Player, p_fmt=None, parent=None, context: TournamentContext|None=None):
         if p_fmt is None:
             p_fmt = '-n -p -l'.split()
@@ -327,10 +332,12 @@ class MainWindow(QMainWindow):
         # Check if it is on the item when you right-click, if it is not, delete and modify will not be displayed.
         item = self.ui.lv_players.itemAt(position)
         if item:
+            if item.player in self.core.dropped:
+                return
             delete_player_action = QAction(
-                'Remove player'
+                'Drop player'
                 if not multiple
-                else 'Remove players',
+                else 'Drop players',
                 self
             )
             pop_menu.addAction(delete_player_action)
@@ -375,13 +382,14 @@ class MainWindow(QMainWindow):
         ]
         #player = self.ui.lv_players.currentItem().data(Qt.ItemDataRole.UserRole)
         ok = self.confirm(
-            'Remove {}?'.format(', '.join([p.name for p in players])),
+            'Drop {}?'.format(', '.join([p.name for p in players])),
             'Confirm player removal'
         )
         if ok:
-            self.remove_player(players)
+            self.drop_player(players)
             self.ui.lv_players.clear()
-            self.ui_create_player_list()
+            #self.ui_create_player_list()
+            self.restore_ui()
 
     def lva_rename_player(self):
         # TODO:
@@ -452,16 +460,16 @@ class MainWindow(QMainWindow):
         self.ui_update_player_list()
 
     @UILog.with_status
-    def remove_player(self, player_name):
-        self.core.remove_player(player_name)
+    def drop_player(self, player_name):
+        self.core.drop_player(player_name)
         self.ui_update_player_list()
 
     @UILog.with_status
     def create_pods(self):
-        self.core.create_pairings()
-        self.ui_clear_pods()
-        self.ui_create_pods()
-        self.ui_update_player_list()
+        if self.core.create_pairings():
+            self.ui_clear_pods()
+            self.ui_create_pods()
+            self.ui_update_player_list()
 
     @UILog.with_status
     def reset_pods(self):
@@ -516,25 +524,27 @@ class MainWindow(QMainWindow):
         player: Player = item.data(Qt.ItemDataRole.UserRole)
         result = player.result(self.core.tour_round)
 
-        if player.seated(self.core.tour_round):
+        if player in self.core.dropped:
+            item.setBackground(PlayerListItem.Color.list_dropped)
+        elif player.seated(self.core.tour_round):
             if result == Player.EResult.PENDING:
-                item.setBackground(PlayerColor.list_seated)
+                item.setBackground(PlayerListItem.Color.list_seated)
             elif result == Player.EResult.LOSS:
                 if player in context.tour_round.game_loss:
-                    item.setBackground(PlayerColor.list_gameloss)
+                    item.setBackground(PlayerListItem.Color.list_gameloss)
                 else:
-                    item.setBackground(PlayerColor.list_defeat)
+                    item.setBackground(PlayerListItem.Color.list_defeat)
             elif result == Player.EResult.WIN:
-                item.setBackground(PlayerColor.list_win)
+                item.setBackground(PlayerListItem.Color.list_win)
             elif result == Player.EResult.DRAW:
-                item.setBackground(PlayerColor.list_draw)
+                item.setBackground(PlayerListItem.Color.list_draw)
         else:
             if player in context.tour_round.game_loss:
-                item.setBackground(PlayerColor.list_gameloss)
+                item.setBackground(PlayerListItem.Color.list_gameloss)
             elif player in context.tour_round.byes:
-                item.setBackground(PlayerColor.list_bye)
+                item.setBackground(PlayerListItem.Color.list_bye)
             else:
-                item.setBackground(PlayerColor.list_unseated)
+                item.setBackground(PlayerListItem.Color.list_unseated)
 
     def ui_update_player_list(self):
         context = TournamentContext(self.core, self.core.tour_round, self.core.get_standings(self.core.tour_round))
@@ -674,17 +684,17 @@ class PodWidget(QWidget):
             self.lw_players.addItem(list_item)
             if self.pod.done:
                 if p in context.tour_round.game_loss:
-                    list_item.setBackground(PlayerColor.pod_gameloss)
+                    list_item.setBackground(PlayerListItem.Color.pod_gameloss)
                 elif p in self.pod.result:
                     if self.pod.result_type == Pod.EResult.DRAW:
-                        list_item.setBackground(PlayerColor.pod_draw)
+                        list_item.setBackground(PlayerListItem.Color.pod_draw)
                     elif self.pod.result_type == Pod.EResult.WIN:
-                        list_item.setBackground(PlayerColor.pod_win)
+                        list_item.setBackground(PlayerListItem.Color.pod_win)
                 else:
-                    list_item.setBackground(PlayerColor.pod_defeat)
-                    #    list_item.setBackground(PlayerColor.pod_loss)
+                    list_item.setBackground(PlayerListItem.Color.pod_defeat)
+                    #    list_item.setBackground(PlayerListItem.Color.pod_loss)
                 #if p in self.pod.tour_round.game_loss:
-                #    list_item.setBackground(PlayerColor.pod_loss)
+                #    list_item.setBackground(PlayerListItem.Color.pod_loss)
 
         self.lw_players.setFixedHeight(
             self.lw_players.sizeHintForRow(
