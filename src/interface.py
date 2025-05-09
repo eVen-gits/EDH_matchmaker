@@ -107,6 +107,7 @@ class IPod(IHashable):
     class EResult(IntEnum):
         DRAW = 0
         WIN = 1
+        PENDING = 2
 
     def __init__(self):
         super().__init__()

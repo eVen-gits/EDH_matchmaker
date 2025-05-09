@@ -50,22 +50,16 @@ class UILog:
 
 class PlayerListItem(QListWidgetItem):
     class Color:
-        list_seated = QColor(58, 170, 186)
-        list_unseated = QColor(12, 89, 100)
+        SEATED = QColor(58, 170, 186)
+        UNSEATED = QColor(12, 89, 100)
 
-        list_win = QColor(24, 165, 85)
-        list_bye = QColor(121, 196, 140)
-        list_draw = QColor(186, 84, 207)
-        list_defeat = QColor(241, 118, 120)
-        list_gameloss = QColor(219, 7, 61)
+        WIN = QColor(24, 165, 85)
+        BYE = QColor(121, 196, 140)
+        DRAW = QColor(186, 84, 207)
+        DEFEAT = QColor(241, 118, 120)
+        GAMELOSS = QColor(219, 7, 61)
 
-        list_dropped = QColor(128, 128, 128)
-
-        pod_win = QColor(24, 165, 85)
-        pod_defeat = QColor(241, 118, 120)
-        pod_gameloss = QColor(219, 7, 61)
-        pod_draw = QColor(186, 84, 207)
-        pod_dropped = QColor(128, 128, 128)
+        DROP = QColor(128, 128, 128)
 
     def __init__(self, player: Player, p_fmt=None, parent=None, context: TournamentContext|None=None):
         if p_fmt is None:
@@ -525,26 +519,26 @@ class MainWindow(QMainWindow):
         result = player.result(self.core.tour_round)
 
         if player in self.core.dropped:
-            item.setBackground(PlayerListItem.Color.list_dropped)
+            item.setBackground(PlayerListItem.Color.DROP)
         elif player.seated(self.core.tour_round):
             if result == Player.EResult.PENDING:
-                item.setBackground(PlayerListItem.Color.list_seated)
+                item.setBackground(PlayerListItem.Color.SEATED)
             elif result == Player.EResult.LOSS:
                 if player in context.tour_round.game_loss:
-                    item.setBackground(PlayerListItem.Color.list_gameloss)
+                    item.setBackground(PlayerListItem.Color.GAMELOSS)
                 else:
-                    item.setBackground(PlayerListItem.Color.list_defeat)
+                    item.setBackground(PlayerListItem.Color.DEFEAT)
             elif result == Player.EResult.WIN:
-                item.setBackground(PlayerListItem.Color.list_win)
+                item.setBackground(PlayerListItem.Color.WIN)
             elif result == Player.EResult.DRAW:
-                item.setBackground(PlayerListItem.Color.list_draw)
+                item.setBackground(PlayerListItem.Color.DRAW)
         else:
             if player in context.tour_round.game_loss:
-                item.setBackground(PlayerListItem.Color.list_gameloss)
+                item.setBackground(PlayerListItem.Color.GAMELOSS)
             elif player in context.tour_round.byes:
-                item.setBackground(PlayerListItem.Color.list_bye)
+                item.setBackground(PlayerListItem.Color.BYE)
             else:
-                item.setBackground(PlayerListItem.Color.list_unseated)
+                item.setBackground(PlayerListItem.Color.UNSEATED)
 
     def ui_update_player_list(self):
         context = TournamentContext(self.core, self.core.tour_round, self.core.get_standings(self.core.tour_round))
@@ -645,6 +639,13 @@ class MainWindow(QMainWindow):
 
 
 class PodWidget(QWidget):
+    class Color:
+        WIN = QColor(24, 165, 85)
+        DEFEAT = QColor(241, 118, 120)
+        GAMELOSS = QColor(219, 7, 61)
+        DRAW = QColor(186, 84, 207)
+        DROP = QColor(128, 128, 128)
+
     PLIST_FMT = '-n -p'.split()
     def __init__(self, app: MainWindow, pod: Pod, parent=None, context: TournamentContext|None=None):
         QWidget.__init__(self, parent=parent)
@@ -684,14 +685,14 @@ class PodWidget(QWidget):
             self.lw_players.addItem(list_item)
             if self.pod.done:
                 if p in context.tour_round.game_loss:
-                    list_item.setBackground(PlayerListItem.Color.pod_gameloss)
+                    list_item.setBackground(PodWidget.Color.GAMELOSS)
                 elif p in self.pod.result:
                     if self.pod.result_type == Pod.EResult.DRAW:
-                        list_item.setBackground(PlayerListItem.Color.pod_draw)
+                        list_item.setBackground(PodWidget.Color.DRAW)
                     elif self.pod.result_type == Pod.EResult.WIN:
-                        list_item.setBackground(PlayerListItem.Color.pod_win)
+                        list_item.setBackground(PodWidget.Color.WIN)
                 else:
-                    list_item.setBackground(PlayerListItem.Color.pod_defeat)
+                    list_item.setBackground(PodWidget.Color.DEFEAT)
                     #    list_item.setBackground(PlayerListItem.Color.pod_loss)
                 #if p in self.pod.tour_round.game_loss:
                 #    list_item.setBackground(PlayerListItem.Color.pod_loss)

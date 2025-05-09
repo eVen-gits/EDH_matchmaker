@@ -1026,7 +1026,7 @@ class Tournament(ITournament):
         Player.SORT_ORDER = SortOrder.ASCENDING
         if tour_round is None:
             tour_round = self.tour_round
-        standings = sorted(self.active_players, key=lambda x: self.config.ranking(x, tour_round), reverse=True)
+        standings = sorted(self.players, key=lambda x: self.config.ranking(x, tour_round), reverse=True)
         Player.SORT_METHOD = method
         Player.SORT_ORDER = order
         return standings
@@ -1280,15 +1280,15 @@ class Player(IPlayer):
             tour_round = self.tour.tour_round
         pods: list[Pod|Player.ELocation] = []
         for i, p in enumerate(self.pods(tour_round)):
-            if i < tour_round.seq:
-                pods.append(p)
+            #if i < tour_round.seq:
+            pods.append(p)
         for pod in pods:
             if pod == Player.ELocation.BYE:
                 seq.append(Player.EResult.BYE)
             elif pod == Player.ELocation.GAME_LOSS:
                 seq.append(Player.EResult.LOSS)
             elif isinstance(pod, Pod):
-                if pod.result_type:
+                if pod.result_type != Pod.EResult.PENDING:
                     if pod.result_type == Pod.EResult.WIN and self.uid in pod._result:
                         seq.append(Player.EResult.WIN)
                     elif pod.result_type == Pod.EResult.DRAW and self.uid in pod._result:
@@ -1619,12 +1619,12 @@ class Pod(IPod):
         return {Player.get(self.tour, x) for x in self._result}
 
     @property
-    def result_type(self) -> None|Pod.EResult:
+    def result_type(self) -> Pod.EResult:
         if self._result:
             if len(self._result) == 1:
                 return Pod.EResult.WIN
             return Pod.EResult.DRAW
-        return None
+        return Pod.EResult.PENDING
 
     @property
     def done(self) -> bool:
