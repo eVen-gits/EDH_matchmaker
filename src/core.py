@@ -455,11 +455,8 @@ class TournamentAction:
             assert isinstance(cls.LOGF, str)
             if not os.path.exists(os.path.dirname(cls.LOGF)):
                 os.makedirs(os.path.dirname(cls.LOGF))
-            #with open(cls.LOGF, 'w') as f:
-                #pickle.dump(cls.ACTIONS, f)
-            if cls.ACTIONS:
-                with open(cls.LOGF, 'w') as f:
-                    json.dump(cls.ACTIONS[-1].after, f, indent=4)
+            with open(cls.LOGF, 'wb') as f:
+                pickle.dump(cls.ACTIONS, f)
 
     @classmethod
     def load(cls, logdir='logs/default.json'):
