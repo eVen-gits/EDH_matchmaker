@@ -1329,8 +1329,9 @@ class Player(IPlayer):
         if tour_round is None:
             tour_round = self.tour.tour_round
         players = set()
-        for pod in self.games(tour_round):
-            if pod.result_type == Pod.EResult.WIN and self in pod._result:
+        games = self.games(tour_round)
+        for pod in games:
+            if pod.result_type == Pod.EResult.WIN and self.uid in pod._result:
                 players.update(pod.players)
 
         players.discard(self)
