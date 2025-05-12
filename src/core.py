@@ -350,14 +350,22 @@ class TournamentAction:
         @StandingsExport.auto_export
         @PodsExport.auto_export
         def wrapper(self, *original_args, **original_kwargs):
-
-            before = deepcopy(self)
+            fail = False
+            try:
+                before = deepcopy(self)
+            except Exception as e:
+                Log.log(f"Failed to deepcopy: {str(e)}; Tournament log will not be saved.", level=Log.Level.ERROR)
+                fail = True
             ret = func(self, *original_args, **original_kwargs)
-            after = deepcopy(self)
-            cls.ACTIONS.append(TournamentAction(
-                before, ret, after, func.__name__, *original_args, **original_kwargs,
-            ))
-            cls.store()
+            if not fail:
+                try:
+                    after = deepcopy(self)
+                    cls.ACTIONS.append(TournamentAction(
+                        before, ret, after, func.__name__, *original_args, **original_kwargs,
+                    ))
+                    cls.store()
+                except Exception as e:
+                    Log.log(f"Failed to store tournament action: {str(e)}; Tournament log will not be saved.", level=Log.Level.ERROR)
             return ret
         return wrapper
 
@@ -370,6 +378,7 @@ class TournamentAction:
                 os.makedirs(os.path.dirname(cls.LOGF))
             with open(cls.LOGF, 'wb') as f:
                 pickle.dump(cls.ACTIONS, f)
+
 
     @classmethod
     def load(cls, logdir='logs/default.log'):
@@ -546,27 +555,42 @@ class Tournament(ITournament):
                 player.name, new_name), level=Log.Level.INFO)
 
     def get_pod_sizes(self, n) -> list[int]|None:
-        # tails = {}
-        for pod_size in self.TC.pod_sizes:
-            rem = n-pod_size
-            if rem < 0:
+        # Stack to store (remaining_players, current_pod_size_index, current_solution)
+        stack = [(n, 0, [])]
+
+        while stack:
+            remaining, pod_size_idx, current_solution = stack.pop()
+
+            # If we've processed all pod sizes, continue to next iteration
+            if pod_size_idx >= len(self.TC.pod_sizes):
                 continue
+
+            pod_size = self.TC.pod_sizes[pod_size_idx]
+            rem = remaining - pod_size
+
+            # Skip if this pod size would exceed remaining players
+            if rem < 0:
+                stack.append((remaining, pod_size_idx + 1, current_solution))
+                continue
+
+            # If this pod size exactly matches remaining players, we found a solution
             if rem == 0:
-                return [pod_size]
+                return current_solution + [pod_size]
+
+            # Handle case where remaining players is less than minimum pod size
             if rem < self.TC.min_pod_size:
                 if self.TC.allow_bye and rem <= self.TC.max_byes:
-                    return [pod_size]
+                    return current_solution + [pod_size]
                 elif pod_size == self.TC.pod_sizes[-1]:
-                    return None
+                    continue
+                else:
+                    stack.append((remaining, pod_size_idx + 1, current_solution))
+                    continue
+
+            # If remaining players is valid, try this pod size and continue with remaining players
             if rem >= self.TC.min_pod_size:
-                # This following code prefers smaller pods over byes
-                # tails[(rem, pod_size)] = self.get_pod_sizes(rem)
-                # if tails[(rem, pod_size)] is not None:
-                #    if sum(tails[(rem, pod_size)]) == rem:
-                #        return sorted([pod_size] + tails[(rem, pod_size)], reverse=True)
-                tail = self.get_pod_sizes(rem)
-                if tail is not None:
-                    return [pod_size] + tail
+                stack.append((remaining, pod_size_idx + 1, current_solution))
+                stack.append((rem, 0, current_solution + [pod_size]))
 
         return None
 
@@ -1450,7 +1474,10 @@ class Round(IRound):
 
         self.tour.rounds.append(self)
         self.concluded = datetime.now()
-        self.players = deepcopy(self.players)
+        try:
+            self.players = deepcopy(self.players)
+        except Exception as e:
+            Log.log(f"Failed to deepcopy players to round {self.seq}; Rewind will not work properly.", level=Log.Level.ERROR)
         Log.log('{}{}{}'.format(
             30*'*', '\nRound completed!\n', 30*'*',), Log.Level.INFO)
         self.tour.round = None
