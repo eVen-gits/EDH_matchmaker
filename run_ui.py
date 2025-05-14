@@ -298,7 +298,7 @@ class MainWindow(QMainWindow):
     def load_state(self):
         state = LogLoaderDialog.show_dialog(self)
         if state:
-            self.core = state
+            self.core = Tournament.inflate(state)
         self.restore_ui()
 
     #def undo(self):
@@ -1116,12 +1116,10 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
 
     if args.open:
-        TournamentAction.load(args.open)
-        core = TournamentAction.ACTIONS[-1].after
-    #elif TournamentAction.load():
-    #    core = TournamentAction.ACTIONS[-1].after
-    else:
+        core = TournamentAction.load(args.open)
+    elif not (core:=TournamentAction.load()):
         core = Tournament()
+        core.initialize_round()
 
     if args.pod_sizes:
         core.config.pod_sizes = args.pod_sizes

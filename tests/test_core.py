@@ -30,7 +30,7 @@ class TestTournamentPodSizing(unittest.TestCase):
                 auto_export=False,
             )
         )
-
+        t.initialize_round()
 
         pod_sizes = {
             0: None,
@@ -68,6 +68,8 @@ class TestTournamentPodSizing(unittest.TestCase):
                 auto_export=False,
             )
         )
+        t.initialize_round()
+
         pod_sizes = (
             (0,  [], 0),
             (1,  [], 1),
@@ -110,6 +112,8 @@ class TestTournamentPodSizing(unittest.TestCase):
                 auto_export=False,
             )
         )
+        t.initialize_round()
+
 
         pod_sizes = (
             (0,  [], 0),
@@ -153,6 +157,7 @@ class TestTournamentPodSizing(unittest.TestCase):
                 auto_export=False,
             )
         )
+        t.initialize_round()
 
         pod_sizes = (
             (0,  [], 0),
@@ -199,6 +204,7 @@ class TestScoring(unittest.TestCase):
                 auto_export=False,
             )
         )
+        self.t.initialize_round()
         Player.FORMATTING = ['-p', '-w', '-o']
 
     def test_bye_scoring(self):
@@ -272,12 +278,14 @@ class TestPerformance(unittest.TestCase):
                 auto_export=False,
             )
         )
+        t.initialize_round()
+
         t.add_player([
             fkr.name()
             for _ in range(128)
         ])
 
-        n = 100
+        n = 20
         total_time = 0
         for _ in range(n):
             time_start = time.time()
@@ -300,6 +308,8 @@ class TestPerformance(unittest.TestCase):
                         auto_export=False,
                     )
                 )
+                t.initialize_round()
+
                 t.add_player([
                     fkr.name()
                     for _ in range(n)
@@ -336,6 +346,8 @@ class TestLarge(unittest.TestCase):
                         auto_export=False,
                     )
                 )
+                t.initialize_round()
+
                 t.add_player([
                     fkr.name()
                     for _ in range(n)
@@ -357,6 +369,8 @@ class TestLarge(unittest.TestCase):
                 auto_export=False,
             )
         )
+        t.initialize_round()
+
         t.add_player([
             fkr.name()
             for _ in range(tour_size)

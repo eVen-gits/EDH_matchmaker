@@ -6,7 +6,6 @@ from typing_extensions import override
 import argparse
 import math
 import os
-import pickle
 import random
 from copy import deepcopy
 from datetime import datetime
@@ -413,70 +412,45 @@ class Log:
 class TournamentAction:
     '''Serializable action that will be stored in tournament log and can be restored
     '''
-    ACTIONS: List = []
     LOGF: bool|str|None = None
     DEFAULT_LOGF = 'logs/default.json'
 
-    def __init__(self, before: dict, ret, after: dict, func_name, *nargs, **kwargs):
-        self.before = before
-        self.ret = ret
-        self.after = after
-        self.func_name = func_name
-        self.nargs = nargs
-        self.kwargs = kwargs
-        self.ret = ret
-        self.time = datetime.now()
-
-    @classmethod
-    def reset(cls) -> None:
-        TournamentAction.ACTIONS = []
-        TournamentAction.store()
 
     @classmethod
     def action(cls, func) -> Callable:
         @StandingsExport.auto_export
         @PodsExport.auto_export
         def wrapper(self: Tournament, *original_args, **original_kwargs):
-            before = self.serialize()
+            #before = self.serialize()
             ret = func(self, *original_args, **original_kwargs)
-            after = self.serialize()
-            cls.ACTIONS.append(TournamentAction(
-                before, ret, after, func.__name__, *original_args, **original_kwargs,
-            ))
-            cls.store()
+            cls.store(self)
             return ret
         return wrapper
 
     @classmethod
-    def store(cls):
+    def store(cls, tournament: Tournament):
         if cls.LOGF is None:
             cls.LOGF = cls.DEFAULT_LOGF
         if cls.LOGF:
             assert isinstance(cls.LOGF, str)
             if not os.path.exists(os.path.dirname(cls.LOGF)):
                 os.makedirs(os.path.dirname(cls.LOGF))
-            with open(cls.LOGF, 'wb') as f:
-                pickle.dump(cls.ACTIONS, f)
+            with open(cls.LOGF, 'w') as f:
+                json.dump(tournament.serialize(), f, indent=4)
 
     @classmethod
-    def load(cls, logdir='logs/default.json'):
+    def load(cls, logdir='logs/default.json') -> Tournament|None:
         if os.path.exists(logdir):
             cls.LOGF = logdir
             try:
-                with open(cls.LOGF, 'rb') as f:
-                    cls.ACTIONS = pickle.load(f)
-
-                    Tournament.CACHE.clear()
-                    for action in cls.ACTIONS:
-                        Tournament.CACHE[action.before.uid] = action.before
-                        Tournament.CACHE[action.after.uid] = action.after
-                if not cls.ACTIONS:
-                    return False
-                return True
+                with open(cls.LOGF, 'r') as f:
+                    tour_json = json.load(f)
+                    tour = Tournament.inflate(tour_json)
+                return tour
             except Exception as e:
                 Log.log(str(e), level=Log.Level.ERROR)
-                return False
-        return False
+                return None
+        return None
 
     @override
     def __repr__(self, *nargs, **kwargs):
@@ -629,7 +603,6 @@ class Tournament(ITournament):
         return cls._pairing_logic_cache[logic_name]
 
     def __init__(self, config: Union[TournamentConfiguration, None]=None, uid: UUID|None=None) :  # type: ignore
-        TournamentAction.reset()
         if config is None:
             config = TournamentConfiguration()
         self._config = config
@@ -646,8 +619,7 @@ class Tournament(ITournament):
         self._round: UUID|None = None
 
         # Direct setting - don't want to overwrite old log file
-
-        self.initialize_round()
+        #self.initialize_round()
 
     # TOURNAMENT ACTIONS
     # IMPORTANT: No nested tournament actions
@@ -1183,7 +1155,8 @@ class Tournament(ITournament):
             Player.inflate(tour, d_player)
         tour._rounds = [UUID(d_round['uid']) for d_round in data['rounds']]
         for d_round in data['rounds']:
-            Round.inflate(tour, d_round)
+            r = Round.inflate(tour, d_round)
+            tour._round = r.uid
         return tour
 
 
@@ -1421,7 +1394,6 @@ class Player(IPlayer):
     @staticmethod
     def get(tour: Tournament, uid: UUID):
         return tour.PLAYER_CACHE[uid]
-
 
     def seated(self, tour_round: Round|None=None) -> bool:
         if tour_round is None:
@@ -1769,8 +1741,8 @@ class Pod(IPod):
     def inflate(cls, tour_round: Round, data: dict[str, Any]) -> Pod:
         assert tour_round.uid == UUID(data['tour_round'])
         pod = cls(tour_round, data['table'], data['cap'], UUID(data['uid']))
-        pod._players = [x for x in data['players']]
-        pod._result = {x for x in data['result']}
+        pod._players = [UUID(x) for x in data['players']]
+        pod._result = {UUID(x) for x in data['result']}
         return pod
 
 
@@ -1789,6 +1761,11 @@ class Round(IRound):
         self._game_loss: set[UUID] = set()
         self._byes: set[UUID] = set()
 
+    def refresh_player_location_map(self):
+        self.player_locations_map.clear()
+        for pod in self.pods:
+            for player in pod.players:
+                self.player_locations_map[player.uid] = pod
 
     def get_location(self, player: Player) -> Pod|None:
         return self.player_locations_map.get(player.uid, None)
@@ -1982,4 +1959,5 @@ class Round(IRound):
         new_round._game_loss = {UUID(x) for x in data['game_loss']}
         new_round._byes = {UUID(x) for x in data['byes']}
         new_round._dropped = {UUID(x) for x in data['dropped']}
+        new_round.refresh_player_location_map()
         return new_round
