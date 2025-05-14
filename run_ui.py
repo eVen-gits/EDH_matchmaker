@@ -27,8 +27,6 @@ from src.misc import generate_player_names
 #from qt_material import apply_stylesheet
 
 
-
-
 class UILog:
     backlog = 0
 
@@ -581,7 +579,7 @@ class MainWindow(QMainWindow):
         self.ui_update_player_list()
 
     @UILog.with_status
-    def report_draw(self, players: Player):
+    def report_draw(self, players: list[Player]):
         Log.log('Reporting draw for players: {}.'.format(
             ', '.join([p.name for p in players])
         ))
@@ -753,6 +751,12 @@ class PodWidget(QWidget):
                 self,
                 triggered=self.delete_pod
             )) # type: ignore
+        pop_menu.addAction(
+            QAction(
+                'Reset result',
+                self,
+                triggered=self.reset_result
+            )) # type: ignore
 
         # rename_player_action.triggered.connect(self.lva_rename_player)
         pop_menu.exec(self.ui.lw_players.mapToGlobal(position))
@@ -764,7 +768,7 @@ class PodWidget(QWidget):
         if ok:
             self.app.report_win(player)
             #self.deleteLater()
-        context = TournamentContext(self.app.core, self.pod.tour_round, self.app.core.get_standings(self.pod.tour_round))
+        #context = TournamentContext(self.app.core, self.pod.tour_round, self.app.core.get_standings(self.pod.tour_round))
         self.refresh_ui()
 
     def report_draw(self):
@@ -780,9 +784,18 @@ class PodWidget(QWidget):
             'Confirm result'
         )
         if ok:
-            self.app.report_draw(players)
+            self.pod.reset_result()
+            for p in players:
+                self.pod.set_result(p, Player.EResult.DRAW)
             #self.deleteLater()
-        self.refresh_ui()
+            self.app.ui_update_player_list()
+            self.refresh_ui()
+
+    def reset_result(self):
+        if self.pod.result_type != Pod.EResult.PENDING:
+            self.pod.reset_result()
+            self.app.ui_update_player_list()
+            self.refresh_ui()
 
     def bench_players(self):
         players = [
@@ -964,11 +977,7 @@ class TournamentConfigDialog(QDialog):
                 os.path.abspath(TournamentAction.DEFAULT_LOGF))
 
     def apply_choices(self):
-        if self.reset:
-            self.parent().core = Tournament()
-            TournamentAction.LOGF = self.ui.le_log_location.text()
-            TournamentAction.reset()
-
+        TournamentAction.LOGF = self.ui.le_log_location.text()
         self.config = TournamentConfiguration(
             allow_bye = self.cb_allow_bye.isChecked(),
             win_points = self.sb_win.value(),
@@ -980,7 +989,15 @@ class TournamentConfigDialog(QDialog):
             max_byes = self.sb_max_byes.value(),
             auto_export = self.cb_auto_export.isChecked(),
         )
-        self.parent().core.config = self.config
+        if self.reset:
+            t = Tournament(
+                config=self.config,
+            )
+            self.parent().core = t
+            t.initialize_round()
+        else:
+            self.parent().core.config = self.config
+
         self.close()
 
     @staticmethod

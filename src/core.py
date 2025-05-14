@@ -1584,6 +1584,9 @@ class Pod(IPod):
         if player.uid in self._result:
             self._result.remove(player.uid)
 
+    def reset_result(self):
+        self._result.clear()
+
     @property
     def result(self) -> set[Player]:
         return {Player.get(self.tour, x) for x in self._result}
