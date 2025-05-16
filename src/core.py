@@ -1432,6 +1432,8 @@ class Round(IRound):
 
     def sort_pods(self):
         self.pods[:] = sorted(self.pods, key=lambda x: (len(x.players), np.average([p.points for p in x.players])), reverse=True)
+        for i, pod in enumerate(self.pods):
+            pod.id = i
 
     def won(self, players: list[IPlayer|Player]|IPlayer|Player):
         if not isinstance(players, list):
