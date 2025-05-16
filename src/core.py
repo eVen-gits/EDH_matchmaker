@@ -379,7 +379,6 @@ class TournamentAction:
             with open(cls.LOGF, 'wb') as f:
                 pickle.dump(cls.ACTIONS, f)
 
-
     @classmethod
     def load(cls, logdir='logs/default.log'):
         if os.path.exists(logdir):
@@ -416,7 +415,7 @@ class TournamentConfiguration(ITournamentConfiguration):
         self.pod_sizes = kwargs.get('pod_sizes', [4, 3])
         self.allow_bye = kwargs.get('allow_bye', True)
         self.win_points = kwargs.get('win_points', 5)
-        self.bye_points = kwargs.get('bye_points', 2)
+        self.bye_points = kwargs.get('bye_points', 4)
         self.draw_points = kwargs.get('draw_points', 1)
         self.snake_pods = kwargs.get('snake_pods', True)
         self.n_rounds = kwargs.get('n_rounds', 5)
@@ -425,10 +424,15 @@ class TournamentConfiguration(ITournamentConfiguration):
         self.standings_export = kwargs.get('standings_export', StandingsExport())
         self.player_id = kwargs.get('player_id', ID())
         self.global_wr_seats = kwargs.get('global_wr_seats', [
-            0.2553,
-            0.2232,
-            0.1847,
-            0.1428,
+            #0.2553,
+            #0.2232,
+            #0.1847,
+            #0.1428,
+            #New data: all 50+ player events since [2024-09-30;2025-05-05]
+            0.2470,
+            0.1928,
+            0.1672,
+            0.1458,
         ])
 
     @property
@@ -720,8 +724,11 @@ class Tournament(ITournament):
                 draw = result > np.cumsum(rates)[-2]
                 if not draw:
                     win = np.argmax([result < x for x in rates])
-                    Log.log('won "{}"'.format(pod.players[win].name))
-                    self.round.won([pod.players[win]])
+                    try:
+                        Log.log('won "{}"'.format(pod.players[win].name))
+                        self.round.won([pod.players[win]])
+                    except Exception as e:
+                        Log.log('Error reporting win: {}'.format(e), level=Log.Level.ERROR)
                     #player = random.sample(pod.players, 1)[0]
                     #Log.log('won "{}"'.format(player.name))
                     #self.round.won([player])

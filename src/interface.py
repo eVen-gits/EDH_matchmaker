@@ -32,6 +32,7 @@ class IPlayer:
         self.byes: int
         self.wins: int
 
+
 class ITournament:
     def __init__(self, config: ITournamentConfiguration | None = None):
         self.players: list[IPlayer] = list()
@@ -44,6 +45,7 @@ class ITournament:
     @property
     def TC(self) -> ITournamentConfiguration:
         raise NotImplementedError()
+
 
 class IPod:
     class EResult(IntEnum):
@@ -73,6 +75,7 @@ class IPod:
     def __len__(self):
         return len(self.players)
 
+
 class IRound:
     def __init__(self):
         self.seq:int = -1
@@ -82,9 +85,11 @@ class IRound:
         self.pods: list[IPod] = list()
         self.concluded: bool|datetime = False
 
+
 class IPairingLogic:
     def make_pairings(self, players: Sequence[IPlayer], pods:Sequence[IPod]) -> Sequence[IPlayer]:
         raise NotImplementedError('PairingLogic.make_pairings not implemented - use subclass')
+
 
 class ITournamentConfiguration:
     def __init__(self, **kwargs):
