@@ -28,7 +28,7 @@ import threading
 load_dotenv()
 
 import sys
-#sys.setrecursionlimit(5000)  # Increase recursion limit
+sys.setrecursionlimit(5000)  # Increase recursion limit
 
 class DataExport:
     class Format(Enum):
