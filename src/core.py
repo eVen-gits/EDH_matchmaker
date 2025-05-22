@@ -114,6 +114,10 @@ class StandingsExport(DataExport):
         GAMES = 10  # Number of games played
         SEAT_HISTORY = 11  # Seat record
         AVG_SEAT = 12  # Average seat
+        VICTORY_POINTS = 13  # Number of victory points
+        VICTORY_POINTS_PERCENTAGE = 14  # Victory points percentage
+        N_SECOND_FINISHES = 15  # Number of second finishes
+        N_THIRD_FINISHES = 16  # Number of third finishes
 
     info = {
         Field.STANDING: Json2Obj({
@@ -207,8 +211,35 @@ class StandingsExport(DataExport):
             'description': 'Player\'s record',
             'getter': lambda p: Player.fmt_record(p.record)
         }),
+        Field.VICTORY_POINTS: Json2Obj({
+            'name': 'v. p.',
+            'format': '{:d}',
+            'denom': None,
+            'description': 'Number of victory points',
+            'getter': lambda p: p.victory_points
+        }),
+        Field.VICTORY_POINTS_PERCENTAGE: Json2Obj({
+            'name': 'v. p. %',
+            'format': '{:.2f}%',
+            'denom': 100,
+            'description': 'Victory points percentage',
+            'getter': lambda p: p.victory_points_percentage
+        }),
+        Field.N_SECOND_FINISHES: Json2Obj({
+            'name': 'Times #2',
+            'format': '{:d}',
+            'denom': None,
+            'description': 'Number of second finishes',
+            'getter': lambda p: p.n_second_finishes
+        }),
+        Field.N_THIRD_FINISHES: Json2Obj({
+            'name': 'Times #3',
+            'format': '{:d}',
+            'denom': None,
+            'description': 'Number of third finishes',
+            'getter': lambda p: p.n_third_finishes
+        }),
     }
-
     ext = {
         DataExport.Format.DISCORD: '.txt',
         DataExport.Format.PLAIN: '.txt',
@@ -220,10 +251,14 @@ class StandingsExport(DataExport):
         Field.NAME,
         Field.POINTS,
         Field.RECORD,
+        Field.VICTORY_POINTS,
+        Field.VICTORY_POINTS_PERCENTAGE,
+        Field.N_SECOND_FINISHES,
+        Field.N_THIRD_FINISHES,
         Field.OPP_WINRATE,
-        Field.OPP_BEATEN,
+        #Field.OPP_BEATEN,
         Field.SEAT_HISTORY,
-        Field.AVG_SEAT,
+        #Field.AVG_SEAT,
     ]
 
     def __init__(self, fields=None, format: DataExport.Format = DataExport.Format.PLAIN, dir: Union[str, None] = None):
@@ -413,10 +448,10 @@ class TournamentAction:
 class TournamentConfiguration(ITournamentConfiguration):
     def __init__(self, **kwargs):
         self.pod_sizes = kwargs.get('pod_sizes', [4, 3])
-        self.allow_bye = kwargs.get('allow_bye', True)
-        self.win_points = kwargs.get('win_points', 5)
-        self.bye_points = kwargs.get('bye_points', 4)
-        self.draw_points = kwargs.get('draw_points', 1)
+        self.allow_bye = kwargs.get('allow_bye', False)
+        self.win_points = kwargs.get('win_points', 1)
+        self.bye_points = kwargs.get('bye_points', 0)
+        self.draw_points = kwargs.get('draw_points', 0)
         self.snake_pods = kwargs.get('snake_pods', True)
         self.n_rounds = kwargs.get('n_rounds', 5)
         self.max_byes = kwargs.get('max_byes', 2)
@@ -445,9 +480,13 @@ class TournamentConfiguration(ITournamentConfiguration):
 
     @staticmethod
     @override
-    def ranking(x):
+    def ranking(x: Player):
         return (
             x.points,
+            x.victory_points,
+            x.victory_points_percentage,
+            x.n_second_finishes,
+            x.n_third_finishes,
             len(x.games),
             np.round(x.opponent_winrate, 10),
             len(x.players_beaten),
@@ -702,6 +741,11 @@ class Tournament(ITournament):
             self.round.draw(players)
 
     @TournamentAction.action
+    def report_result(self, pod: Pod, scores: list[tuple[Player|None, int]]):
+        if self.round:
+            self.round.report_result(pod, scores)
+
+    @TournamentAction.action
     def random_results(self):
         if not self.round:
             Log.log(
@@ -710,16 +754,24 @@ class Tournament(ITournament):
             )
             return
         if self.round.pods:
-            draw_rate = 1-sum(self.TC.global_wr_seats)
-            #for each pod
-            #generate a random result based on global_winrates_by_seat
-            #each value corresponds to the winrate of the player in that seat
-            #the sum of percentages is less than 1, so there is a chance of a draw (1-sum(winrates))
-
             for pod in [x for x in self.round.pods if not x.done]:
                 #generate a random result
-                result = random.random()
-                rates = np.array(self.TC.global_wr_seats[0:len(pod.players)] + [draw_rate])
+                #select a random player and assign them 10 points
+                #then award a random number of points between 0 and 9 to remaining players
+                result = [0] * len(pod.players)
+                result[random.randint(0, len(pod.players) - 1)] = 10
+                for i in range(len(pod.players)):
+                    if result[i] == 0:
+                        result[i] = random.randint(0, 9)
+                scores = [
+                    (pod.players[i], result[i])
+                    for i in range(len(pod.players))
+                ]
+                self.round.report_result(pod, scores)
+
+
+
+                '''rates = np.array(self.TC.global_wr_seats[0:len(pod.players)] + [draw_rate])
                 rates = rates/sum(rates)
                 draw = result > np.cumsum(rates)[-2]
                 if not draw:
@@ -738,7 +790,7 @@ class Tournament(ITournament):
                     players = pod.players
                     Log.log('draw {}'.format(
                         ' '.join(['"{}"'.format(p.name) for p in players])))
-                    self.round.draw([p for p in players])
+                    self.round.draw([p for p in players])'''
         pass
 
     @TournamentAction.action
@@ -1065,50 +1117,74 @@ class Player(IPlayer):
         return len([p for p in self.games if p.winner is self])
 
     @property
-    def record(self) -> list[Player.EResult]:
-        #total_rounds = len(self.tour.rounds) + (1 if self.tour.round else 0)
-        seq = list()
-        for _, pod in enumerate(self.pods + ([self.pod] if self.tour.round else [])):
-            if pod == Player.EResult.BYE:
-                seq.append(Player.EResult.BYE)
-            elif pod is None:
-                if self.result == Player.EResult.LOSS:
-                    seq.append(Player.EResult.LOSS)
+    def record(self) -> list[int|None]:
+        record = []
+        for pod in self.pods:
+            if isinstance(pod, Pod):
+                if pod.result:
+                    index = pod.players.index(self)
+                    score = pod.result[index]
+                    record.append(score)
                 else:
-                    seq.append(Player.EResult.BYE)
-            elif isinstance(pod, Pod):
-                if pod.done:
-                    if pod.winner is not None:
-                        if pod.winner is self:
-                            seq.append(Player.EResult.WIN)
-                        else:
-                            seq.append(Player.EResult.LOSS)
-                    else:
-                        if self in pod.draw:
-                            seq.append(Player.EResult.DRAW)
-                        else:
-                            seq.append(Player.EResult.LOSS)
-                else:
-                    seq.append(Player.EResult.PENDING)
+                    record.append(None)
+        return record
 
-        '''record_sequence = ''.join(seq)
-        return ('{} ({}/{}/{})'.format(
-            record_sequence.ljust(total_rounds),
-            record_sequence.count('W') + record_sequence.count('B'),
-            record_sequence.count('L'),
-            record_sequence.count('D'),
-        ))'''
-        return seq
+    @property
+    def victory_points(self) -> int:
+        total = 0
+        for pod in self.pods:
+            if isinstance(pod, Pod):
+                if pod.result:
+                    total += pod.result[pod.players.index(self)]
+        return total
+
+
+
+    @property
+    def victory_points_percentage(self) -> float:
+        total = 0
+        for pod in self.pods:
+            if isinstance(pod, Pod):
+                if pod.result:
+                    pod_sum = sum(pod.result)
+                    if len(pod.result) < 4:
+                        dummy_score = int(round(sum(pod.result)/len(pod.result), 0))
+                        pod_sum += dummy_score
+                    if pod_sum > 0:
+                        total += pod.result[pod.players.index(self)]/pod_sum
+        return total
+
+    @property
+    def n_second_finishes(self) -> int:
+        total = 0
+        for pod in self.pods:
+            if isinstance(pod, Pod):
+                if pod.result:
+                    index = pod.players.index(self)
+                    score = pod.result[index]
+                    score_index = np.argsort(pod.result)[-2]
+                    if score_index == index:
+                        total += 1
+        return total
+
+    @property
+    def n_third_finishes(self) -> int:
+        total = 0
+        for pod in self.pods:
+            if isinstance(pod, Pod):
+                if pod.result:
+                    index = pod.players.index(self)
+                    score = pod.result[index]
+                    score_index = np.argsort(pod.result)[-3]
+                    if score_index == index:
+                        total += 1
+        return total
+
+
 
     @staticmethod
-    def fmt_record(record:list[IPlayer.EResult]) -> str:
-        return ''.join([{
-            Player.EResult.WIN: 'W',
-            Player.EResult.LOSS: 'L',
-            Player.EResult.DRAW: 'D',
-            Player.EResult.BYE: 'B',
-            Player.EResult.PENDING: '_',
-        }[r] for r in record])
+    def fmt_record(record:list[int|None]) -> str:
+        return ','.join([f'{r}'.rjust(2) if r else '__' for r in record])
 
     @property
     def seat_history(self) -> str:
@@ -1247,15 +1323,19 @@ class Pod(IPod):
         self.players: list[Player] = list()
         #self._players: list[UUID] = list() #TODO: make references to players
         self.round: Round = round
-        self.result: None|Player|IPlayer|Sequence[IPlayer|Player] = None
-        self.winner: None|Player = None
-        self.draw: list[Player] = list()
+        self.result: None|list[int] = None
         self.discord_message_id: None|int = None
 
     #@property
     #def players(self) -> list[Player]:
     #    x = [Player.get(ID, self.round.tour) for ID in self._players]
     #    return x
+
+    @property
+    def winner(self) -> Player|None:
+        if self.result:
+            return self.players[self.result.index(max(self.result))]
+        return None
 
     @override
     def add_player(self, player: Player, manual=False) -> bool:
@@ -1352,7 +1432,7 @@ class Pod(IPod):
                     '[{}] {}\t'.format(
                         ' ' if not self.done else
                         'W' if p == self.winner else
-                        'D' if p in self.draw else
+                        #'D' if p in self.draw else
                         'L',
                         p.__repr__(['-s', str(maxlen), '-p']))
                     for _, p in
@@ -1435,38 +1515,18 @@ class Round(IRound):
         for i, pod in enumerate(self.pods):
             pod.id = i
 
-    def won(self, players: list[IPlayer|Player]|IPlayer|Player):
-        if not isinstance(players, list):
-            players = [players]
-        for player in players:
-            pod = player.pod
-
-            if not player or not pod:
-                Log.log('Player {} not found in any pod'.format(
-                    player.name), Log.Level.WARNING)
-                continue
-
+    def report_result(self, pod: Pod, scores: list[tuple[Player, int]]):
+        if not self.done:
             if not pod.done:
-                player.points = player.points + self.tour.TC.win_points
+                winner, pts = max(scores, key=lambda x: x[1])
+                for player, score in scores:
+                    if player == winner:
+                        player.points = player.points + self.tour.TC.win_points
 
-                pod.winner = player
+                pod.result = [score for _, score in scores]
                 pod.done = True
-
             if self.done:
                 self.conclude()
-
-    def draw(self, players: list[Player]|Player):
-        if not isinstance(players, list):
-            players = [players]
-        for player in players:
-            if player.pod is not None:
-                player.points = player.points + self.tour.TC.draw_points
-
-                player.pod.draw.append(player)
-                player.pod.done = True
-
-        if self.done and not self.concluded:
-            self.conclude()
 
     def conclude(self):
         for pod in self.pods:

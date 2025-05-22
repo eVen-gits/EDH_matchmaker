@@ -58,8 +58,8 @@ class IPod:
         self.players: list[IPlayer] = list()
         self.cap: int = 0
         self.done: bool = False
-        self.winner: None|IPlayer = None
-
+        self.result: None|list[int] = None
+        
     @abstractmethod
     def sort(self):
         pass

@@ -646,13 +646,8 @@ class PodWidget(QWidget):
         n_selected = len(selected_pod_players)
 
         # Check if it is on the item when you right-click, if it is not, delete and modify will not be displayed.
-        if self.ui.lw_players.itemAt(position):
-            if n_selected == 1:
-                pop_menu.addAction(
-                    QAction('Report win', self, triggered=self.report_win))
-            else:
-                pop_menu.addAction(
-                    QAction('Report draw', self, triggered=self.report_draw))
+        pop_menu.addAction(QAction('Report result', self, triggered=self.report_result))
+
 
         move_pod = QMenu('Move to pod')
         pop_menu.addMenu(move_pod)
@@ -691,28 +686,11 @@ class PodWidget(QWidget):
         # rename_player_action.triggered.connect(self.lva_rename_player)
         pop_menu.exec(self.ui.lw_players.mapToGlobal(position))
 
-    def report_win(self):
-        player = self.lw_players.currentItem().data(Qt.ItemDataRole.UserRole)
-        ok = self.app.confirm('Report player {} won?'.format(
-            player.name), 'Confirm result')
-        if ok:
-            self.app.report_win(player)
-            self.deleteLater()
-
-    def report_draw(self):
-        players = [
-            item.data(Qt.ItemDataRole.UserRole)
-            for item
-            in self.lw_players.selectedItems()
-        ]
-        ok = self.app.confirm(
-            'Report draw for players:\n\n{}'.format(
-                '\n'.join([p.name for p in players])
-            ),
-            'Confirm result'
-        )
-        if ok:
-            self.app.report_draw(players)
+    def report_result(self):
+        result = CatanResultsDialog.show_dialog(self.pod, parent=self)
+        if result:
+            pod, scores = result
+            self.app.core.report_result(pod, scores)
             self.deleteLater()
 
     def bench_players(self):
@@ -924,6 +902,63 @@ class TournamentConfigDialog(QDialog):
         dlg.reset = False
         dlg.show()
         result = dlg.exec()
+
+
+class CatanResultsDialog(QDialog):
+    def __init__(self, pod: Pod, parent=None):
+        QDialog.__init__(self, parent)
+        self.ui = uic.loadUi('./ui/CatanResultsDialog.ui', self)
+        self.pod = pod
+
+        self.labels = [self.ui.lbl_p1, self.ui.lbl_p2, self.ui.lbl_p3, self.ui.lbl_p4]
+        self.values = [self.ui.sb_p1, self.ui.sb_p2, self.ui.sb_p3, self.ui.sb_p4]
+
+        self.restore_ui()
+
+    def restore_ui(self):
+        self.ui.pb_report.clicked.connect(self.accept)
+        self.ui.pb_cancel.clicked.connect(self.reject)
+        self.ui.pb_report.setEnabled(False)
+
+        for i, value in enumerate(self.values):
+            value.valueChanged.connect(self.check_values)
+
+        for i, label in enumerate(self.labels):
+            if i < len(self.pod.players):
+                label.setText(self.pod.players[i].name)
+            else:
+                label.setText('Dummy')
+                self.values[i].setEnabled(False)
+
+    def check_values(self):
+        if any(value.value() == 10 for value in self.values):
+            self.ui.pb_report.setEnabled(True)
+        else:
+            self.ui.pb_report.setEnabled(False)
+        if len(self.pod.players) < 4:
+            average = sum([value.value() for value in self.values[0:3]])/3
+            #round 0.4 down and 0.5 up
+            average = int(average * 10) / 10
+            if average % 1 >= 0.5:
+                average = int(average) + 1
+            else:
+                average = int(average)
+            #print(f"{sum([value.value() for value in self.values[0:3]])/3} -> {average}")
+
+            self.ui.sb_p4.setValue(average)
+
+    @staticmethod
+    def show_dialog(pod: Pod, parent=None) -> None|tuple[Pod, list[tuple[Player, int]]]:
+        dlg = CatanResultsDialog(pod, parent)
+        dlg.show()
+        result = dlg.exec()
+        if result == 1:
+            results = [
+                (player, dlg.values[i].value())
+                for i, player in enumerate(dlg.pod.players)
+            ]
+            return dlg.pod, results
+        return None
 
 
 class ExportStandingsDialog(QDialog):
