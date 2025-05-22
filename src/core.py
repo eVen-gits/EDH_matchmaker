@@ -1180,11 +1180,9 @@ class Player(IPlayer):
                         total += 1
         return total
 
-
-
     @staticmethod
     def fmt_record(record:list[int|None]) -> str:
-        return ','.join([f'{r}'.rjust(2) if r else '__' for r in record])
+        return ','.join([f'{r}'.rjust(2) if r is not None else '__' for r in record])
 
     @property
     def seat_history(self) -> str:
