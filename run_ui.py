@@ -191,7 +191,7 @@ class MainWindow(QMainWindow):
 
         self.ui.actionNew_tour.triggered.connect(self.new_tour)
         self.ui.actionTour_config.triggered.connect(self.edit_tour)
-        self.ui.actionLoad_state.triggered.connect(self.load_state)
+        self.ui.actionSelect_Round.triggered.connect(self.select_round)
         self.ui.actionLoad_tour.triggered.connect(self.load_tour)
         self.ui.actionSave_As.triggered.connect(self.save_as)
 
@@ -293,11 +293,11 @@ class MainWindow(QMainWindow):
                 userData=tup
             )
 
-    def load_state(self):
-        state = LogLoaderDialog.show_dialog(self)
-        if state:
-            self.core = Tournament.inflate(state)
-        self.restore_ui()
+    def select_round(self):
+        selected_round = RoundSelectWidget.show_dialog(self)
+        if selected_round:
+            self.core.tour_round = selected_round
+            self.restore_ui()
 
     #def undo(self):
     #    self.core = TournamentAction.ACTIONS[-1].before
@@ -828,50 +828,33 @@ class PodWidget(QWidget):
             self.app.toggle_game_loss(players)
 
 
-class LogLoaderDialog(QDialog):
-    def __init__(self, parent=None):
+class RoundSelectWidget(QDialog):
+    def __init__(self, core: Tournament, parent=None):
         QDialog.__init__(self, parent)
 
-        self.ui = uic.loadUi('./ui/LogLoader.ui', self)
+        self.core = core
+
+        self.ui = uic.loadUi('./ui/RoundSelectWidget.ui', self)
+        assert self.ui is not None
         self.restore_ui()
 
-        self.pb_load_before.clicked.connect(lambda: self.load(True))
-        self.pb_load_after.clicked.connect(lambda: self.load(False))
-        self.pb_cancel.clicked.connect(lambda: self.done(1))
-
-        self.action = None
-
     def restore_ui(self):
-        self.lw_actions.clear()
-        for action in TournamentAction.ACTIONS:
-            item = QListWidgetItem('[{}] {}({}{})'.format(
-                action.time.strftime('%H:%M'),
-                action.func_name,
-                ', '.join([str(arg) for arg in action.nargs]),
-                ', '.join(['{}={}'.format(
-                    key, val
-                ) for key, val
-                    in action.kwargs.items()
-                ])
-            ))
-            item.setData(Qt.ItemDataRole.UserRole, action)
-            self.lw_actions.addItem(item)
+        for tour_round in self.core.rounds:
+            item = QListWidgetItem(f'Round {tour_round.seq}')
+            item.setData(Qt.ItemDataRole.UserRole, tour_round)
+            self.ui.lw_rounds.addItem(item)
 
-    def load(self, before):
-        action = self.lw_actions.currentItem().data(Qt.ItemDataRole.UserRole)
-        if before:
-            self.action = action.before
-        else:
-            self.action = action.after
-        self.done(0)
+        self.ui.pb_confirm.clicked.connect(lambda: self.done(QDialog.DialogCode.Accepted))
+        self.ui.pb_cancel.clicked.connect(lambda: self.done(QDialog.DialogCode.Rejected))
 
     @staticmethod
     def show_dialog(parent=None):
-        dlg = LogLoaderDialog(parent=parent)
+        dlg = RoundSelectWidget(parent.core)
         dlg.show()
         result = dlg.exec()
-        if result == 0:
-            return dlg.action
+        if result:
+            selected_round = dlg.ui.lw_rounds.currentItem().data(Qt.ItemDataRole.UserRole)
+            return selected_round
         return None
 
 
@@ -894,6 +877,28 @@ class TournamentConfigDialog(QDialog):
         self.ui.lw_pod_sizes.itemChanged.connect(self.check_pod_sizes)
 
         self.restore_ui()
+
+    def restore_ui(self):
+        # Load current pod sizes
+        for psize in self.core.config.pod_sizes:
+            self.create_psize_widget(psize)
+        # Load and set bye option
+        self.cb_allow_bye.setChecked(self.core.config.allow_bye)
+        self.check_pod_sizes()
+        # Load and set scoring
+        self.sb_win.setValue(self.core.config.win_points)
+        self.sb_draw.setValue(self.core.config.draw_points)
+        self.sb_bye.setValue(self.core.config.bye_points)
+        self.sb_nRounds.setValue(self.core.config.n_rounds)
+        self.cb_snakePods.setChecked(self.core.config.snake_pods)
+        self.sb_max_byes.setValue(self.core.config.max_byes)
+        self.ui.cb_auto_export.setChecked(self.core.config.auto_export)
+
+        if TournamentAction.LOGF:
+            self.ui.le_log_location.setText(TournamentAction.LOGF)
+        else:
+            self.ui.le_log_location.setText(
+                os.path.abspath(TournamentAction.DEFAULT_LOGF))
 
     def check_pod_sizes(self):
         items = [
@@ -953,28 +958,6 @@ class TournamentConfigDialog(QDialog):
             if not file.endswith(ext.replace('*', '')):
                 file = ext.replace('*', '{}').format(file)
             self.ui.le_log_location.setText(file)
-
-    def restore_ui(self):
-        # Load current pod sizes
-        for psize in self.core.config.pod_sizes:
-            self.create_psize_widget(psize)
-        # Load and set bye option
-        self.cb_allow_bye.setChecked(self.core.config.allow_bye)
-        self.check_pod_sizes()
-        # Load and set scoring
-        self.sb_win.setValue(self.core.config.win_points)
-        self.sb_draw.setValue(self.core.config.draw_points)
-        self.sb_bye.setValue(self.core.config.bye_points)
-        self.sb_nRounds.setValue(self.core.config.n_rounds)
-        self.cb_snakePods.setChecked(self.core.config.snake_pods)
-        self.sb_max_byes.setValue(self.core.config.max_byes)
-        self.ui.cb_auto_export.setChecked(self.core.config.auto_export)
-
-        if TournamentAction.LOGF:
-            self.ui.le_log_location.setText(TournamentAction.LOGF)
-        else:
-            self.ui.le_log_location.setText(
-                os.path.abspath(TournamentAction.DEFAULT_LOGF))
 
     def apply_choices(self):
         TournamentAction.LOGF = self.ui.le_log_location.text()
