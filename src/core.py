@@ -1,5 +1,4 @@
 from __future__ import annotations
-import inspect
 from typing import List, Sequence, Union, Callable, Any
 from typing_extensions import override
 
@@ -7,7 +6,6 @@ import argparse
 import math
 import os
 import random
-from copy import deepcopy
 from datetime import datetime
 from enum import Enum
 
@@ -23,7 +21,9 @@ from dotenv import load_dotenv
 import requests
 import threading
 
-
+import importlib
+import pkgutil
+from pathlib import Path
 
 # Load configuration from .env file
 load_dotenv()
@@ -469,6 +469,7 @@ class TournamentAction:
 
 
 class TournamentConfiguration(ITournamentConfiguration):
+
     def __init__(self, **kwargs):
         self.pod_sizes = kwargs.get('pod_sizes', [4, 3])
         self.allow_bye = kwargs.get('allow_bye', True)
@@ -477,6 +478,7 @@ class TournamentConfiguration(ITournamentConfiguration):
         self.draw_points = kwargs.get('draw_points', 1)
         self.snake_pods = kwargs.get('snake_pods', True)
         self.n_rounds = kwargs.get('n_rounds', 5)
+        self.top_cut = kwargs.get('top_cut', 0) #TODO: Implement top cut
         self.max_byes = kwargs.get('max_byes', 2)
         self.auto_export = kwargs.get('auto_export', True)
         self.standings_export = kwargs.get('standings_export', StandingsExport())
@@ -554,7 +556,6 @@ class Tournament(ITournament):
     # then ID - this last one is to ensure deterministic sorting in case of equal values (start of tournament for example)
     CACHE: dict[UUID, Tournament] = {}
 
-
     _pairing_logic_cache: dict[str, type[IPairingLogic]] = {}
 
     @classmethod
@@ -563,10 +564,7 @@ class Tournament(ITournament):
         if cls._pairing_logic_cache:
             return
 
-        import importlib
-        import pkgutil
-        import os
-        from pathlib import Path
+
 
         # Get the base directory of the project
         base_dir = Path(__file__).parent.parent
@@ -624,7 +622,6 @@ class Tournament(ITournament):
     # TOURNAMENT ACTIONS
     # IMPORTANT: No nested tournament actions
 
-    @override
     @classmethod
     def get(cls, uid: UUID) -> Tournament:
         return cls.CACHE[uid]
@@ -648,6 +645,10 @@ class Tournament(ITournament):
     @tour_round.setter
     def tour_round(self, tour_round: Round):
         self._round = tour_round.uid
+
+    @property
+    def last_round(self) -> Round|None:
+        return self.rounds[-1] if self.rounds else None
 
     @property
     def pods(self) -> list[Pod]|None:
@@ -820,7 +821,7 @@ class Tournament(ITournament):
 
     @TournamentAction.action
     def new_round(self) -> bool:
-        if not self.tour_round or self.tour_round.done:
+        if not self.last_round or self.last_round.done:
             return self.initialize_round()
         return False
 
@@ -1177,7 +1178,6 @@ class Player(IPlayer):
     #ACTIONS
     def set_result(self, tour_round: Round, result: Player.EResult) -> None:
         tour_round.set_result(self, result)
-
 
     #QUERIES
 
