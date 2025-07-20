@@ -9,6 +9,8 @@ import random
 import sys
 import numpy as np
 from ..core import timeit
+
+
 class CommonPairing(IPairingLogic):
     def __init__(self, name: str):
         super().__init__(name)
@@ -36,8 +38,8 @@ class CommonPairing(IPairingLogic):
     def bye_matching(self, player: IPlayer, tour_round: IRound) -> tuple:
         return (
             -len(player.games(tour_round)),
-            -len(player.played(tour_round)),
             player.rating(tour_round),
+            -len(player.played(tour_round)),
             player.opponent_pointrate(tour_round)
         )
 
@@ -56,6 +58,9 @@ class CommonPairing(IPairingLogic):
             ]
             for k in keys
         ]
+
+        for i, k in enumerate(keys):
+            print(f'{[f"{ik:.2f}" for ik in k]}: {buckets[i]}')
         byes = []
         for b in buckets[::-1]:
             byes += random.sample(b, min(len(b), n_byes))
@@ -64,6 +69,8 @@ class CommonPairing(IPairingLogic):
 
         for p in byes:
             p.set_result(tour_round, IPlayer.EResult.BYE)
+            print(f'{p.name} bye')
+        print()
         return byes
 
 class PairingRandom(CommonPairing):

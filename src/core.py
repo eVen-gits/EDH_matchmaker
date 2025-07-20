@@ -809,13 +809,13 @@ class Tournament(ITournament):
 
     @TournamentAction.action
     def create_pairings(self) -> bool:
-        if self.tour_round.done:
+        if self.last_round.done:
             ok = self.initialize_round()
             if not ok:
                 return False
-        self.tour_round._byes.clear()
-        if not self.tour_round.all_players_assigned:
-            self.tour_round.create_pairings()
+        #self.last_round._byes.clear()
+        if not self.last_round.all_players_assigned:
+            self.last_round.create_pairings()
             return True
         return False
 
@@ -944,6 +944,18 @@ class Tournament(ITournament):
                 #    player.name), level=Log.Level.INFO)
 
     @TournamentAction.action
+    def toggle_bye(self, players: list[Player]|Player):
+        if not isinstance(players, list):
+            players = [players]
+        for player in players:
+            if player.uid in self.tour_round._byes:
+                self.tour_round._byes.remove(player.uid)
+            else:
+                if player.pod(self.tour_round) is not None:
+                    self.remove_player_from_pod(player)
+                self.tour_round.set_result(player, Player.EResult.BYE)
+
+    @TournamentAction.action
     def delete_pod(self, pod: Pod):
         if self.tour_round:
             self.tour_round.remove_pod(pod)
@@ -953,8 +965,8 @@ class Tournament(ITournament):
         pod = player.pod(self.tour_round)
         if pod:
             pod.remove_player(player)
-            if player.uid not in self.tour_round._game_loss:
-                self.tour_round.set_result(player, Player.EResult.BYE)
+            #if player.uid not in self.tour_round._game_loss:
+            #    self.tour_round.set_result(player, Player.EResult.BYE)
             #Log.log('Removed player {} from {}.'.format(
             #    player.name, pod.name), level=Log.Level.INFO)
 
@@ -988,7 +1000,6 @@ class Tournament(ITournament):
             ])
         return export_str
 
-    @timeit
     def get_standings(self, tour_round:Round|None=None) -> list[Player]:
         method = Player.SORT_METHOD
         order = Player.SORT_ORDER
@@ -1512,16 +1523,19 @@ class Player(IPlayer):
         if args.pod and len(tour_round.pods) > 0:
             max_pod_id = max([len(str(p.table)) for p in tour_round.pods])
             pod = self.pod(tour_round)
+            player_result = self.result(self.tour.tour_round)
             if self in self.tour.dropped:
                 fields.append('Drop'.ljust(max_pod_id+4))
             elif pod:
                 #find number of digits in max pod id
                 fields.append('{}'.format(
                     f'P{str(pod.table).zfill(max_pod_id)}/S{pod.players.index(self)}' if pod else ''))
-            elif self.result(self.tour.tour_round) == Player.EResult.LOSS:
+            elif player_result == Player.EResult.LOSS:
                 fields.append('Loss'.ljust(max_pod_id+4))
-            else:
+            elif player_result == Player.EResult.BYE:
                 fields.append('Bye'.ljust(max_pod_id+4))
+            else:
+                fields.append(''.ljust(max_pod_id+4))
         if args.p:
             fields.append('pts: {}'.format(self.rating(self.tour.tour_round) or '0'))
         if args.w:
@@ -1912,9 +1926,15 @@ class Round(IRound):
     def set_result(self, player: Player, result: IPlayer.EResult) -> None:
         if result == IPlayer.EResult.BYE:
             self._byes.add(player.uid)
-        elif result == IPlayer.EResult.LOSS:
+        else:
+            self._byes.discard(player.uid)
+
+        if result == IPlayer.EResult.LOSS:
             self._game_loss.add(player.uid)
-        elif result == IPlayer.EResult.WIN:
+        else:
+            self._game_loss.discard(player.uid)
+
+        if result == IPlayer.EResult.WIN:
             if pod:=player.pod(self):
                 pod.set_result(player, result)
             else:

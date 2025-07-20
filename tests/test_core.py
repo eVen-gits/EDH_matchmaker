@@ -20,6 +20,7 @@ class TestPlayer(unittest.TestCase):
             with self.subTest(name=name):
                 p = Player(self.t, name)
 
+
 class TestTournamentPodSizing(unittest.TestCase):
 
     def test_correct_pod_sizing_43_nobye(self):
@@ -191,6 +192,65 @@ class TestTournamentPodSizing(unittest.TestCase):
                 self.assertEqual(len(t.tour_round.byes), bench)
                 t.reset_pods()
                 t.add_player(fkr.name())
+
+class TestMatching(unittest.TestCase):
+    def setUp(self) -> None:
+        self.config = TournamentConfiguration(
+            pod_sizes=[4, 3],
+            allow_bye=True,
+            win_points=5,
+            bye_points=4,
+            draw_points=1,
+            auto_export=False,
+            snake_pods=True,
+            max_byes=2,
+        )
+        self.tour_sizes = [
+            9,
+            10, 11, 13, 14, 15, 17, 18, 19, 21, 22, 23
+        ]
+        self.n_rounds = 5
+
+    def test_all_players_assigned(self):
+        for n in self.tour_sizes:
+            t = Tournament(
+                self.config
+            )
+            t.initialize_round()
+            t.add_player([
+                fkr.name()
+                for _ in range(n)
+            ])
+            for i in range(self.n_rounds):
+                t.create_pairings()
+                t.random_results()
+                for p in t.players:
+                    self.assertEqual(len(p.pods(t.tour_round)), i+1)
+
+                t.new_round()
+            self.assertEqual(len(t.players), n)
+            self.assertEqual(len(t.tour_round.byes), 0)
+
+    def test_bye_assignment(self):
+        for n in self.tour_sizes:
+            t = Tournament(self.config)
+            t.initialize_round()
+            t.add_player([
+                fkr.name()
+                for _ in range(n)
+            ])
+            for i in range(self.n_rounds):
+                print(f'{n} {i}')
+                with self.subTest(n=str(n).zfill(2), round=str(i+1).zfill(2)):
+                    n_byes = len(t.tour_round.byes)
+                    self.assertGreaterEqual(n_byes, 0)
+                    min_score = t.get_standings()[-n_byes].rating(t.tour_round)
+                    t.create_pairings()
+                    for p_bye in t.tour_round.byes:
+                        self.assertLessEqual(p_bye.rating(t.tour_round) - t.config.bye_points, min_score)
+                        pass
+                    t.random_results()
+
 
 class TestScoring(unittest.TestCase):
     def setUp(self) -> None:

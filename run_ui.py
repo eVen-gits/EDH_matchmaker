@@ -365,6 +365,11 @@ class MainWindow(QMainWindow):
                 self,
                 triggered=lambda: self.lva_game_loss()
             )) # type: ignore
+            pop_menu.addAction(QAction(
+                'Toggle bye',
+                self,
+                triggered=lambda: self.lva_bye()
+            )) # type: ignore
         pop_menu.exec(self.ui.lv_players.mapToGlobal(position))
 
     def lva_remove_player(self):
@@ -414,12 +419,34 @@ class MainWindow(QMainWindow):
         if ok:
             self.toggle_game_loss(players)
 
+    def lva_bye(self):
+        players = [
+            item.data(Qt.ItemDataRole.UserRole)
+            for item in self.ui.lv_players.selectedItems()
+        ]
+        ok = self.confirm(
+            'Toggle bye for: {}?'.format(
+                ', '.join([p.name for p in players])),
+            'Confirm bye status'
+        )
+        if ok:
+            self.toggle_bye(players)
+
     @UILog.with_status
     def toggle_game_loss(self, players: list[Player]):
         if not isinstance(players, list):
             players = [players]
 
         self.core.toggle_game_loss(players)
+        self.ui_update_player_list()
+        self.ui_update_pods()
+
+    @UILog.with_status
+    def toggle_bye(self, players: list[Player]):
+        if not isinstance(players, list):
+            players = [players]
+
+        self.core.toggle_bye(players)
         self.ui_update_player_list()
         self.ui_update_pods()
 
@@ -738,11 +765,14 @@ class PodWidget(QWidget):
 
         )) # type: ignore
         pop_menu.addAction(QAction(
-            'Toggle game loss'
-            if n_selected == 1
-            else 'Toggle game losses',
+            'Toggle game loss',
             self,
             triggered=self.toggle_game_loss
+        )) # type: ignore
+        pop_menu.addAction(QAction(
+            'Assign bye',
+            self,
+            triggered=self.assign_bye
         )) # type: ignore
         pop_menu.addSeparator()
         pop_menu.addAction(
@@ -827,6 +857,20 @@ class PodWidget(QWidget):
         if ok:
             self.app.toggle_game_loss(players)
 
+    def assign_bye(self):
+        players = [
+            item.data(Qt.ItemDataRole.UserRole)
+            for item
+            in self.lw_players.selectedItems()
+        ]
+        ok = self.app.confirm(
+            'Assign bye for players:\n\n{}'.format(
+                '\n'.join([p.name for p in players])
+            ),
+            'Confirm bye assignment'
+        )
+        if ok:
+            self.app.toggle_bye(players)
 
 class RoundSelectWidget(QDialog):
     def __init__(self, core: Tournament, parent=None):

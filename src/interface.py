@@ -43,7 +43,7 @@ class IPlayer(IHashable):
     def __init__(self):
         super().__init__()
         self.name: str = str()
-        self.rounds: list[IRound] = list()
+        #self.rounds: list[IRound] = list()
         self.tour: ITournament
         #self.location: IPlayer.ELocation = IPlayer.ELocation.UNSEATED
         #self.result: IPlayer.EResult = IPlayer.EResult.PENDING
