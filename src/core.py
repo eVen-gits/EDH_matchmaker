@@ -90,7 +90,8 @@ class PodsExport(DataExport):
                         os.makedirs(os.path.dirname(path))
 
                     self.export_str(export_str, path, DataExport.Target.FILE)
-                    self.export_str(export_str, None, DataExport.Target.WEB)
+                    if os.getenv("EXPORT_ONLINE_API_URL") and os.getenv("EXPORT_ONLINE_API_KEY"):
+                        self.export_str(export_str, None, DataExport.Target.WEB)
 
 
                     path = os.path.join(os.path.dirname(logf), 'pods.txt')
@@ -792,6 +793,9 @@ class Tournament(ITournament):
         if self._round is not None and not self.tour_round.done:
             return False
         seq = len(self.rounds)
+        if seq > self.config.n_rounds:
+            Log.log('Maximum number of rounds reached.', level=Log.Level.WARNING)
+            return False
         if seq == 0:
             logic = self.get_pairing_logic("PairingRandom")
         elif seq == 1 and self.config.snake_pods:
@@ -1105,11 +1109,11 @@ class Tournament(ITournament):
         if StandingsExport.Target.WEB == target_type:
             api = os.getenv("EXPORT_ONLINE_API_URL")
             key = os.getenv("EXPORT_ONLINE_API_KEY")
-            tournament_id = os.getenv("TOURNAMENT_ID")
-            url = f"{api}?tournamentId={tournament_id}"
             if not key or not api:
                 Log.log("Error: EXPORT_ONLINE_API_URL or EXPORT_ONLINE_API_KEY not set in the environment variables.")
                 return
+            tournament_id = os.getenv("TOURNAMENT_ID")
+            url = f"{api}?tournamentId={tournament_id}"
 
             # Send as POST request to the Express app with authentication
             headers = {

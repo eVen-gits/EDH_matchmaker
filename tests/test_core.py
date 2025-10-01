@@ -199,7 +199,7 @@ class TestMatching(unittest.TestCase):
             pod_sizes=[4, 3],
             allow_bye=True,
             win_points=5,
-            bye_points=4,
+            bye_points=999,
             draw_points=1,
             auto_export=False,
             snake_pods=True,
@@ -222,14 +222,15 @@ class TestMatching(unittest.TestCase):
                 for _ in range(n)
             ])
             for i in range(self.n_rounds):
-                t.create_pairings()
-                t.random_results()
-                for p in t.players:
-                    self.assertEqual(len(p.pods(t.tour_round)), i+1)
+                with self.subTest(n=str(n).zfill(2), round=str(i+1).zfill(2)):
+                    t.create_pairings()
+                    t.random_results()
+                    for p in t.players:
+                        self.assertEqual(len(p.pods(t.tour_round)), i+1)
 
-                t.new_round()
-            self.assertEqual(len(t.players), n)
-            self.assertEqual(len(t.tour_round.byes), 0)
+                    self.assertEqual(len(t.players), n)
+                    self.assertEqual(len(t.tour_round.unseated), 0)
+                    t.new_round()
 
     def test_bye_assignment(self):
         for n in self.tour_sizes:
@@ -240,7 +241,6 @@ class TestMatching(unittest.TestCase):
                 for _ in range(n)
             ])
             for i in range(self.n_rounds):
-                print(f'{n} {i}')
                 with self.subTest(n=str(n).zfill(2), round=str(i+1).zfill(2)):
                     n_byes = len(t.tour_round.byes)
                     self.assertGreaterEqual(n_byes, 0)
@@ -249,7 +249,9 @@ class TestMatching(unittest.TestCase):
                     for p_bye in t.tour_round.byes:
                         self.assertLessEqual(p_bye.rating(t.tour_round) - t.config.bye_points, min_score)
                         pass
+                    pass
                     t.random_results()
+                    pass
 
 
 class TestScoring(unittest.TestCase):

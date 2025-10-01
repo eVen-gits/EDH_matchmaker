@@ -872,6 +872,7 @@ class PodWidget(QWidget):
         if ok:
             self.app.toggle_bye(players)
 
+
 class RoundSelectWidget(QDialog):
     def __init__(self, core: Tournament, parent=None):
         QDialog.__init__(self, parent)
