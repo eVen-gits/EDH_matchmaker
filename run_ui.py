@@ -815,8 +815,7 @@ class PodWidget(QWidget):
         )
         if ok:
             self.pod.reset_result()
-            for p in players:
-                self.pod.set_result(p, Player.EResult.DRAW)
+            self.app.report_draw(players)
             #self.deleteLater()
             self.app.ui_update_player_list()
             self.refresh_ui()

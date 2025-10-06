@@ -1123,6 +1123,7 @@ class Tournament(ITournament):
                 "title": "Tournament Update",
                 "timestamp": f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
                 "text": data,
+                "tournament": self.serialize(),
             }
 
             thread = threading.Thread(target=self.send_request, args=(url, request_data, headers))
