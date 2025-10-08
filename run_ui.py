@@ -1174,8 +1174,7 @@ if __name__ == '__main__':
     if args.number_of_mock_players:
         fkr = Faker()
         core.add_player([
-            fkr.name()
-            for i in range(args.number_of_mock_players)
+            f"{i}:{fkr.name()}" for i in range(args.number_of_mock_players)
         ])
     if args.snake:
         core.config.snake_pods = True

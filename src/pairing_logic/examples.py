@@ -39,8 +39,7 @@ class CommonPairing(IPairingLogic):
         return (
             -len(player.games(tour_round)),
             player.rating(tour_round),
-            -len(player.played(tour_round)),
-            player.opponent_pointrate(tour_round)
+            -len(player.played(tour_round))
         )
 
     def assign_byes(self, tour_round: IRound, players: Sequence[IPlayer], pods: Sequence[IPod]) -> list[IPlayer]:
@@ -61,7 +60,7 @@ class CommonPairing(IPairingLogic):
 
         byes = []
         for b in buckets[::-1]:
-            byes += random.sample(b, min(len(b), n_byes))
+            byes += random.sample(b, min(len(b), n_byes-len(byes)))
             if len(byes) >= n_byes:
                 break
         pass
@@ -247,7 +246,6 @@ class PairingDefault(CommonPairing):
         )
 
     @override
-    @timeit
     def make_pairings(self, tour_round: IRound, players: Sequence[IPlayer], pods: Sequence[IPod]) -> Sequence[IPlayer]:
         #matching = lambda x: (
         #    -len(x.games(tour_round)),

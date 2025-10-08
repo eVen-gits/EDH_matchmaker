@@ -15,7 +15,7 @@ if __name__ == "__main__":
     )
     fkr = Faker()
     players = [
-        fkr.name() for _ in range(17)
+        f"{i}:{fkr.name()}" for i in range(17)
     ]
     t.add_player(players)
     for i in tqdm(range(5)):
