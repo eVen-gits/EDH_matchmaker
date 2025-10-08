@@ -1343,7 +1343,8 @@ class Player(IPlayer):
             seat 1: 50%
             seat 2: 0%
 
-        Lower percentage means higher benefits.
+        Higher percentage means better seats, statistically.
+        In subsequent matching attempts, these will get lower priority on early seats.
 
         We are now using a weighted average of all the pods the player has been in.
         Weights are based on TC.global_wr_seats
@@ -1889,11 +1890,24 @@ class Round(IRound):
 
         }
         for pod in self.pods:
-            data[pod] = {
-                p: p.played(prev_round)
-                for p in pod.players
-            }
-
+            #data[pod] = {
+            #    sum(
+            #        sum([
+            #            0.5
+            #            for p2 in pod.players
+            #            if p2 in p1.played(prev_round)
+            #        ])
+            #    for p1 in pod.players)
+            #}
+            data[pod] = {}
+            for p1 in pod.players:
+                data[pod][p1] = set()
+                for p2 in pod.players:
+                    if p1 == p2:
+                        continue
+                    if p2 in p1.played(prev_round):
+                        data[pod][p1].add(p2)
+        pass
 
         return data
 

@@ -5,6 +5,8 @@ import random
 from tqdm import tqdm
 from faker import Faker
 import time
+from itertools import product
+
 fkr = Faker()
 
 TournamentAction.LOGF = False #type: ignore
@@ -261,26 +263,94 @@ class TestMatching(unittest.TestCase):
                     t.random_results()
                     pass
 
-    '''def test_snake_no_repeat_matching(self):
-        for n in self.tour_sizes:
-            with self.subTest(n=str(n).zfill(2)):
-                for i in range(100):
+    def test_snake_no_repeat_matching(self):
+        tour_sizes = [
+            16,
+            #15, 16,
+            #32, 64, 128, 256, 512, 1024
+        ]
+        tested = []
+        for n_players in tour_sizes:
+            with self.subTest(n_players=n_players):
+                player_names = [
+                    f"{str(i).zfill(2)}"
+                    for i in range(n_players)
+                ]
+
+                #We can discard tests where players are awarded bye to reduce complexity
+                t = Tournament(self.config)
+                pod_sizes = t.get_pod_sizes(n_players) or []
+                n_pods = len(pod_sizes)
+                total_capacity = sum(pod_sizes)
+                if total_capacity in tested:
+                    continue
+                tested.append(total_capacity)
+
+                #r1_result_table = [
+                #    [
+                #        bool(i & (1 << (n_players - 1 - j)))
+                #        for j in range(1, pod_sizes[i])
+                #    ]
+                #    for i in range(n_pods)
+                #]
+
+                r1_results_table = [
+                    [
+                        [(j >> k) & 1 == 1 for k in range(pod_sizes[i])]
+                        for j in range(1, 2**pod_sizes[i])
+                    ] #todo
+                    for i in range(n_pods)
+                ]
+
+                #above represents possible results for each pod
+                #now create a table that has all possible combinations of results for all pods from above
+
+                # Generate all possible combinations using itertools.product
+
+                # Each outcome is a tuple where outcome[i] is the result for pod i
+                # For example, if you have 2 pods with 2 players each:
+                # - Pod 0 has 3 possible results: [[True, False], [False, True], [True, True]]
+                # - Pod 1 has 3 possible results: [[True, False], [False, True], [True, True]]
+                # - all_possible_outcomes will have 3*3 = 9 combinations
+
+                # Create all possible combinations of results across all pods
+                all_possible_outcomes = list(product(*r1_results_table))
+
+                for result in all_possible_outcomes:
+
                     t = Tournament(self.config)
                     t.initialize_round()
-                    t.add_player([
-                        fkr.name()
-                        for _ in range(n)
-                    ])
+                    t.add_player(player_names)
 
-                    t.create_pairings()
-                    t.random_results()
-                    t.create_pairings()
+                    t.tour_round.create_pods()
+                    pod_idx = 0
+                    for player in t.players:
 
+                        if t.tour_round.pods[pod_idx].cap == len(t.tour_round.pods[pod_idx].players):
+                            pod_idx += 1
+                            if pod_idx >= len(t.tour_round.pods):
+                                raise ValueError('Pod index out of range')
+
+                        t.tour_round.pods[pod_idx].add_player(player)
+
+                    #results are bits - for each seat of 4 bits
+                    #set the result of a pod based on the bits
+                    result_counter = 0
+                    for i, pod in enumerate(t.tour_round.pods):
+                        single_result = result[i].count(True) == 1
+                        for j, player in enumerate(pod.players):
+                            if result[i][j]:
+                                pod.set_result(player, Player.EResult.WIN if single_result else Player.EResult.DRAW)
+                        pass
+                    #Snake pods round
+                    t.create_pairings()
                     repeat_pairings = t.tour_round.repeat_pairings()
+
+                    #TODO: Actually figure out what is the minimal amount of repeat pairings
                     self.assertEqual(len(repeat_pairings), 0)
                     pass
                     t.new_round()
-                    pass'''
+                    pass
 
 
 class TestScoring(unittest.TestCase):
