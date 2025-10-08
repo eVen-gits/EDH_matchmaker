@@ -992,8 +992,9 @@ class Tournament(ITournament):
     def get_pods_str(self) -> str:
         if not self.tour_round:
             return ''
+        standings = self.get_standings(self.tour_round)
         export_str = '\n\n'.join([
-            pod.__repr__()
+            pod.__repr__(TournamentContext(self, self.tour_round, standings))
             for pod in self.tour_round.pods
         ])
 
