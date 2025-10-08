@@ -76,7 +76,7 @@ class PodsExport(DataExport):
                             export_str += '\n\nGame losses:\n' + '\n'.join([
                                 "\t{} | pts: {}".format(
                                     p.name.ljust(max_len),
-                                    p.rating(tour_round) or '0'
+                                    p.rating(tour_round)
                                 )
                                 for p in game_lost
                             ])
@@ -159,7 +159,7 @@ class StandingsExport(DataExport):
         return player.opponent_pointrate(context.tour_round)
 
     @staticmethod
-    def _get_rating(player: Player, context: TournamentContext) -> float|None:
+    def _get_rating(player: Player, context: TournamentContext) -> float:
         return player.rating(context.tour_round)
 
     @staticmethod
@@ -1219,9 +1219,9 @@ class Player(IPlayer):
 
         return Player.EResult.PENDING
 
-    def rating(self, tour_round: Round|None) -> float|None:
+    def rating(self, tour_round: Round|None) -> float:
         if tour_round is None:
-            return None
+            return 0
         return self.tour.rating(self, tour_round)
 
     def pods(self, tour_round: Round|None=None) -> list[Pod|Player.ELocation]:
@@ -1257,7 +1257,7 @@ class Player(IPlayer):
     def byes(self, tour_round: Round|None=None):
         if tour_round is None:
             tour_round = self.tour.tour_round
-        return len([p for p in self.pods(tour_round) if p is Player.EResult.BYE])
+        return len([p for p in self.record(tour_round) if p is Player.EResult.BYE])
 
     def wins(self, tour_round: Round|None=None):
         if tour_round is None:
@@ -1546,7 +1546,7 @@ class Player(IPlayer):
             else:
                 fields.append(''.ljust(max_pod_id+4))
         if args.p:
-            fields.append('pts: {}'.format(self.rating(self.tour.tour_round) or '0'))
+            fields.append('rating: {}'.format(self.rating(self.tour.tour_round)))
         if args.w:
             fields.append('w: {}'.format(self.wins(tour_round)))
         if args.ow:

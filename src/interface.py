@@ -48,9 +48,6 @@ class IPlayer(IHashable):
         #self.location: IPlayer.ELocation = IPlayer.ELocation.UNSEATED
         #self.result: IPlayer.EResult = IPlayer.EResult.PENDING
 
-        self.byes: int
-        self.wins: int
-
     @abstractmethod
     def played(self, tour_round: IRound) -> list[IPlayer]:
         raise NotImplementedError()
@@ -81,6 +78,22 @@ class IPlayer(IHashable):
 
     @abstractmethod
     def games(self, tour_round: IRound) -> list[IRound]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def byes(self, tour_round: IRound) -> int:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def wins(self, tour_round: IRound) -> int:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def losses(self, tour_round: IRound) -> int:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def draws(self, tour_round: IRound) -> int:
         raise NotImplementedError()
 
 class ITournament(IHashable):
