@@ -1247,6 +1247,8 @@ class Player(IPlayer):
         for p in self.pods(tour_round):
             if isinstance(p, Pod):
                 players.update(p.players)
+        if players:
+            players.remove(self)
         return list(players)
 
     def games(self, tour_round: Round|None=None):
