@@ -263,11 +263,21 @@ class PairingSnake(CommonPairing):
                         pod_index = (pod_index + 1) % len(pods)  # Move to next pod, wrap around
                         current_pod = pods[pod_index]
 
-                        if len(current_pod.players) < current_pod.cap and len(exclusory_pod_buckets[pod_index][bucket_key]) > 0:
-                            player = exclusory_pod_buckets[pod_index][bucket_key][0]
-                            buckets[bucket_key].remove(player)
-                            current_pod.add_player(player)
-                            break
+                        if len(current_pod.players) < current_pod.cap:
+                            if len(exclusory_pod_buckets[pod_index][bucket_key]) > 0:
+                                player = exclusory_pod_buckets[pod_index][bucket_key][0]
+                                buckets[bucket_key].remove(player)
+                                current_pod.add_player(player)
+                                break
+                            elif len(bucket) > 0:
+                                # No player found in exclusory pod buckets, add player to current pod
+                                #TODO: Add player to current pod, disregarding exclusory restriction
+                                player = bucket[0]
+                                buckets[bucket_key].remove(player)
+                                current_pod.add_player(player)
+                                break
+                            else:
+                                raise ValueError('No player found in bucket')
 
                         attempts += 1
 
