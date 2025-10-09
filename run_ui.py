@@ -489,6 +489,12 @@ class MainWindow(QMainWindow):
             self.ui_clear_pods()
             self.ui_create_pods()
             self.ui_update_player_list()
+            if self.core.tour_round.seq > 0:
+                Log.log("Number of repeat pairings per pod:")
+                repeat_pairings = self.core.tour_round.repeat_pairings()
+                for i, pod in enumerate(self.core.tour_round.pods):
+                    Log.log(f"Pod {i}: {repeat_pairings[pod]}")
+
 
     @UILog.with_status
     def reset_pods(self):

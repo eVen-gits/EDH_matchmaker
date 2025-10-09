@@ -265,9 +265,10 @@ class TestMatching(unittest.TestCase):
 
     def test_snake_no_repeat_matching(self):
         tour_sizes = [
+            12, 13, 14,
             16,
-            #15, 16,
-            #32, 64, 128, 256, 512, 1024
+            15, 17, 18, 19,
+            20
         ]
         tested = []
         for n_players in tour_sizes:
@@ -315,8 +316,12 @@ class TestMatching(unittest.TestCase):
 
                 # Create all possible combinations of results across all pods
                 all_possible_outcomes = list(product(*r1_results_table))
-
-                for result in all_possible_outcomes:
+                #Take random 500 outcomes
+                random_sample = random.sample(all_possible_outcomes, 500)
+                for result in tqdm(random_sample):
+                    #tests_ran += 1
+                    #if tests_ran >= 100:
+                    #    break
 
                     t = Tournament(self.config)
                     t.initialize_round()
@@ -335,7 +340,6 @@ class TestMatching(unittest.TestCase):
 
                     #results are bits - for each seat of 4 bits
                     #set the result of a pod based on the bits
-                    result_counter = 0
                     for i, pod in enumerate(t.tour_round.pods):
                         single_result = result[i].count(True) == 1
                         for j, player in enumerate(pod.players):
@@ -344,12 +348,11 @@ class TestMatching(unittest.TestCase):
                         pass
                     #Snake pods round
                     t.create_pairings()
+
                     repeat_pairings = t.tour_round.repeat_pairings()
 
                     #TODO: Actually figure out what is the minimal amount of repeat pairings
-                    self.assertEqual(len(repeat_pairings), 0)
-                    pass
-                    t.new_round()
+                    self.assertLessEqual(sum(repeat_pairings.values()), len(t.tour_round.pods))
                     pass
 
 

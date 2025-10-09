@@ -48,7 +48,7 @@ class CommonPairing(IPairingLogic):
 
         matching: Callable[[IPlayer], tuple] = lambda x: self.bye_matching(x, tour_round)
         player_matches = {p: matching(p) for p in players}
-        keys = sorted(set(player_matches.values()), reverse=True)
+        keys: list[tuple] = sorted(set(player_matches.values()), reverse=True)
 
         buckets = [
             [
@@ -57,6 +57,7 @@ class CommonPairing(IPairingLogic):
             ]
             for k in keys
         ]
+
 
         byes = []
         for b in buckets[::-1]:
@@ -165,8 +166,42 @@ class PairingSnake(CommonPairing):
         """Helper method to get snake ranking for a player."""
         return (player.rating(tour_round), -len(player.played(tour_round)))
 
+    def exclusory_pod_buckets(self, pods, prev_round, bucket_order, buckets):
+        prev_pods = set(pod for pod in prev_round.pods)
+
+        current_pods_filtered = [{key:[] for key in bucket_order} for _ in range(len(pods))]
+        for i, pod in enumerate(pods):
+            current_players_pods = set([ip.pods(prev_round)[-1] for ip in pod.players])
+            for prev_pod in prev_pods:
+                if prev_pod in current_players_pods:
+                    continue
+                #current_pods_filtered[i].append([
+                #    p for p in prev_pod.players
+                #])
+                for key in bucket_order:
+                    for p in buckets[key]:
+                        if p.pods(prev_round)[-1] == prev_pod or not isinstance(p.pods(prev_round)[-1], IPod):
+                            current_pods_filtered[i][key].append(p)
+
+
+
+
+        #exclusory_pod_budckets = {
+        #    i: {
+        #        key: [
+        #            p for p in players
+        #            if p.pods(prev_round)[-1] != pod
+        #            and snake_ranking(p) == key
+        #        ]
+        #        for key in bucket_order
+        #    }
+        #    for i, pod in enumerate(prev_round.pods)
+        #}
+        return current_pods_filtered
+
     @override
     def make_pairings(self, tour_round: IRound, players: list[IPlayer], pods: list[IPod]) -> list[IPlayer]:
+        prev_round: IRound = tour_round.tour.rounds[tour_round.seq-1]
         byes = self.assign_byes(tour_round, players, pods)
         active_players = [p for p in players if p not in byes]
 
@@ -178,6 +213,7 @@ class PairingSnake(CommonPairing):
             list(set(
                 [snake_ranking(p) for p in active_players]
             )), reverse=True)
+
         buckets = {
             k: [
                 p for p in active_players
@@ -193,20 +229,32 @@ class PairingSnake(CommonPairing):
         # Distribute players in snake order (always forward, restart from beginning)
         pod_index = 0
 
-        for bucket_key in bucket_order:
-            bucket = buckets[bucket_key]
+        #for bucket_key in bucket_order:
+        while True:
+            bucket_key = bucket_order[0]
+            for bucket_key in bucket_order:
+                if buckets[bucket_key]:
+                    bucket = buckets[bucket_key]
+                    break
+            else:
+                if any(len(b) > 0 for b in buckets.values()):
+                    raise ValueError('Can not satisfy bucketing requirements')
+                break
+
 
             # Reset pod_index to 0 for each new bucket
             pod_index = 0
 
             while bucket:
+                exclusory_pod_buckets = self.exclusory_pod_buckets(pods, prev_round, bucket_order, buckets)
                 # Try to add player to current pod
                 current_pod = pods[pod_index]
-                player = bucket[0]
 
-                if len(current_pod.players) < current_pod.cap:
+                if len(current_pod.players) < current_pod.cap and len(exclusory_pod_buckets[pod_index][bucket_key]) > 0:
                     # Current pod has space, add player
-                    bucket.pop(0)
+                    #bucket.pop(0)
+                    player = exclusory_pod_buckets[pod_index][bucket_key][0]
+                    buckets[bucket_key].remove(player)
                     current_pod.add_player(player)
                 else:
                     # Current pod is full, find next available pod
@@ -216,9 +264,20 @@ class PairingSnake(CommonPairing):
                         current_pod = pods[pod_index]
 
                         if len(current_pod.players) < current_pod.cap:
-                            bucket.pop(0)
-                            current_pod.add_player(player)
-                            break
+                            if len(exclusory_pod_buckets[pod_index][bucket_key]) > 0:
+                                player = exclusory_pod_buckets[pod_index][bucket_key][0]
+                                buckets[bucket_key].remove(player)
+                                current_pod.add_player(player)
+                                break
+                            elif len(bucket) > 0:
+                                # No player found in exclusory pod buckets, add player to current pod
+                                #TODO: Add player to current pod, disregarding exclusory restriction
+                                player = bucket[0]
+                                buckets[bucket_key].remove(player)
+                                current_pod.add_player(player)
+                                break
+                            else:
+                                raise ValueError('No player found in bucket')
 
                         attempts += 1
 
@@ -228,9 +287,10 @@ class PairingSnake(CommonPairing):
 
                 # Move to next pod for next player
                 pod_index = (pod_index + 1) % len(pods)
+                pass
 
         # Optimize assignments within each bucket
-        self.optimize_bucket_assignments(tour_round, buckets, pods)
+        #self.optimize_bucket_assignments(tour_round, buckets, pods)
 
         return players
 

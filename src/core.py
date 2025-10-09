@@ -1888,9 +1888,7 @@ class Round(IRound):
 
     def repeat_pairings(self):
         prev_round = self.tour.rounds[-2]
-        data = {
-
-        }
+        data = {}
         for pod in self.pods:
             #data[pod] = {
             #    sum(
@@ -1901,14 +1899,15 @@ class Round(IRound):
             #        ])
             #    for p1 in pod.players)
             #}
-            data[pod] = {}
-            for p1 in pod.players:
-                data[pod][p1] = set()
-                for p2 in pod.players:
-                    if p1 == p2:
-                        continue
+            data[pod] = 0
+            for i in range(len(pod.players)-1):
+                for j in range(i+1, len(pod.players)):
+                    p1 = pod.players[i]
+                    p2 = pod.players[j]
+
                     if p2 in p1.played(prev_round):
-                        data[pod][p1].add(p2)
+                        #data[pod][p1].add(p2)
+                        data[pod] += 1
         pass
 
         return data
