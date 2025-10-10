@@ -470,6 +470,15 @@ class TournamentAction:
 
 
 class TournamentConfiguration(ITournamentConfiguration):
+    class TopCut(Enum):
+        NONE = 0
+        TOP_4 = 4
+        TOP_7 = 7
+        TOP_10 = 10
+        TOP_13 = 13
+        TOP_16 = 16
+        TOP_40 = 40
+
 
     def __init__(self, **kwargs):
         self.pod_sizes = kwargs.get('pod_sizes', [4, 3])
@@ -479,7 +488,7 @@ class TournamentConfiguration(ITournamentConfiguration):
         self.draw_points = kwargs.get('draw_points', 1)
         self.snake_pods = kwargs.get('snake_pods', True)
         self.n_rounds = kwargs.get('n_rounds', 5)
-        self.top_cut = kwargs.get('top_cut', 0) #TODO: Implement top cut
+        self.top_cut = kwargs.get('top_cut', TournamentConfiguration.TopCut.NONE)
         self.max_byes = kwargs.get('max_byes', 2)
         self.auto_export = kwargs.get('auto_export', True)
         self.standings_export = kwargs.get('standings_export', StandingsExport())
@@ -529,7 +538,8 @@ class TournamentConfiguration(ITournamentConfiguration):
             'max_byes': self.max_byes,
             'auto_export': self.auto_export,
             'standings_export': self.standings_export.serialize(),
-            'global_wr_seats': self.global_wr_seats
+            'global_wr_seats': self.global_wr_seats,
+            'top_cut': self.top_cut.value
         }
 
     @classmethod
@@ -546,6 +556,7 @@ class TournamentConfiguration(ITournamentConfiguration):
             auto_export=data['auto_export'],
             standings_export=StandingsExport.inflate(data['standings_export']),
             global_wr_seats=data['global_wr_seats'],
+            top_cut=TournamentConfiguration.TopCut(data['top_cut'])
         )
 
 
@@ -729,7 +740,7 @@ class Tournament(ITournament):
                 self._players.remove(p.uid)
             self.tour_round.drop_player(p)
         return True
-            #Log.log('\tRemoved player {}'.format(p.name), level=Log.Level.INFO)
+        #Log.log('\tRemoved player {}'.format(p.name), level=Log.Level.INFO)
 
     @TournamentAction.action
     def rename_player(self, player, new_name):
@@ -793,15 +804,31 @@ class Tournament(ITournament):
         if self._round is not None and not self.tour_round.done:
             return False
         seq = len(self.rounds)
-        if seq > self.config.n_rounds:
-            Log.log('Maximum number of rounds reached.', level=Log.Level.WARNING)
-            return False
-        if seq == 0:
-            logic = self.get_pairing_logic("PairingRandom")
-        elif seq == 1 and self.config.snake_pods:
-            logic = self.get_pairing_logic("PairingSnake")
+        if seq >= self.config.n_rounds:
+            if self.config.top_cut == TournamentConfiguration.TopCut.NONE:
+                Log.log('Maximum number of rounds reached.', level=Log.Level.WARNING)
+                return False
+            if self.config.top_cut == TournamentConfiguration.TopCut.TOP_4:
+                logic = self.get_pairing_logic("PairingTop4")
+            elif self.config.top_cut == TournamentConfiguration.TopCut.TOP_7:
+                logic = self.get_pairing_logic("PairingTop7")
+            elif self.config.top_cut == TournamentConfiguration.TopCut.TOP_10:
+                logic = self.get_pairing_logic("PairingTop10")
+            elif self.config.top_cut == TournamentConfiguration.TopCut.TOP_13:
+                logic = self.get_pairing_logic("PairingTop13")
+            elif self.config.top_cut == TournamentConfiguration.TopCut.TOP_16:
+                logic = self.get_pairing_logic("PairingTop16")
+            elif self.config.top_cut == TournamentConfiguration.TopCut.TOP_40:
+                logic = self.get_pairing_logic("PairingTop40")
+            else:
+                raise ValueError(f"Unknown top cut: {self.config.top_cut}")
         else:
-            logic = self.get_pairing_logic("PairingDefault")
+            if seq == 0:
+                logic = self.get_pairing_logic("PairingRandom")
+            elif seq == 1 and self.config.snake_pods:
+                logic = self.get_pairing_logic("PairingSnake")
+            else:
+                logic = self.get_pairing_logic("PairingDefault")
         new_round = Round(
             self,
             len(self.rounds),
@@ -813,11 +840,12 @@ class Tournament(ITournament):
 
     @TournamentAction.action
     def create_pairings(self) -> bool:
-        if self.last_round.done:
+        if self.last_round is None or self.last_round.done:
             ok = self.initialize_round()
             if not ok:
                 return False
         #self.last_round._byes.clear()
+        assert self.last_round is not None
         if not self.last_round.all_players_assigned:
             self.last_round.create_pairings()
             return True
@@ -1169,10 +1197,13 @@ class Tournament(ITournament):
             tour = cls(config, tour_uid)
         tour._players = [UUID(d_player['uid']) for d_player in data['players']]
         tour._dropped = [UUID(d_player['uid']) for d_player in data['dropped']]
+        tour._players.extend(tour._dropped)
         for d_player in data['players']:
             Player.inflate(tour, d_player)
+        for d_player in data['dropped']:
+            Player.inflate(tour, d_player)
         tour._rounds = [UUID(d_round['uid']) for d_round in data['rounds']]
-        for d_round in data['rounds']:
+        for d_round in tqdm(data['rounds'], desc="Inflating rounds"):
             r = Round.inflate(tour, d_round)
             tour._round = r.uid
         return tour
@@ -1941,7 +1972,19 @@ class Round(IRound):
             pod = Pod(self, start_table + i, cap=size)
             self._pods.append(pod.uid)
 
+    def drop_topcut(self):
+        standings = self.tour.get_standings(self)
+
+        if self.seq == self.tour.config.n_rounds:
+            for p in standings[-1::-1]:
+                if len(self.tour.active_players) == self.tour.config.top_cut.value:
+                    break
+                self.tour.drop_player(p)
+
     def create_pairings(self):
+        if self.seq >= self.tour.config.n_rounds:
+            self.drop_topcut()
+
         self.create_pods()
         pods = [p for p in self.pods
                 if all([
@@ -1951,8 +1994,10 @@ class Round(IRound):
 
         self.logic.make_pairings(self, self.unassigned, pods)
 
-        for pod in self.pods:
-            pod.assign_seats()
+        if self.seq < self.tour.config.n_rounds:
+            for pod in self.pods:
+                pod.assign_seats()
+
         self.sort_pods()
         #for pod in self.pods:
         #    Log.log(pod, Log.Level.NONE)

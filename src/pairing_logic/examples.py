@@ -326,3 +326,30 @@ class PairingDefault(CommonPairing):
             index = pod_scores.index(max(pod_scores))
             pods[index].add_player(p)
         return players
+
+class PairingTop4(CommonPairing):
+    IS_COMPLETE=True
+
+    @override
+    def make_pairings(self, tour_round: IRound, players: Sequence[IPlayer], pods: Sequence[IPod]) -> Sequence[IPlayer]:
+        standings = [p for p in tour_round.tour.get_standings(tour_round) if p in players]
+        for p in standings:
+            pods[0].add_player(p)
+        return players
+
+class PairingTop10(CommonPairing):
+    IS_COMPLETE=True
+
+    @override
+    def make_pairings(self, tour_round: IRound, players: Sequence[IPlayer], pods: Sequence[IPod]) -> Sequence[IPlayer]:
+        standings = [p for p in tour_round.tour.get_standings(tour_round) if p in players]
+
+        p1 = standings[0]
+        p2 = standings[1]
+        p1.set_result(tour_round, IPlayer.EResult.BYE)
+        p2.set_result(tour_round, IPlayer.EResult.BYE)
+
+        for i,p in enumerate(standings[2:]):
+            pods[i%2].add_player(p)
+
+        return players

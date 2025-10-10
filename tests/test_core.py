@@ -212,27 +212,26 @@ class TestMatching(unittest.TestCase):
 
     def test_all_players_assigned(self):
         tour_sizes = range(16, 128)
-        for n in tour_sizes:
-            with self.subTest(n=str(n).zfill(3)):
-                t = Tournament(
-                    self.config
-                )
-                t.initialize_round()
-                t.add_player([
-                    f"{i}:{fkr.name()}" for i in range(n)
-                ])
-                for i in range(self.n_rounds):
-                    #with self.subTest(n=str(n).zfill(2), round=str(i+1).zfill(2)):
-                        t.create_pairings()
-                        t.random_results()
-                        for p in t.players:
-                            self.assertEqual(len(p.pods(t.tour_round)), i+1)
+        for n in tqdm(tour_sizes, desc="Testing all players assigned"):
+            t = Tournament(
+                self.config
+            )
+            t.initialize_round()
+            t.add_player([
+                f"{i}:{fkr.name()}" for i in range(n)
+            ])
+            for i in range(self.n_rounds):
+                #with self.subTest(n=str(n).zfill(2), round=str(i+1).zfill(2)):
+                    t.create_pairings()
+                    t.random_results()
+                    for p in t.active_players:
+                        self.assertEqual(len(p.pods(t.tour_round)), i+1)
 
-                        if len(t.players) != n:
-                            print(len(t.players), n)
-                        self.assertEqual(len(t.players), n)
-                        self.assertEqual(len(t.tour_round.unassigned), 0)
-                        t.new_round()
+                    if len(t.active_players) != n:
+                        print(len(t.players), n)
+                    self.assertEqual(len(t.active_players), n)
+                    self.assertEqual(len(t.tour_round.unassigned), 0)
+                    t.new_round()
 
     def test_bye_assignment(self):
         tour_sizes = range(16, 128)

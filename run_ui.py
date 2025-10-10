@@ -943,6 +943,15 @@ class TournamentConfigDialog(QDialog):
         self.cb_snakePods.setChecked(self.core.config.snake_pods)
         self.sb_max_byes.setValue(self.core.config.max_byes)
         self.ui.cb_auto_export.setChecked(self.core.config.auto_export)
+        # Populte cb_topCut
+        self.ui.cb_topCut.addItem('None', TournamentConfiguration.TopCut.NONE)
+        self.ui.cb_topCut.addItem('Top 4', TournamentConfiguration.TopCut.TOP_4)
+        self.ui.cb_topCut.addItem('Top 7', TournamentConfiguration.TopCut.TOP_7)
+        self.ui.cb_topCut.addItem('Top 10', TournamentConfiguration.TopCut.TOP_10)
+        self.ui.cb_topCut.addItem('Top 13', TournamentConfiguration.TopCut.TOP_13)
+        self.ui.cb_topCut.addItem('Top 16', TournamentConfiguration.TopCut.TOP_16)
+        self.ui.cb_topCut.addItem('Top 40', TournamentConfiguration.TopCut.TOP_40)
+        self.ui.cb_topCut.setCurrentIndex(self.ui.cb_topCut.findData(self.core.config.top_cut))
 
         if TournamentAction.LOGF:
             self.ui.le_log_location.setText(TournamentAction.LOGF)
@@ -1021,6 +1030,7 @@ class TournamentConfigDialog(QDialog):
             snake_pods = self.cb_snakePods.isChecked(),
             max_byes = self.sb_max_byes.value(),
             auto_export = self.cb_auto_export.isChecked(),
+            top_cut = self.ui.cb_topCut.currentData(),
         )
         if self.reset:
             t = Tournament(
@@ -1028,6 +1038,7 @@ class TournamentConfigDialog(QDialog):
             )
             self.parent().core = t
             t.initialize_round()
+            TournamentAction.store(t)
         else:
             self.parent().core.config = self.config
 
