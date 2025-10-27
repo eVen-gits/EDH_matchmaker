@@ -69,10 +69,10 @@ class PlayerListItem(QListWidgetItem):
         self.player = player
 
     def __lt__(self, other: PlayerListItem):
-        return self.player.__lt__(other.player)
+        return bool(self.player.__lt__(other.player))
 
     def __gt__(self, other: PlayerListItem):
-        return self.player.__gt__(other.player)
+        return bool(self.player.__gt__(other.player))
 
     @staticmethod
     def sort_order():
