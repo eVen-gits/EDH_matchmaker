@@ -1464,7 +1464,7 @@ class Player(IPlayer):
             Player.EResult.PENDING: '_',
         }[r] for r in record])
 
-    def __gt__(self, other: Player, tour_round:Round|None=None):
+    def __gt__(self, other: Player, tour_round:Round|None=None) -> bool:
         b = False
         if self.SORT_METHOD == SortMethod.ID:
             b = self.uid > other.uid
@@ -1480,9 +1480,9 @@ class Player(IPlayer):
                 if my_score[i] != other_score[i]:
                     b = my_score[i] > other_score[i]
                     break
-        return b
+        return bool(b)
 
-    def __lt__(self, other: Player, tour_round:Round|None=None):
+    def __lt__(self, other: Player, tour_round:Round|None=None) -> bool:
         b = False
         if self.SORT_METHOD == SortMethod.ID:
             b = self.uid < other.uid
@@ -1498,7 +1498,7 @@ class Player(IPlayer):
                 if my_score[i] != other_score[i]:
                     b = my_score[i] > other_score[i]
                     break
-        return b
+        return bool(b)
 
     @override
     def __repr__(self, tokens=None, context: TournamentContext|None=None):
