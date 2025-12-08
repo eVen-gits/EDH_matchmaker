@@ -324,7 +324,7 @@ class MainWindow(QMainWindow):
         # Check if it is on the item when you right-click, if it is not, delete and modify will not be displayed.
         item = self.ui.lv_players.itemAt(position)
         if item:
-            if item.player in self.core.dropped:
+            if item.player in self.core.dropped_players:
                 return
             delete_player_action = QAction(
                 'Drop player'
@@ -549,7 +549,7 @@ class MainWindow(QMainWindow):
         player: Player = item.data(Qt.ItemDataRole.UserRole)
         result = player.result(self.core.tour_round)
 
-        if player in self.core.dropped:
+        if player in self.core.tour_round.dropped_players:
             item.setBackground(PlayerListItem.Color.DROP)
         elif player.seated(self.core.tour_round):
             if result == Player.EResult.PENDING:
