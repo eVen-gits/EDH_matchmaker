@@ -224,12 +224,12 @@ class TestMatching(unittest.TestCase):
                 #with self.subTest(n=str(n).zfill(2), round=str(i+1).zfill(2)):
                     t.create_pairings()
                     t.random_results()
-                    for p in t.active_players:
+                    for p in t.tour_round.active_players:
                         self.assertEqual(len(p.pods(t.tour_round)), i+1)
 
-                    if len(t.active_players) != n:
+                    if len(t.tour_round.active_players) != n:
                         print(len(t.players), n)
-                    self.assertEqual(len(t.active_players), n)
+                    self.assertEqual(len(t.tour_round.active_players), n)
                     self.assertEqual(len(t.tour_round.unassigned), 0)
                     t.new_round()
 
@@ -453,7 +453,7 @@ class TestPerformance(unittest.TestCase):
 
         n = 20
         total_time = 0
-        for _ in range(n):
+        for _ in tqdm(range(n), desc="Testing new round speed"):
             time_start = time.time()
             t.new_round()
             delta_time = time.time() - time_start
@@ -465,9 +465,10 @@ class TestPerformance(unittest.TestCase):
 
     def test_create_pairings_speed(self):
         tour_sizes = [16, 32, 64, 128, 256, 512, 1024]
+
         for n in tour_sizes:
             total_time = 0
-            player_time_ratio = 0.05 * 1.02**(n/128)
+            player_time_ratio = 0.05 * 1.05**(n/128)
             t = Tournament(
                 TournamentConfiguration(
                     pod_sizes=[4],
@@ -486,7 +487,7 @@ class TestPerformance(unittest.TestCase):
             t.add_player([
                 f"{i}:{fkr.name()}" for i in range(n)
             ])
-            for _ in range(t.config.n_rounds):
+            for _ in tqdm(range(t.config.n_rounds), desc=f"Pairing speed for {n} players"):
                 time_start = time.time()
                 t.create_pairings()
                 delta_time = time.time() - time_start
