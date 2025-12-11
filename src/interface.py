@@ -99,7 +99,6 @@ class IPlayer(IHashable):
 class ITournament(IHashable):
     def __init__(self, config: ITournamentConfiguration | None = None):
         super().__init__()
-        self.active_players: list[IPlayer] = list()
         self.rounds: list[IRound] = list()
         self.tour_round: IRound|None = None
 

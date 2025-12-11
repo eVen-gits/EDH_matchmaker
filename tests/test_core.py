@@ -412,8 +412,11 @@ class TestScoring(unittest.TestCase):
         orig_standings = self.t.get_standings(self.t.tour_round)
 
         for _ in range(100):
-            #shuffle players
-            random.shuffle(self.t.players)
+            #shuffle players by recreating the _players set in a random order
+            #This changes the iteration order of the set (Python 3.7+ maintains insertion order)
+            player_uids = list(self.t._players)
+            random.shuffle(player_uids)
+            self.t._players = set(player_uids)
 
             self.assertEqual(self.t.get_standings(self.t.tour_round), orig_standings)
 
