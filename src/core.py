@@ -648,24 +648,9 @@ class Tournament(ITournament):
     def get(cls, uid: UUID) -> Tournament:
         return cls.CACHE[uid]
 
-
     @property
     def players(self) -> set[Player]:
         return {Player.get(self, x) for x in self._players}
-
-    #@property
-    #def active_players(self) -> list[Player]:
-    #    """Returns all players who are not dropped or disabled."""
-    #    return [Player.get(self, x) for x in self._players if x not in self._dropped and x not in self._disabled]
-
-    #@property
-    #def disabled_players(self) -> list[Player]:
-    #    """Returns players who are disabled from top cut (but still in tournament)."""
-    #    return [Player.get(self, x) for x in self._disabled]
-
-    #@property
-    #def dropped_players(self) -> list[Player]:
-    #    return [Player.get(self, x) for x in self._dropped]
 
     @property
     def tour_round(self) -> Round:
@@ -1134,18 +1119,20 @@ class Tournament(ITournament):
         order = Player.SORT_ORDER
         Player.SORT_METHOD = SortMethod.RANK
         Player.SORT_ORDER = SortOrder.ASCENDING
+        playoffs = False
         if tour_round is None:
             tour_round = self.tour_round
-        if tour_round.stage != Round.Stage.SWISS:
-            tour_round = self.final_swiss_round
-        if tour_round is None:
-            raise NotImplementedError('Not fully implemented')
-        #    #find last swiss round
-        #    last_swiss_round = max([r for r in self.rounds if r.stage == Round.Stage.SWISS], key=lambda x: x.seq)
-        #    tour_round = last_swiss_round
+        if tour_round.stage == Round.Stage.SWISS:
+            standings = sorted(self.players, key=lambda x: self.config.ranking(x, tour_round), reverse=True)
+        else:
+            final_swiss = self.final_swiss_round
+            assert final_swiss is not None
+            standings = sorted(self.players, key=lambda x: self.config.ranking(x, final_swiss), reverse=True)
+            playoff_stage = tour_round.seq - final_swiss.seq
 
-        standings = sorted(self.players, key=lambda x: self.config.ranking(x, tour_round), reverse=True)
-        #print(', '.join([f"{p.standing(tour_round, standings)} {p.name}" for i,p in enumerate(standings)]))
+            #TODO: Implement playoff standings
+            pass
+
         Player.SORT_METHOD = method
         Player.SORT_ORDER = order
         return standings
