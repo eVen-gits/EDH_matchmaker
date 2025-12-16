@@ -832,64 +832,70 @@ class Tournament(ITournament):
             return False
         seq = len(self.rounds)
         stage = Round.Stage.SWISS
+        logic = None
         if seq >= self.config.n_rounds and self.last_round:
             if self.config.top_cut == TournamentConfiguration.TopCut.NONE:
                 Log.log('Maximum number of rounds reached.', level=Log.Level.WARNING)
                 return False
             if self.config.top_cut == TournamentConfiguration.TopCut.TOP_4:
                 if self.last_round.stage == Round.Stage.SWISS:
+                    logic = self.get_pairing_logic("PairingTop4")
                     stage = Round.Stage.TOP_4
                 else:
                     Log.log('Tournament completed.')
                     return False
-                logic = self.get_pairing_logic("PairingTop4")
             elif self.config.top_cut == TournamentConfiguration.TopCut.TOP_7:
                 if self.last_round.stage == Round.Stage.SWISS:
                     stage = Round.Stage.TOP_7
+                    logic = self.get_pairing_logic("PairingTop7")
                 elif self.last_round.stage == Round.Stage.TOP_7:
                     stage = Round.Stage.TOP_4
+                    logic = self.get_pairing_logic("PairingTop4")
                 else:
                     Log.log('Tournament completed.')
                     return False
-                logic = self.get_pairing_logic("PairingTop7")
             elif self.config.top_cut == TournamentConfiguration.TopCut.TOP_10:
                 if self.last_round.stage == Round.Stage.SWISS:
                     stage = Round.Stage.TOP_10
+                    logic = self.get_pairing_logic("PairingTop10")
                 elif self.last_round.stage == Round.Stage.TOP_10:
                     stage = Round.Stage.TOP_4
+                    logic = self.get_pairing_logic("PairingTop4")
                 else:
                     Log.log('Tournament completed.')
                     return False
-                logic = self.get_pairing_logic("PairingTop10")
             elif self.config.top_cut == TournamentConfiguration.TopCut.TOP_13:
                 if self.last_round.stage == Round.Stage.SWISS:
                     stage = Round.Stage.TOP_13
+                    logic = self.get_pairing_logic("PairingTop13")
                 elif self.last_round.stage == Round.Stage.TOP_13:
                     stage = Round.Stage.TOP_4
+                    logic = self.get_pairing_logic("PairingTop4")
                 else:
                     Log.log('Tournament completed.')
                     return False
-                logic = self.get_pairing_logic("PairingTop13")
             elif self.config.top_cut == TournamentConfiguration.TopCut.TOP_16:
                 if self.last_round.stage == Round.Stage.SWISS:
                     stage = Round.Stage.TOP_16
+                    logic = self.get_pairing_logic("PairingTop16")
                 elif self.last_round.stage == Round.Stage.TOP_16:
                     stage = Round.Stage.TOP_4
+                    logic = self.get_pairing_logic("PairingTop4")
                 else:
                     Log.log('Tournament completed.')
                     return False
-                logic = self.get_pairing_logic("PairingTop16")
             elif self.config.top_cut == TournamentConfiguration.TopCut.TOP_40:
                 if self.last_round.stage == Round.Stage.SWISS:
                     stage = Round.Stage.TOP_40
+                    logic = self.get_pairing_logic("PairingTop40")
                 elif self.last_round.stage == Round.Stage.TOP_40:
                     stage = Round.Stage.TOP_16
+                    logic = self.get_pairing_logic("PairingTop16")
                 elif self.last_round.stage == Round.Stage.TOP_16:
                     stage = Round.Stage.TOP_4
                 else:
                     Log.log('Tournament completed.')
                     return False
-                logic = self.get_pairing_logic("PairingTop40")
             else:
                 raise ValueError(f"Unknown top cut: {self.config.top_cut}")
         else:
@@ -900,6 +906,12 @@ class Tournament(ITournament):
             else:
                 logic = self.get_pairing_logic("PairingDefault")
 
+        if not logic:
+            Log.log('No pairing logic found.', level=Log.Level.ERROR)
+            return False
+        elif not stage:
+            Log.log('No stage found.', level=Log.Level.ERROR)
+            return False
         new_round = Round(
             self,
             len(self.rounds),
@@ -1127,8 +1139,25 @@ class Tournament(ITournament):
         else:
             final_swiss = self.final_swiss_round
             assert final_swiss is not None
-            standings = sorted(self.players, key=lambda x: self.config.ranking(x, final_swiss), reverse=True)
-            playoff_stage = tour_round.seq - final_swiss.seq
+            playoff_stage = tour_round.seq - final_swiss.seq - 1
+
+            if playoff_stage > 0:
+                #TODO: take the standings of previous playoff round and modify them to current results
+                pass
+            else:
+                standings = sorted(self.players, key=lambda x: self.config.ranking(x, final_swiss), reverse=True)
+                advancing_players = self.tour_round.advancing_players(standings)
+                non_advancing = [p for p in standings if p not in advancing_players]
+
+                # Sort non-advancing players: draws rank above losses, then by original standings
+                standings_index = {player: idx for idx, player in enumerate(standings)}
+                non_advancing.sort(key=lambda x: (
+                    0 if tour_round and x.result(tour_round) == Player.EResult.DRAW else 1,  # Draws first (0), losses second (1)
+                    standings_index.get(x, len(standings))  # Then by original standings position
+                ))
+
+                standings = advancing_players + non_advancing
+                pass
 
             #TODO: Implement playoff standings
             pass
@@ -1525,7 +1554,6 @@ class Player(IPlayer):
         oppwr = [opp.pointrate(tour_round) for opp in self.played(tour_round)]
         return sum(oppwr)/len(oppwr)
 
-
     #PROPERTIES
 
     @property
@@ -1910,12 +1938,12 @@ class Pod(IPod):
 class Round(IRound):
     class Stage(Enum):
         SWISS = 0
-        TOP_4 = 1
-        TOP_7 = 2
-        TOP_10 = 3
-        TOP_13 = 4
-        TOP_16 = 5
-        TOP_40 = 6
+        TOP_4 = 4
+        TOP_7 = 7
+        TOP_10 = 10
+        TOP_13 = 13
+        TOP_16 = 16
+        TOP_40 = 40
 
         @staticmethod
         def is_playoff(stage: Stage) -> bool:
@@ -2051,6 +2079,68 @@ class Round(IRound):
             if p.location(self) == Player.ELocation.UNASSIGNED
         }
 
+    def advancing_players(self, standings) -> list[Player]:
+        """
+        Returns the players who advance to the next round. Sorted by standing in that round.
+
+        Returns:
+            list[Player]:
+                - If the round is a Swiss round, returns all active players.
+                - If the round is a playoff round, returns the players who advance to the next round of playoffs.
+        """
+        # Create index map for O(1) standings lookup instead of O(n) index() calls
+        standings_index = {player: idx for idx, player in enumerate(standings)}
+
+        if self.stage == Round.Stage.SWISS:
+            return sorted(self.active_players, key=lambda x: standings_index.get(x, len(standings)))
+        else:
+            active_players_set = self.active_players  # Cache set lookup
+
+            # Collect players in three groups to maintain proper ordering:
+            # 1. Byes (sorted by standings)
+            # 2. Wins (sorted by standings)
+            # 3. Draws (one per draw pod, sorted by standings)
+            bye_players: list[Player] = []
+            win_players: list[Player] = []
+            draw_players: list[Player] = []
+            processed_draw_pods: set[Pod] = set()  # Track processed draw pods to avoid duplicates
+
+            for p in standings:
+                if p not in active_players_set:
+                    continue
+
+                # Handle byes
+                if p in self.byes:
+                    bye_players.append(p)
+                    continue
+
+                # Get pod once per player
+                pod = p.pod(self)
+                if pod is None:
+                    continue
+
+                # Handle WIN results
+                if pod.done and pod.result_type == Pod.EResult.WIN:
+                    if p in pod.result:
+                        win_players.append(p)
+
+                # Handle DRAW results (only process once per pod)
+                elif pod.result_type == Pod.EResult.DRAW and pod not in processed_draw_pods:
+                    processed_draw_pods.add(pod)
+                    if pod.result:
+                        # Filter to only active players in the draw result
+                        active_in_draw = [p for p in pod.result if p in active_players_set]
+                        if active_in_draw:
+                            advancing_player = min(active_in_draw, key=lambda x: standings_index.get(x, len(standings)))
+                            draw_players.append(advancing_player)
+
+            # Sort each group by standings and concatenate in order
+            bye_players.sort(key=lambda x: standings_index.get(x, len(standings)))
+            win_players.sort(key=lambda x: standings_index.get(x, len(standings)))
+            draw_players.sort(key=lambda x: standings_index.get(x, len(standings)))
+
+            return bye_players + win_players + draw_players
+
     def repeat_pairings(self):
         prev_round = self.tour.rounds[-2]
         data = {}
@@ -2111,10 +2201,9 @@ class Round(IRound):
         They remain in the tournament but won't participate in top cut rounds."""
         standings = self.tour.get_standings(self)
 
-        if self.seq == self.tour.config.n_rounds:
-            # Disable players from bottom of standings until we reach top_cut size
-            for p in standings[self.tour.config.top_cut.value::]:
-                self.disable_player(p)
+        # Disable players from bottom of standings until we reach top_cut size
+        for p in standings[self.stage.value::]:
+            self.disable_player(p, set_disabled=True)
 
     def create_pairings(self):
         if self.stage != Round.Stage.SWISS:
