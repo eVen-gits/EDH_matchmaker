@@ -22,6 +22,56 @@
       </property>
       <widget class="QWidget" name="layoutWidget">
        <layout class="QGridLayout" name="gridLayout">
+        <item row="1" column="1">
+         <widget class="QPushButton" name="pb_reset_pods">
+          <property name="text">
+           <string>Reset Pods</string>
+          </property>
+         </widget>
+        </item>
+        <item row="0" column="2" rowspan="3">
+         <widget class="QScrollArea" name="sa_pods">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Expanding" vsizetype="Minimum">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="horizontalScrollBarPolicy">
+           <enum>Qt::ScrollBarPolicy::ScrollBarAlwaysOff</enum>
+          </property>
+          <property name="widgetResizable">
+           <bool>true</bool>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignTop</set>
+          </property>
+          <widget class="QWidget" name="saw_content">
+           <property name="geometry">
+            <rect>
+             <x>0</x>
+             <y>0</y>
+             <width>368</width>
+             <height>358</height>
+            </rect>
+           </property>
+           <layout class="QVBoxLayout" name="_2">
+            <property name="spacing">
+             <number>0</number>
+            </property>
+            <property name="leftMargin">
+             <number>0</number>
+            </property>
+            <property name="rightMargin">
+             <number>0</number>
+            </property>
+            <property name="bottomMargin">
+             <number>0</number>
+            </property>
+           </layout>
+          </widget>
+         </widget>
+        </item>
         <item row="0" column="0" rowspan="3">
          <layout class="QVBoxLayout" name="verticalLayout_2">
           <item>
@@ -70,60 +120,10 @@
           </item>
          </layout>
         </item>
-        <item row="0" column="2" rowspan="3">
-         <widget class="QScrollArea" name="sa_pods">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Expanding" vsizetype="Minimum">
-            <horstretch>0</horstretch>
-            <verstretch>0</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="horizontalScrollBarPolicy">
-           <enum>Qt::ScrollBarPolicy::ScrollBarAlwaysOff</enum>
-          </property>
-          <property name="widgetResizable">
-           <bool>true</bool>
-          </property>
-          <property name="alignment">
-           <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignTop</set>
-          </property>
-          <widget class="QWidget" name="saw_content">
-           <property name="geometry">
-            <rect>
-             <x>0</x>
-             <y>0</y>
-             <width>368</width>
-             <height>358</height>
-            </rect>
-           </property>
-           <layout class="QVBoxLayout" name="_2">
-            <property name="spacing">
-             <number>0</number>
-            </property>
-            <property name="leftMargin">
-             <number>0</number>
-            </property>
-            <property name="rightMargin">
-             <number>0</number>
-            </property>
-            <property name="bottomMargin">
-             <number>0</number>
-            </property>
-           </layout>
-          </widget>
-         </widget>
-        </item>
         <item row="0" column="1">
          <widget class="QPushButton" name="pb_pods">
           <property name="text">
            <string>Create Pods</string>
-          </property>
-         </widget>
-        </item>
-        <item row="1" column="1">
-         <widget class="QPushButton" name="pb_reset_pods">
-          <property name="text">
-           <string>Reset Pods</string>
           </property>
          </widget>
         </item>
@@ -161,7 +161,6 @@
      <string>Edit</string>
     </property>
     <addaction name="actionTour_config"/>
-    <addaction name="actionLoad_state"/>
     <addaction name="actionLoad_players"/>
    </widget>
    <widget class="QMenu" name="menuDebug">
@@ -171,6 +170,7 @@
     <addaction name="actionReset_UI"/>
     <addaction name="actionRandom_Results"/>
     <addaction name="actionGenerate_Players"/>
+    <addaction name="actionSelect_Round"/>
    </widget>
    <widget class="QMenu" name="menuExport">
     <property name="title">
@@ -198,11 +198,6 @@
   <action name="actionExit">
    <property name="text">
     <string>Exit</string>
-   </property>
-  </action>
-  <action name="actionLoad_state">
-   <property name="text">
-    <string>Load state</string>
    </property>
   </action>
   <action name="actionNew_tour">
@@ -241,12 +236,12 @@
     <string>Pods</string>
    </property>
   </action>
-    <action name="actionPodsOnline">
+  <action name="actionPodsOnline">
    <property name="text">
     <string>Pods Online (beta)</string>
    </property>
   </action>
-    <action name="actionPodsDiscord">
+  <action name="actionPodsDiscord">
    <property name="text">
     <string>Pods Discord (beta)</string>
    </property>
@@ -269,6 +264,11 @@
   <action name="actionJSON_Log">
    <property name="text">
     <string>JSON Log</string>
+   </property>
+  </action>
+  <action name="actionSelect_Round">
+   <property name="text">
+    <string>Select Round</string>
    </property>
   </action>
  </widget>

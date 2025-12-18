@@ -1,15 +1,37 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from enum import IntEnum
-from typing import Sequence, Callable
+from typing import Sequence, Callable, Any
 from datetime import datetime
-from uuid import UUID
+from uuid import UUID, uuid4
 
-class IPlayer:
+class SortMethod(IntEnum):
+    ID = 0
+    NAME = 1
+    RANK = 2
+
+class SortOrder(IntEnum):
+    ASCENDING = 0
+    DESCENDING = 1
+
+class IHashable:
+    CACHE: dict[UUID, Any] = {}
+
+    def __init__(self):
+        self.uid: UUID = uuid4()
+
+    @classmethod
+    @abstractmethod
+    def get(cls, ID: UUID) -> IHashable:
+        raise NotImplementedError()
+
+class IPlayer(IHashable):
     class ELocation(IntEnum):
-        UNSEATED = 0
+        UNASSIGNED = 0
         SEATED = 1
-        DROPPED = 2
+        GAME_LOSS = 3
+        BYE = 4
+        DROPPED = 5
 
     class EResult(IntEnum):
         LOSS = 0
@@ -19,49 +41,106 @@ class IPlayer:
         PENDING = 4
 
     def __init__(self):
-        self.ID: int = -1
+        super().__init__()
         self.name: str = str()
-        self.points: int|float = -1
-        self.pods: list[IPod|IPlayer.EResult] = list()
-        self.rounds: list[IRound] = list()
-        self.played: list[IPlayer]
+        #self.rounds: list[IRound] = list()
         self.tour: ITournament
-        self.location: IPlayer.ELocation = IPlayer.ELocation.UNSEATED
-        self.result: IPlayer.EResult = IPlayer.EResult.PENDING
-
-        self.byes: int
-        self.wins: int
-
-
-class ITournament:
-    def __init__(self, config: ITournamentConfiguration | None = None):
-        self.players: list[IPlayer] = list()
-        self.rounds: list[IRound] = list()
-        self.round: IRound|None = None
-
-    def get_pod_sizes(self, n:int) -> Sequence[int]|None:
-        pass
-
-    @property
-    def TC(self) -> ITournamentConfiguration:
-        raise NotImplementedError()
-
-
-class IPod:
-    class EResult(IntEnum):
-        LOSS = 0
-        DRAW = 1
-        WIN = 2
-
-    def __init__(self):
-        self.id: int = -1
-        self.players: list[IPlayer] = list()
-        self.cap: int = 0
-        self.done: bool = False
-        self.winner: None|IPlayer = None
+        #self.location: IPlayer.ELocation = IPlayer.ELocation.UNSEATED
+        #self.result: IPlayer.EResult = IPlayer.EResult.PENDING
 
     @abstractmethod
-    def sort(self):
+    def played(self, tour_round: IRound) -> list[IPlayer]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def location(self, tour_round: IRound) -> IPlayer.ELocation:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def pod(self, tour_round: IRound) -> IPod|None:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def set_result(self, tour_round: IRound, result: IPlayer.EResult) -> IPlayer.EResult:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def pods(self, tour_round: IRound) -> list[IPod]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def rating(self, tour_round: IRound) -> float:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def opponent_pointrate(self, tour_round: IRound) -> float:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def games(self, tour_round: IRound) -> list[IRound]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def byes(self, tour_round: IRound) -> int:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def wins(self, tour_round: IRound) -> int:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def losses(self, tour_round: IRound) -> int:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def draws(self, tour_round: IRound) -> int:
+        raise NotImplementedError()
+
+class ITournament(IHashable):
+    def __init__(self, config: ITournamentConfiguration | None = None):
+        super().__init__()
+        self.rounds: list[IRound] = list()
+        self.tour_round: IRound|None = None
+
+    @abstractmethod
+    def get_pod_sizes(self, n:int) -> Sequence[int]|None:
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_standings(self, tour_round: IRound) -> list[IPlayer]:
+        raise NotImplementedError()
+
+    @property
+    def config(self) -> ITournamentConfiguration:
+        raise NotImplementedError()
+
+class IPod(IHashable):
+
+    class EResult(IntEnum):
+        DRAW = 0
+        WIN = 1
+        PENDING = 2
+
+    def __init__(self):
+        super().__init__()
+        self.table: int = -1
+        self._players: list[UUID] = list()
+        self.cap: int = 0
+        self._result: set[UUID] = set()
+        self._round: UUID
+
+    @property
+    @abstractmethod
+    def result(self) -> set[IPlayer.EResult]:
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    def players(self) -> list[IPlayer]:
+        raise NotImplementedError('Pod.players not implemented - use subclass')
+
+    @abstractmethod
+    def assign_seats(self):
         pass
 
     @abstractmethod
@@ -72,24 +151,54 @@ class IPod:
     def remove_player(self, player: IPlayer):
         pass
 
+    @property
+    @abstractmethod
+    def tour_round(self) -> IRound:
+        raise NotImplementedError()
+
     def __len__(self):
         return len(self.players)
 
-
-class IRound:
+class IRound(IHashable):
     def __init__(self):
+        super().__init__()
         self.seq:int = -1
-        self.tour: ITournament
-        self.players: list[IPlayer] = list()
         self.logic: IPairingLogic
-        self.pods: list[IPod] = list()
-        self.concluded: bool|datetime = False
+        self._tour: UUID = uuid4()
+        self._pods: list[UUID] = list()
+        self._players: list[UUID] = list()
 
+    @property
+    @abstractmethod
+    def active_players(self) -> set[IPlayer]:
+        raise NotImplementedError('Round.players not implemented - use subclass')
+
+    @property
+    @abstractmethod
+    def byes(self) -> set[IPlayer]:
+        raise NotImplementedError('Round.byes not implemented - use subclass')
+
+    @property
+    @abstractmethod
+    def tour(self) -> ITournament:
+        raise NotImplementedError('Round.tour not implemented - use subclass')
+
+    @property
+    @abstractmethod
+    def pods(self) -> list[IPod]:
+        raise NotImplementedError('Round.pods not implemented - use subclass')
 
 class IPairingLogic:
-    def make_pairings(self, players: Sequence[IPlayer], pods:Sequence[IPod]) -> Sequence[IPlayer]:
+    IS_COMPLETE=False
+
+    def __init__(self, name: str):
+        self.name = name
+
+    def make_pairings(self, tour_round:IRound, players: set[IPlayer], pods:Sequence[IPod]) -> Sequence[IPlayer]:
         raise NotImplementedError('PairingLogic.make_pairings not implemented - use subclass')
 
+    def advance_topcut(self, tour_round: IRound, standings: list[IPlayer]) -> None:
+        raise NotImplementedError('PairingLogic.advance_topcut not implemented - use subclass')
 
 class ITournamentConfiguration:
     def __init__(self, **kwargs):

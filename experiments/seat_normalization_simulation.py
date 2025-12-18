@@ -47,7 +47,7 @@ for sim_n, sim in tqdm(enumerate(range(sims)), total=sims):
     all_player_seating_averages[sim_n, :, :] = player_averages_per_sim
 
 
-# Plot histograms for each round
+# Plot histograms for each tour_round
 plt.figure(figsize=(12, 8))
 for i in range(rounds):
     plt.subplot(3, 3, i + 1)  # Subplot index starts from 1

@@ -89,14 +89,12 @@ if __name__ == "__main__":
 
     for _ in tqdm(range(num_rounds)):
         t.make_pods()
-        #[print(p) for p in t.round.pods]
-        for pod in t.round.pods:
+        #[print(p) for p in t.tour_round.pods]
+        for pod in t.tour_round.pods:
             if np.random.random() < 0:
                 t.report_draw(pod.players)
             else:
                 t.report_win(determine_winner(pod.players, player_skill_obj))
-
-        #print("\n".join([str(p) for p in t.get_standings()]))
 
     for i, p in enumerate(t.get_standings(), 1):
         if i == 16:

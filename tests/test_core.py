@@ -4,6 +4,9 @@ import names
 import random
 from tqdm import tqdm
 from faker import Faker
+import time
+from itertools import product
+
 fkr = Faker()
 
 TournamentAction.LOGF = False #type: ignore
@@ -17,7 +20,8 @@ class TestPlayer(unittest.TestCase):
         with open('tests/blns.txt', 'r') as f:
             name = f.readline()
             with self.subTest(name=name):
-                p = Player(name, self.t)
+                p = Player(self.t, name)
+
 
 class TestTournamentPodSizing(unittest.TestCase):
 
@@ -29,7 +33,7 @@ class TestTournamentPodSizing(unittest.TestCase):
                 auto_export=False,
             )
         )
-
+        t.initialize_round()
 
         pod_sizes = {
             0: None,
@@ -67,6 +71,8 @@ class TestTournamentPodSizing(unittest.TestCase):
                 auto_export=False,
             )
         )
+        t.initialize_round()
+
         pod_sizes = (
             (0,  [], 0),
             (1,  [], 1),
@@ -90,15 +96,16 @@ class TestTournamentPodSizing(unittest.TestCase):
             (19, [4, 4, 4, 4], 3),
             (20, [4, 4, 4, 4, 4], 0),
         )
+
         for n, expected_sizes, bench in pod_sizes:
             with self.subTest(n=str(n).zfill(2)):
                 t.create_pairings()
-                assert t.round is not None
-                sizes = [len(p) for p in t.round.pods]
+                assert t.tour_round is not None
+                sizes = [len(p) for p in t.tour_round.pods]
                 self.assertListEqual(sizes, expected_sizes)
-                self.assertEqual(len(t.round.unseated), bench)
+                self.assertEqual(len(t.tour_round.byes), bench)
                 t.reset_pods()
-                t.add_player(fkr.name())
+                t.add_player(f"{len(t.players)}:{fkr.name()}")
 
     def test_correct_pod_sizing_4_nobye(self):
         t = Tournament(
@@ -108,6 +115,8 @@ class TestTournamentPodSizing(unittest.TestCase):
                 auto_export=False,
             )
         )
+        t.initialize_round()
+
 
         pod_sizes = (
             (0,  [], 0),
@@ -135,10 +144,10 @@ class TestTournamentPodSizing(unittest.TestCase):
         for n, expected_sizes, bench in pod_sizes:
             with self.subTest(n=str(n).zfill(2)):
                 t.create_pairings()
-                assert t.round is not None
-                sizes = [len(p) for p in t.round.pods]
+                assert t.tour_round is not None
+                sizes = [len(p) for p in t.tour_round.pods]
                 self.assertListEqual(sizes, expected_sizes)
-                self.assertEqual(len(t.round.unseated), bench)
+                self.assertEqual(len(t.tour_round.byes), bench)
                 t.reset_pods()
                 t.add_player(fkr.name())
 
@@ -151,6 +160,7 @@ class TestTournamentPodSizing(unittest.TestCase):
                 auto_export=False,
             )
         )
+        t.initialize_round()
 
         pod_sizes = (
             (0,  [], 0),
@@ -178,12 +188,170 @@ class TestTournamentPodSizing(unittest.TestCase):
         for n, expected_sizes, bench in pod_sizes:
             with self.subTest(n=str(n).zfill(2)):
                 t.create_pairings()
-                assert t.round is not None
-                sizes = [len(p) for p in t.round.pods]
+                assert t.tour_round is not None
+                sizes = [len(p) for p in t.tour_round.pods]
                 self.assertListEqual(sizes, expected_sizes)
-                self.assertEqual(len(t.round.unseated), bench)
+                self.assertEqual(len(t.tour_round.byes), bench)
                 t.reset_pods()
                 t.add_player(fkr.name())
+
+
+class TestMatching(unittest.TestCase):
+    def setUp(self) -> None:
+        self.config = TournamentConfiguration(
+            pod_sizes=[4, 3],
+            allow_bye=True,
+            win_points=5,
+            bye_points=4,
+            draw_points=1,
+            auto_export=False,
+            snake_pods=True,
+            max_byes=2,
+        )
+        self.n_rounds = 5
+
+    def test_all_players_assigned(self):
+        tour_sizes = range(16, 128)
+        for n in tqdm(tour_sizes, desc="Testing all players assigned"):
+            t = Tournament(
+                self.config
+            )
+            t.initialize_round()
+            t.add_player([
+                f"{i}:{fkr.name()}" for i in range(n)
+            ])
+            for i in range(self.n_rounds):
+                #with self.subTest(n=str(n).zfill(2), round=str(i+1).zfill(2)):
+                    t.create_pairings()
+                    t.random_results()
+                    for p in t.tour_round.active_players:
+                        self.assertEqual(len(p.pods(t.tour_round)), i+1)
+
+                    self.assertEqual(len(t.tour_round.active_players), n)
+                    self.assertEqual(len(t.tour_round.unassigned), 0)
+                    t.new_round()
+
+    def test_bye_assignment(self):
+        tour_sizes = range(16, 128)
+        for n in tour_sizes:
+            t = Tournament(self.config)
+            t.initialize_round()
+            t.add_player([
+                f"{i}:{fkr.name()}" for i in range(n)
+            ])
+            self.assertEqual(len(t.players), n)
+            for i in range(self.n_rounds):
+                with self.subTest(n=str(n).zfill(2), round=str(i+1).zfill(2)):
+                #with self.subTest(n=str(n).zfill(2)):
+                    t.create_pairings()
+                    n_byes = len(t.tour_round.byes)
+                    expected_byes = n % 4 if n % 4 <= 2 else 0
+                    min_score = t.get_standings()[-n_byes].rating(t.tour_round)
+                    if (n_byes != expected_byes):
+                        t.reset_pods()
+                        t.create_pairings()
+                        n_byes = len(t.tour_round.byes)
+                        if n_byes != expected_byes:
+                            print(n_byes, expected_byes)
+                    self.assertLessEqual(n_byes, t.config.max_byes)
+                    self.assertEqual(n_byes, expected_byes)
+
+                    pass
+                    t.random_results()
+                    pass
+
+    def test_snake_no_repeat_matching(self):
+        tour_sizes = [
+            12, 13, 14,
+            16,
+            15, 17, 18, 19,
+            20
+        ]
+        tested = []
+        for n_players in tour_sizes:
+            with self.subTest(n_players=n_players):
+                player_names = [
+                    f"{str(i).zfill(2)}"
+                    for i in range(n_players)
+                ]
+
+                #We can discard tests where players are awarded bye to reduce complexity
+                t = Tournament(self.config)
+                pod_sizes = t.get_pod_sizes(n_players) or []
+                n_pods = len(pod_sizes)
+                total_capacity = sum(pod_sizes)
+                if total_capacity in tested:
+                    continue
+                tested.append(total_capacity)
+
+                #r1_result_table = [
+                #    [
+                #        bool(i & (1 << (n_players - 1 - j)))
+                #        for j in range(1, pod_sizes[i])
+                #    ]
+                #    for i in range(n_pods)
+                #]
+
+                r1_results_table = [
+                    [
+                        [(j >> k) & 1 == 1 for k in range(pod_sizes[i])]
+                        for j in range(1, 2**pod_sizes[i])
+                    ] #todo
+                    for i in range(n_pods)
+                ]
+
+                #above represents possible results for each pod
+                #now create a table that has all possible combinations of results for all pods from above
+
+                # Generate all possible combinations using itertools.product
+
+                # Each outcome is a tuple where outcome[i] is the result for pod i
+                # For example, if you have 2 pods with 2 players each:
+                # - Pod 0 has 3 possible results: [[True, False], [False, True], [True, True]]
+                # - Pod 1 has 3 possible results: [[True, False], [False, True], [True, True]]
+                # - all_possible_outcomes will have 3*3 = 9 combinations
+
+                # Create all possible combinations of results across all pods
+                all_possible_outcomes = list(product(*r1_results_table))
+                #Take random 500 outcomes
+                random_sample = random.sample(all_possible_outcomes, 500)
+                for result in tqdm(random_sample):
+                    #tests_ran += 1
+                    #if tests_ran >= 100:
+                    #    break
+
+                    t = Tournament(self.config)
+                    t.initialize_round()
+                    t.add_player(player_names)
+
+                    t.tour_round.create_pods()
+                    pod_idx = 0
+                    for player in t.players:
+
+                        if t.tour_round.pods[pod_idx].cap == len(t.tour_round.pods[pod_idx].players):
+                            pod_idx += 1
+                            if pod_idx >= len(t.tour_round.pods):
+                                raise ValueError('Pod index out of range')
+
+                        t.tour_round.pods[pod_idx].add_player(player)
+
+                    #results are bits - for each seat of 4 bits
+                    #set the result of a pod based on the bits
+                    for i, pod in enumerate(t.tour_round.pods):
+                        single_result = result[i].count(True) == 1
+                        for j, player in enumerate(pod.players):
+                            if result[i][j]:
+                                pod.set_result(player, Player.EResult.WIN if single_result else Player.EResult.DRAW)
+                        pass
+                    #Snake pods round
+                    t.create_pairings()
+
+                    repeat_pairings = t.tour_round.repeat_pairings()
+
+                    #TODO: Actually figure out what is the minimal amount of repeat pairings
+                    self.assertLessEqual(sum(repeat_pairings.values()), len(t.tour_round.pods))
+                    pass
+
 
 class TestScoring(unittest.TestCase):
     def setUp(self) -> None:
@@ -191,61 +359,146 @@ class TestScoring(unittest.TestCase):
             TournamentConfiguration(
                 pod_sizes=[4],
                 allow_bye=True,
-                bye_points=4,
                 win_points=4,
+                bye_points=4,
                 draw_points=1,
                 auto_export=False,
             )
         )
+        self.t.initialize_round()
         Player.FORMATTING = ['-p', '-w', '-o']
 
     def test_bye_scoring(self):
         self.t.add_player([
-            fkr.name()
-            for _ in range(9)
+            f"{i}:{fkr.name()}" for i in range(9)
         ])
 
         self.t.create_pairings()
 
-        assert self.t.round is not None
-        benched = self.t.round.unseated[0]
+        assert self.t.tour_round is not None
+        bye = next(iter(self.t.tour_round.byes))
 
-        for pod in self.t.round.pods:
+        for pod in self.t.tour_round.pods:
             self.t.report_win(pod.players[0])
 
-        leaders = [p for p in self.t.players if p.points == self.t.TC.win_points]
+        leaders = [p for p in self.t.players if p.rating(self.t.tour_round) == self.t.config.win_points]
         self.assertEqual(len(leaders), 3)
-        self.assertEqual(benched.points, self.t.TC.bye_points)
-        standings = self.t.get_standings()
-        self.assertEqual(standings[2], benched)
+        self.assertEqual(bye.rating(self.t.tour_round), self.t.config.bye_points)
+        standings = self.t.get_standings(self.t.tour_round)
+        self.assertEqual(standings[2], bye)
 
-        self.t.manual_pod([benched, standings[3]])
+        self.t.new_round()
+        self.t.manual_pod([bye, standings[3]])
         self.t.manual_pod([standings[0], standings[1]])
-        self.t.toggle_game_loss(self.t.round.unseated)
-        self.t.report_win([benched, standings[0]])
+        self.t.toggle_game_loss(self.t.tour_round.unassigned)
+        self.t.report_win([bye, standings[0]])
 
-        new_standings = self.t.get_standings()
+        new_standings = self.t.get_standings(self.t.tour_round)
         self.assertEqual(new_standings[0], standings[0])
-        self.assertEqual(new_standings[1], benched)
+        self.assertEqual(new_standings[1], bye)
 
     def test_standings_constant(self):
         self.t.add_player([
-            fkr.name()
-            for _ in range(32)
+            f"{i}:{fkr.name()}" for i in range(32)
         ])
 
         self.t.create_pairings()
-        assert self.t.round is not None
-        for pod in self.t.round.pods:
+        assert self.t.tour_round is not None
+        for pod in self.t.tour_round.pods:
             self.t.report_win(pod.players[0])
 
-        orig_standings = self.t.get_standings()
+        orig_standings = self.t.get_standings(self.t.tour_round)
 
         for _ in range(100):
-            #shuffle players
-            random.shuffle(self.t.players)
+            #shuffle players by recreating the _players set in a random order
+            #This changes the iteration order of the set (Python 3.7+ maintains insertion order)
+            player_uids = list(self.t._players)
+            random.shuffle(player_uids)
+            self.t._players = set(player_uids)
 
-            self.assertEqual(self.t.get_standings(), orig_standings)
+            self.assertEqual(self.t.get_standings(self.t.tour_round), orig_standings)
+
+    def test_random_results(self):
+        self.t.add_player([
+            f"{i}:{fkr.name()}" for i in range(128)
+        ])
+        for _ in tqdm(range(10)):
+            self.t.create_pairings()
+            self.t.random_results()
+            self.assertTrue(self.t.tour_round.done)
+
+            self.t.reset_pods()
+
+
+class TestPerformance(unittest.TestCase):
+    def test_new_round_speed(self):
+        t = Tournament(
+            TournamentConfiguration(
+                pod_sizes=[4, 3],
+                max_byes=2,
+                auto_export=False,
+                snake_pods=True,
+                allow_bye=True,
+                win_points=5,
+                bye_points=4,
+                draw_points=1,
+                n_rounds=5,
+                top_cut=10,
+            )
+        )
+        t.initialize_round()
+
+        t.add_player([
+            f"{i}:{fkr.name()}" for i in range(128)
+        ])
+
+        n = 20
+        total_time = 0
+        for _ in tqdm(range(n), desc="Testing new round speed"):
+            time_start = time.time()
+            t.new_round()
+            delta_time = time.time() - time_start
+            total_time += delta_time
+            self.assertLess(delta_time, 1, msg=f"{delta_time} seconds at round {n} for {len(t.players)} players")
+            t.create_pairings()
+            t.random_results()
+        self.assertLess(total_time/n, 0.5)
+
+    def test_create_pairings_speed(self):
+        tour_sizes = [16, 32, 64, 128, 256, 512, 1024]
+
+        for n in tour_sizes:
+            total_time = 0
+            player_time_ratio = 0.05 * 1.05**(n/128)
+            t = Tournament(
+                TournamentConfiguration(
+                    pod_sizes=[4],
+                    allow_bye=False,
+                    auto_export=False,
+                    max_byes=2,
+                    win_points=5,
+                    bye_points=4,
+                    draw_points=1,
+                    snake_pods=True,
+                    n_rounds=7,
+                    top_cut=10,
+                )
+            )
+            t.initialize_round()
+            t.add_player([
+                f"{i}:{fkr.name()}" for i in range(n)
+            ])
+            for _ in tqdm(range(t.config.n_rounds), desc=f"Pairing speed for {n} players"):
+                time_start = time.time()
+                t.create_pairings()
+                delta_time = time.time() - time_start
+                self.assertLess(delta_time, n*player_time_ratio)
+                total_time += delta_time
+                t.random_results()
+                t.new_round()
+            with self.subTest(n=str(n).zfill(2), max_time=n*player_time_ratio):
+                self.assertLess(total_time/t.config.n_rounds, n*player_time_ratio)
+
 
 class TestLarge(unittest.TestCase):
 
@@ -265,12 +518,14 @@ class TestLarge(unittest.TestCase):
                         auto_export=False,
                     )
                 )
+                t.initialize_round()
+
                 t.add_player([
-                    fkr.name()
-                    for _ in range(n)
+                    f"{i}:{fkr.name()}" for i in range(n)
                 ])
                 for _ in range(n_rounds):
-                    t.create_pairings()
+                    ok = t.create_pairings()
+                    self.assertTrue(ok)
                     t.random_results()
 
     def test_many_rounds(self):
@@ -285,9 +540,10 @@ class TestLarge(unittest.TestCase):
                 auto_export=False,
             )
         )
+        t.initialize_round()
+
         t.add_player([
-            fkr.name()
-            for _ in range(tour_size)
+            f"{i}:{fkr.name()}" for i in range(tour_size)
         ])
         for i in range(n_rounds):
             with self.subTest(n=str(i+1).zfill(2)):
@@ -304,8 +560,7 @@ class TestSeatNormalization(unittest.TestCase):
             )
         )
         t.add_player([
-            fkr.name()
-            for _ in range(16)
+            f"{i}:{fkr.name()}" for i in range(16)
         ])
 
         for i in tqdm(range(500)):
