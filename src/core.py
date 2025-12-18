@@ -1,6 +1,7 @@
 from __future__ import annotations
-from typing import List, Sequence, Union, Callable, Any
+from typing import List, Sequence, Union, Callable, Any, cast
 from typing_extensions import override
+from collections.abc import Iterable
 
 import argparse
 import math
@@ -443,14 +444,14 @@ class TournamentAction:
     def load(cls, logdir='logs/default.json') -> Tournament|None:
         if os.path.exists(logdir):
             cls.LOGF = logdir
-            try:
-                with open(cls.LOGF, 'r') as f:
-                    tour_json = json.load(f)
-                    tour = Tournament.inflate(tour_json)
-                return tour
-            except Exception as e:
-                Log.log(str(e), level=Log.Level.ERROR)
-                return None
+            #try:
+            with open(cls.LOGF, 'r') as f:
+                tour_json = json.load(f)
+                tour = Tournament.inflate(tour_json)
+            return tour
+            #except Exception as e:
+            #    Log.log(str(e), level=Log.Level.ERROR)
+            #    return None
         return None
 
     @override
@@ -479,7 +480,6 @@ class TournamentConfiguration(ITournamentConfiguration):
         TOP_16 = 16
         TOP_40 = 40
 
-
     def __init__(self, **kwargs):
         self.pod_sizes = kwargs.get('pod_sizes', [4, 3])
         self.allow_bye = kwargs.get('allow_bye', True)
@@ -488,7 +488,16 @@ class TournamentConfiguration(ITournamentConfiguration):
         self.draw_points = kwargs.get('draw_points', 1)
         self.snake_pods = kwargs.get('snake_pods', True)
         self.n_rounds = kwargs.get('n_rounds', 5)
-        self.top_cut = kwargs.get('top_cut', TournamentConfiguration.TopCut.NONE)
+        # Parse int or enum for TopCut
+        tc_val = kwargs.get('top_cut', TournamentConfiguration.TopCut.NONE)
+        if isinstance(tc_val, TournamentConfiguration.TopCut):
+            self.top_cut = tc_val
+        else:
+            # If it's already an int, map to Enum
+            try:
+                self.top_cut = TournamentConfiguration.TopCut(tc_val)
+            except Exception:
+                self.top_cut = TournamentConfiguration.TopCut.NONE
         self.max_byes = kwargs.get('max_byes', 2)
         self.auto_export = kwargs.get('auto_export', True)
         self.standings_export = kwargs.get('standings_export', StandingsExport())
@@ -515,7 +524,7 @@ class TournamentConfiguration(ITournamentConfiguration):
             len(x.games(tour_round)),
             np.round(x.opponent_pointrate(tour_round), 10),
             len(x.players_beaten(tour_round)),
-            -x.average_seat(x.tour.rounds),
+            -x.average_seat([r for r in x.tour.rounds if r.seq <= tour_round.seq]),
             -x.uid if isinstance(x.uid, int) else -int(x.uid.int)
         )
 
@@ -624,8 +633,9 @@ class Tournament(ITournament):
         self.ROUND_CACHE: dict[UUID, Round] = {}
 
         self._rounds: list[UUID] = list()
-        self._players: list[UUID] = list()
-        self._dropped: list[UUID] = list()
+        self._players: set[UUID] = set()
+        #self._dropped: list[UUID] = list()
+        #self._disabled: list[UUID] = list()  # Players disabled from top cut (but still in tournament)
         self._round: UUID|None = None
 
         # Direct setting - don't want to overwrite old log file
@@ -639,16 +649,8 @@ class Tournament(ITournament):
         return cls.CACHE[uid]
 
     @property
-    def active_players(self) -> list[Player]:
-        return [Player.get(self, x) for x in self._players if x not in self._dropped]
-
-    @property
-    def players(self) -> list[Player]:
-        return [Player.get(self, x) for x in self._players]
-
-    @property
-    def dropped(self) -> list[Player]:
-        return [Player.get(self, x) for x in self._dropped]
+    def players(self) -> set[Player]:
+        return {Player.get(self, x) for x in self._players}
 
     @property
     def tour_round(self) -> Round:
@@ -661,6 +663,20 @@ class Tournament(ITournament):
     @property
     def last_round(self) -> Round|None:
         return self.rounds[-1] if self.rounds else None
+
+    def previous_round(self, tour_round: Round|None=None) -> Round|None:
+        if tour_round is None:
+            tour_round = self.tour_round
+        return self.rounds[self.rounds.index(tour_round) - 1] if self.rounds.index(tour_round) > 0 else None
+
+    @property
+    def final_swiss_round(self) -> Round|None:
+        if len(self.rounds) >= self.config.n_rounds:
+            last_round = self.rounds[self.config.n_rounds - 1]
+            if last_round.stage != Round.Stage.SWISS:
+                raise ValueError('Last round is not a Swiss round.')
+            return last_round
+        return None
 
     @property
     def pods(self) -> list[Pod]|None:
@@ -675,6 +691,10 @@ class Tournament(ITournament):
     @rounds.setter
     def rounds(self, rounds: list[Round]):
         self._rounds = [r.uid for r in rounds]
+
+    @property
+    def swiss_rounds(self) -> list[Round]:
+        return [r for r in self.rounds if r.stage == Round.Stage.SWISS]
 
     @property
     def ended_rounds(self) -> list[Round]:
@@ -706,7 +726,7 @@ class Tournament(ITournament):
         new_players = []
         if isinstance(names, str):
             names = [names]
-        existing_names = set([p.name for p in self.active_players])
+        existing_names = set([p.name for p in self.players])
         for name in names:
             if name in existing_names:
                 Log.log('\tPlayer {} already enlisted.'.format(
@@ -714,7 +734,7 @@ class Tournament(ITournament):
                 continue
             if name:
                 p = Player(self, name)
-                self._players.append(p.uid)
+                self._players.add(p.uid)
                 if p.uid not in self.tour_round._players:
                     self.tour_round._players.append(p.uid)
                 new_players.append(p)
@@ -729,18 +749,30 @@ class Tournament(ITournament):
             players = [players]
         for p in players:
             if self.tour_round and p.seated(self.tour_round):
-                if self.tour_round.done:
+                if self.tour_round.done and self.tour_round != self.last_round:
                     #Log.log('Can\'t drop {} during an active tour_round.\nComplete the tour_round or remove player from pod first.'.format(
                     #    p.name), level=Log.Level.WARNING)
                     return False
+
             # If player has not played yet, it can safely be deleted without being saved
             if p.played(self.tour_round):
-                self._dropped.append(p.uid)
+                self.tour_round.drop_player(p)
             else:
                 self._players.remove(p.uid)
-            self.tour_round.drop_player(p)
+                self.tour_round._players.remove(p.uid)
+            # Remove from disabled set if they were disabled
+            self.tour_round.disable_player(p, set_disabled=False)
         return True
         #Log.log('\tRemoved player {}'.format(p.name), level=Log.Level.INFO)
+
+    @TournamentAction.action
+    def disable_player(self, players: list[Player]|Player, set_disabled: bool=True) -> bool:
+        """Disable players from top cut. They remain in the tournament but won't participate in top cut rounds."""
+        if not isinstance(players, list):
+            players = [players]
+        for p in players:
+            self.tour_round.disable_player(p, set_disabled=set_disabled)
+        return True
 
     @TournamentAction.action
     def rename_player(self, player, new_name):
@@ -804,22 +836,72 @@ class Tournament(ITournament):
         if self._round is not None and not self.tour_round.done:
             return False
         seq = len(self.rounds)
-        if seq >= self.config.n_rounds:
+        stage = Round.Stage.SWISS
+        logic = None
+        if seq >= self.config.n_rounds and self.last_round:
             if self.config.top_cut == TournamentConfiguration.TopCut.NONE:
                 Log.log('Maximum number of rounds reached.', level=Log.Level.WARNING)
                 return False
             if self.config.top_cut == TournamentConfiguration.TopCut.TOP_4:
-                logic = self.get_pairing_logic("PairingTop4")
+                if self.last_round.stage == Round.Stage.SWISS:
+                    logic = self.get_pairing_logic("PairingTop4")
+                    stage = Round.Stage.TOP_4
+                else:
+                    Log.log('Tournament completed.')
+                    return False
             elif self.config.top_cut == TournamentConfiguration.TopCut.TOP_7:
-                logic = self.get_pairing_logic("PairingTop7")
+                if self.last_round.stage == Round.Stage.SWISS:
+                    stage = Round.Stage.TOP_7
+                    logic = self.get_pairing_logic("PairingTop7")
+                elif self.last_round.stage == Round.Stage.TOP_7:
+                    stage = Round.Stage.TOP_4
+                    logic = self.get_pairing_logic("PairingTop4")
+                else:
+                    Log.log('Tournament completed.')
+                    return False
             elif self.config.top_cut == TournamentConfiguration.TopCut.TOP_10:
-                logic = self.get_pairing_logic("PairingTop10")
+                if self.last_round.stage == Round.Stage.SWISS:
+                    stage = Round.Stage.TOP_10
+                    logic = self.get_pairing_logic("PairingTop10")
+                elif self.last_round.stage == Round.Stage.TOP_10:
+                    stage = Round.Stage.TOP_4
+                    logic = self.get_pairing_logic("PairingTop4")
+                else:
+                    Log.log('Tournament completed.')
+                    return False
             elif self.config.top_cut == TournamentConfiguration.TopCut.TOP_13:
-                logic = self.get_pairing_logic("PairingTop13")
+                if self.last_round.stage == Round.Stage.SWISS:
+                    stage = Round.Stage.TOP_13
+                    logic = self.get_pairing_logic("PairingTop13")
+                elif self.last_round.stage == Round.Stage.TOP_13:
+                    stage = Round.Stage.TOP_4
+                    logic = self.get_pairing_logic("PairingTop4")
+                else:
+                    Log.log('Tournament completed.')
+                    return False
             elif self.config.top_cut == TournamentConfiguration.TopCut.TOP_16:
-                logic = self.get_pairing_logic("PairingTop16")
+                if self.last_round.stage == Round.Stage.SWISS:
+                    stage = Round.Stage.TOP_16
+                    logic = self.get_pairing_logic("PairingTop16")
+                elif self.last_round.stage == Round.Stage.TOP_16:
+                    stage = Round.Stage.TOP_4
+                    logic = self.get_pairing_logic("PairingTop4")
+                else:
+                    Log.log('Tournament completed.')
+                    return False
             elif self.config.top_cut == TournamentConfiguration.TopCut.TOP_40:
-                logic = self.get_pairing_logic("PairingTop40")
+                if self.last_round.stage == Round.Stage.SWISS:
+                    stage = Round.Stage.TOP_40
+                    logic = self.get_pairing_logic("PairingTop40")
+                elif self.last_round.stage == Round.Stage.TOP_40:
+                    stage = Round.Stage.TOP_16
+                    logic = self.get_pairing_logic("PairingTop16")
+                elif self.last_round.stage == Round.Stage.TOP_16:
+                    stage = Round.Stage.TOP_4
+                    logic = self.get_pairing_logic("PairingTop4")
+                else:
+                    Log.log('Tournament completed.')
+                    return False
             else:
                 raise ValueError(f"Unknown top cut: {self.config.top_cut}")
         else:
@@ -829,10 +911,20 @@ class Tournament(ITournament):
                 logic = self.get_pairing_logic("PairingSnake")
             else:
                 logic = self.get_pairing_logic("PairingDefault")
+
+        if not logic:
+            Log.log('No pairing logic found.', level=Log.Level.ERROR)
+            return False
+        elif not stage:
+            Log.log('No stage found.', level=Log.Level.ERROR)
+            return False
         new_round = Round(
             self,
             len(self.rounds),
+            stage,
             logic,
+            dropped=self.tour_round._dropped if self._round else set(),
+            disabled=self.tour_round._disabled if self._round else set(),
         )
         self._rounds.append(new_round.uid)
         self.tour_round = new_round
@@ -953,16 +1045,16 @@ class Tournament(ITournament):
                 #        player.name, pod.table), level=Log.Level.ERROR)
 
     @TournamentAction.action
-    def bench_players(self, players: list[Player]|Player):
+    def bench_players(self, players: Iterable[Player]|Player):
         assert self.tour_round is not None
-        if not isinstance(players, list):
+        if not isinstance(players, Iterable):
             players = [players]
         for player in players:
             self.remove_player_from_pod(player)
 
     @TournamentAction.action
-    def toggle_game_loss(self, players: list[Player]|Player):
-        if not isinstance(players, list):
+    def toggle_game_loss(self, players: Iterable[Player]|Player):
+        if not isinstance(players, Iterable):
             players = [players]
 
         for player in players:
@@ -976,8 +1068,8 @@ class Tournament(ITournament):
                 #    player.name), level=Log.Level.INFO)
 
     @TournamentAction.action
-    def toggle_bye(self, players: list[Player]|Player):
-        if not isinstance(players, list):
+    def toggle_bye(self, players: Iterable[Player]|Player):
+        if not isinstance(players, Iterable):
             players = [players]
         for player in players:
             if player.uid in self.tour_round._byes:
@@ -1003,8 +1095,15 @@ class Tournament(ITournament):
             #    player.name, pod.name), level=Log.Level.INFO)
 
     def rating(self, player: Player, tour_round: Round) -> float:
+        """
+        Calculate the rating of a player for a given round.
+        The rating is the sum of the points for the player in the Swiss rounds up to and including the given round.
+        If the round is not a Swiss round, the rating is the sum of the points for the player in the last Swiss round.
+        """
         points = 0
         for i, i_tour_round in enumerate(self.rounds):
+            if i_tour_round.stage != Round.Stage.SWISS:
+                break
             round_result = player.result(i_tour_round)
             if round_result == Player.EResult.WIN:
                 points += self.config.win_points
@@ -1038,9 +1137,43 @@ class Tournament(ITournament):
         order = Player.SORT_ORDER
         Player.SORT_METHOD = SortMethod.RANK
         Player.SORT_ORDER = SortOrder.ASCENDING
+        playoffs = False
         if tour_round is None:
             tour_round = self.tour_round
-        standings = sorted(self.players, key=lambda x: self.config.ranking(x, tour_round), reverse=True)
+        if tour_round.stage == Round.Stage.SWISS:
+            standings = sorted(self.players, key=lambda x: self.config.ranking(x, tour_round), reverse=True)
+        else:
+            final_swiss = self.final_swiss_round
+            assert final_swiss is not None
+            playoff_stage = tour_round.seq - final_swiss.seq - 1
+
+            if playoff_stage > 0:
+                #TODO: take the standings of previous playoff round and modify them to current results
+                previous_round = self.previous_round(tour_round)
+                assert previous_round is not None
+                standings = self.get_standings(previous_round)
+                advancing_players = tour_round.advancing_players(standings)
+                non_advancing = [p for p in standings if p not in advancing_players]
+                standings = advancing_players + non_advancing
+                pass
+            else:
+                swiss_standings = self.get_standings(final_swiss)
+                advancing_players = tour_round.advancing_players(swiss_standings)
+                non_advancing = [p for p in swiss_standings if p not in advancing_players]
+
+                # Sort non-advancing players: draws rank above losses, then by original standings
+                standings_index = {player: idx for idx, player in enumerate(swiss_standings)}
+                non_advancing.sort(key=lambda x: (
+                    0 if tour_round and x.result(tour_round) == Player.EResult.DRAW else 1,  # Draws first (0), losses second (1)
+                    standings_index.get(x, len(swiss_standings))  # Then by original standings position
+                ))
+
+                standings = advancing_players + non_advancing
+                pass
+
+            #TODO: Implement playoff standings
+            pass
+
         Player.SORT_METHOD = method
         Player.SORT_ORDER = order
         return standings
@@ -1051,7 +1184,7 @@ class Tournament(ITournament):
             style: StandingsExport.Format = StandingsExport.Format.PLAIN,
             tour_round: Round|None = None,
             standings: list[Player]|None = None
-    ) -> str:
+        ) -> str:
         #raise DeprecationWarning("get_standings_str is deprecated. Use get_standings instead.")
         if tour_round is None:
             tour_round = self.tour_round
@@ -1127,8 +1260,7 @@ class Tournament(ITournament):
             data: str,
             var_export_param: Any,
             target_type: StandingsExport.Target,
-
-    ):
+        ):
         if StandingsExport.Target.FILE == target_type:
             if not os.path.exists(os.path.dirname(var_export_param)):
                 os.makedirs(os.path.dirname(var_export_param))
@@ -1182,8 +1314,9 @@ class Tournament(ITournament):
         data: dict[str, Any] = {}
         data['uid'] = str(self.uid)
         data['config'] = self.config.serialize()
-        data['players'] = [p.serialize() for p in self.active_players]
-        data['dropped'] = [p.serialize() for p in self.dropped]
+        data['players'] = list(p.serialize() for p in self.players)
+        #data['dropped'] = [p.serialize() for p in self.dropped_players]
+        #data['disabled'] = [str(p.uid) for p in self.disabled_players]
         data['rounds'] = [r.serialize() for r in self.rounds]
         return data
 
@@ -1195,15 +1328,20 @@ class Tournament(ITournament):
             tour = Tournament.CACHE[tour_uid]
         else:
             tour = cls(config, tour_uid)
-        tour._players = [UUID(d_player['uid']) for d_player in data['players']]
-        tour._dropped = [UUID(d_player['uid']) for d_player in data['dropped']]
-        tour._players.extend(tour._dropped)
+        tour._players = {UUID(d_player['uid']) for d_player in data['players']}
+        #tour._dropped = [UUID(d_player['uid']) for d_player in data['dropped']]
+        #tour._disabled = [UUID(d_player['uid']) for d_player in data['disabled']]
+        #tour._players.extend(tour._dropped)
+        #tour._players.extend(tour._disabled)
+        # Load disabled players (backward compatible: may not exist in old saves)
+        #if 'disabled' in data:
+        #    tour._disabled = {UUID(uid) for uid in data['disabled']}
         for d_player in data['players']:
             Player.inflate(tour, d_player)
-        for d_player in data['dropped']:
-            Player.inflate(tour, d_player)
+        #for d_player in data['dropped']:
+        #    Player.inflate(tour, d_player)
         tour._rounds = [UUID(d_round['uid']) for d_round in data['rounds']]
-        for d_round in tqdm(data['rounds'], desc="Inflating rounds"):
+        for _, d_round in tqdm(enumerate(data['rounds']), desc="Inflating rounds"):
             r = Round.inflate(tour, d_round)
             tour._round = r.uid
         return tour
@@ -1420,14 +1558,13 @@ class Player(IPlayer):
     def not_played(self, tour_round: Round|None=None    ) -> list[Player]:
         if tour_round is None:
             tour_round = self.tour.tour_round
-        return list(set(self.tour.active_players) - set(self.played(tour_round)))
+        return list(set(self.tour.tour_round.active_players) - set(self.played(tour_round)))
 
     def opponent_pointrate(self, tour_round: Round|None=None):
         if not self.played(tour_round):
             return 0
         oppwr = [opp.pointrate(tour_round) for opp in self.played(tour_round)]
         return sum(oppwr)/len(oppwr)
-
 
     #PROPERTIES
 
@@ -1464,7 +1601,7 @@ class Player(IPlayer):
             Player.EResult.PENDING: '_',
         }[r] for r in record])
 
-    def __gt__(self, other: Player, tour_round:Round|None=None) -> bool:
+    def __gt__(self, other: Player, tour_round:Round|None=None, context: TournamentContext|None=None) -> bool:
         b = False
         if self.SORT_METHOD == SortMethod.ID:
             b = self.uid > other.uid
@@ -1473,16 +1610,18 @@ class Player(IPlayer):
         elif self.SORT_METHOD == SortMethod.RANK:
             if tour_round is None:
                 tour_round = self.tour.tour_round
-            my_score = self.tour.config.ranking(self, tour_round)
-            other_score = self.tour.config.ranking(other, tour_round)
-            b = None
-            for i in range(len(my_score)):
-                if my_score[i] != other_score[i]:
-                    b = my_score[i] > other_score[i]
-                    break
+            if context is None:
+                context = TournamentContext(self.tour, tour_round, self.tour.get_standings(tour_round))
+            # Use index in standings to match the exact order provided in context.standings
+            # standings[0] is best player, standings[-1] is worst player
+            self_idx = context.standings.index(self)
+            other_idx = context.standings.index(other)
+
+            b = self_idx > other_idx
+
         return bool(b)
 
-    def __lt__(self, other: Player, tour_round:Round|None=None) -> bool:
+    def __lt__(self, other: Player, tour_round:Round|None=None, context: TournamentContext|None=None) -> bool:
         b = False
         if self.SORT_METHOD == SortMethod.ID:
             b = self.uid < other.uid
@@ -1491,18 +1630,20 @@ class Player(IPlayer):
         elif self.SORT_METHOD == SortMethod.RANK:
             if tour_round is None:
                 tour_round = self.tour.tour_round
-            my_score = self.tour.config.ranking(self, tour_round)
-            other_score = self.tour.config.ranking(other, tour_round)
-            b = None
-            for i in range(len(my_score)):
-                if my_score[i] != other_score[i]:
-                    b = my_score[i] > other_score[i]
-                    break
+            if context is None:
+                context = TournamentContext(self.tour, tour_round, self.tour.get_standings(tour_round))
+            # Use index in standings to match the exact order provided in context.standings
+            # standings[0] is best player, standings[-1] is worst player
+            self_idx = context.standings.index(self)
+            other_idx = context.standings.index(other)
+
+            b = self_idx < other_idx
+
         return bool(b)
 
     @override
     def __repr__(self, tokens=None, context: TournamentContext|None=None):
-        if len(self.tour.active_players) == 0:
+        if len(self.tour.tour_round.active_players) == 0:
             return ''
         if not tokens:
             tokens = self.FORMATTING
@@ -1547,8 +1688,8 @@ class Player(IPlayer):
 
         fields = list()
 
-        tsize = int(math.floor(math.log10(len(self.tour.active_players))) + 1)
-        pname_size = max([len(p.name) for p in self.tour.active_players])
+        tsize = int(math.floor(math.log10(len(self.tour.tour_round.active_players))) + 1)
+        pname_size = max([len(p.name) for p in self.tour.tour_round.active_players])
 
         tour_round = self.tour.rounds[args.round]
         if context is None:
@@ -1567,7 +1708,7 @@ class Player(IPlayer):
             max_pod_id = max([len(str(p.table)) for p in tour_round.pods])
             pod = self.pod(tour_round)
             player_result = self.result(self.tour.tour_round)
-            if self in self.tour.dropped:
+            if self in self.tour.tour_round.dropped_players:
                 fields.append('Drop'.ljust(max_pod_id+4))
             elif pod:
                 #find number of digits in max pod id
@@ -1807,19 +1948,48 @@ class Pod(IPod):
 
 
 class Round(IRound):
-    def __init__(self, tour: Tournament, seq: int, pairing_logic:IPairingLogic, uid: UUID|None = None):
+    class Stage(Enum):
+        SWISS = 0
+        TOP_4 = 4
+        TOP_7 = 7
+        TOP_10 = 10
+        TOP_13 = 13
+        TOP_16 = 16
+        TOP_40 = 40
+
+        @staticmethod
+        def is_playoff(stage: Stage) -> bool:
+            return stage in [Round.Stage.TOP_4, Round.Stage.TOP_7, Round.Stage.TOP_10, Round.Stage.TOP_13, Round.Stage.TOP_16, Round.Stage.TOP_40]
+
+    def __init__(
+            self,
+            # Required
+            tour: Tournament,
+            seq: int,
+            stage: Stage,
+            pairing_logic:IPairingLogic,
+            # Optional
+            uid: UUID|None = None,
+            dropped: set[UUID]|None = None,
+            disabled: set[UUID]|None = None,
+            byes: set[UUID]|None = None,
+            game_loss: set[UUID]|None = None,
+        ):
         super().__init__()
         if uid is not None:
             self.uid = uid
         self._tour: UUID = tour.uid
         self.tour.ROUND_CACHE[self.uid] = self
-        self._players: list[UUID] = [p.uid for p in self.tour.active_players]
-        self._dropped: set[UUID] = set([p.uid for p in self.tour.dropped])
         self.seq:int = seq
+        self.stage: Round.Stage = stage
+
         self._logic = pairing_logic.name
+        self._byes: set[UUID] = set() if byes is None else byes
+        self._game_loss: set[UUID] = set() if game_loss is None else game_loss
+        self._dropped: set[UUID] = set() if dropped is None else dropped
+        self._disabled: set[UUID] = set() if disabled is None else disabled
+
         self.player_locations_map: dict[UUID, Pod] = {}
-        self._game_loss: set[UUID] = set()
-        self._byes: set[UUID] = set()
 
     def refresh_player_location_map(self):
         self.player_locations_map.clear()
@@ -1840,8 +2010,8 @@ class Round(IRound):
         return Player.ELocation.UNASSIGNED
 
     @property
-    def byes(self) -> list[Player]:
-        return [Player.get(self.tour, x) for x in self._byes]
+    def byes(self) -> set[Player]:
+        return set(Player.get(self.tour, x) for x in self._byes)
 
     @property
     def game_loss(self) -> list[Player]:
@@ -1864,16 +2034,20 @@ class Round(IRound):
         self._logic = logic.name
 
     @property
-    def active_players(self) -> list[Player]:
-        return [Player.get(self.tour, x) for x in self._players if x not in self._dropped]
+    def players(self) -> set[Player]:
+        return self.tour.players
 
     @property
-    def players(self) -> list[Player]:
-        return [Player.get(self.tour, x) for x in self._players]
+    def active_players(self) -> set[Player]:
+        return {Player.get(self.tour, x) for x in self.tour._players - self._dropped - self._disabled}
 
-    #@active_players.setter
-    #def active_players(self, players: list[Player]):
-    #    self._players = [p.uid for p in players]
+    @property
+    def dropped_players(self) -> set[Player]:
+        return {Player.get(self.tour, x) for x in self._dropped}
+
+    @property
+    def disabled_players(self) -> set[Player]:
+        return {Player.get(self.tour, x) for x in self._disabled}
 
     @property
     def pods(self) -> list[Pod]:
@@ -1906,16 +2080,89 @@ class Round(IRound):
             return sum(pod_sizes) == seated
 
     @property
-    def seated(self) -> list[Player]:
-        return [p for p in self.active_players if p.pod(self)]
+    def seated(self) -> set[Player]:
+        return {p for p in self.active_players if p.pod(self)}
 
     @property
-    def unassigned(self) -> list[Player]:
-        return [
-            p
-            for p in self.active_players
-            if p.location(self) == Player.ELocation.UNASSIGNED
-        ]
+    def unassigned(self) -> set[Player]:
+        seated_player_uids = set()
+        for pod in self.pods:
+            seated_player_uids.update(pod._players)
+
+        return set(
+            Player.get(self.tour, x)
+            for x in (
+                self.tour._players
+                - self._dropped
+                - self._disabled
+                - self._byes
+                - self._game_loss
+                - seated_player_uids
+            )
+        )
+
+    def advancing_players(self, standings) -> list[Player]:
+        """
+        Returns the players who advance to the next round. Sorted by standing in that round.
+
+        Returns:
+            list[Player]:
+                - If the round is a Swiss round, returns all active players.
+                - If the round is a playoff round, returns the players who advance to the next round of playoffs.
+                  It is by convention default_advancers (bye), winners, advancers by draw, in that order.
+        """
+        # Create index map for O(1) standings lookup instead of O(n) index() calls
+        standings_index = {player: idx for idx, player in enumerate(standings)}
+
+        if self.stage == Round.Stage.SWISS:
+            return sorted(self.active_players, key=lambda x: standings_index.get(x, len(standings)))
+        else:
+            active_players_set = self.active_players  # Cache set lookup
+
+            # Collect players in three groups to maintain proper ordering:
+            # 1. Byes (sorted by standings)
+            # 2. Wins (sorted by standings)
+            # 3. Draws (one per draw pod, sorted by standings)
+            bye_players: list[Player] = []
+            win_players: list[Player] = []
+            draw_players: list[Player] = []
+            processed_draw_pods: set[Pod] = set()  # Track processed draw pods to avoid duplicates
+
+            for p in standings:
+                if p not in active_players_set:
+                    continue
+
+                # Handle byes
+                if p in self.byes:
+                    bye_players.append(p)
+                    continue
+
+                # Get pod once per player
+                pod = p.pod(self)
+                if pod is None:
+                    continue
+
+                # Handle WIN results
+                if pod.done and pod.result_type == Pod.EResult.WIN:
+                    if p in pod.result:
+                        win_players.append(p)
+
+                # Handle DRAW results (only process once per pod)
+                elif pod.result_type == Pod.EResult.DRAW and pod not in processed_draw_pods:
+                    processed_draw_pods.add(pod)
+                    if pod.result:
+                        # Filter to only active players in the draw result
+                        active_in_draw = [p for p in pod.result if p in active_players_set]
+                        if active_in_draw:
+                            advancing_player = min(active_in_draw, key=lambda x: standings_index.get(x, len(standings)))
+                            draw_players.append(advancing_player)
+
+            # Sort each group by standings and concatenate in order
+            bye_players.sort(key=lambda x: standings_index.get(x, len(standings)))
+            win_players.sort(key=lambda x: standings_index.get(x, len(standings)))
+            draw_players.sort(key=lambda x: standings_index.get(x, len(standings)))
+
+            return bye_players + win_players + draw_players
 
     def repeat_pairings(self):
         prev_round = self.tour.rounds[-2]
@@ -1972,18 +2219,27 @@ class Round(IRound):
             pod = Pod(self, start_table + i, cap=size)
             self._pods.append(pod.uid)
 
-    def drop_topcut(self):
-        standings = self.tour.get_standings(self)
+    def disable_topcut(self, standings: list[Player]):
+        """Disable players who don't advance to top cut.
+        They remain in the tournament but won't participate in top cut rounds."""
+        standings = self.tour.get_standings(self.tour.previous_round(self))
 
-        if self.seq == self.tour.config.n_rounds:
-            for p in standings[-1::-1]:
-                if len(self.tour.active_players) == self.tour.config.top_cut.value:
-                    break
-                self.tour.drop_player(p)
+        # Disable players from bottom of standings until we reach top_cut size
+        for p in standings[self.stage.value::]:
+            self.disable_player(p, set_disabled=True)
 
     def create_pairings(self):
-        if self.seq >= self.tour.config.n_rounds:
-            self.drop_topcut()
+        if self.stage != Round.Stage.SWISS:
+            standings = self.tour.get_standings(self.tour.previous_round(self))
+            self.disable_topcut(standings)
+            if self.stage in [
+                Round.Stage.TOP_7,
+                Round.Stage.TOP_10,
+                Round.Stage.TOP_13,
+                Round.Stage.TOP_16,
+                Round.Stage.TOP_40,
+            ]:
+                self.logic.advance_topcut(self, cast(list[IPlayer], standings))
 
         self.create_pods()
         pods = [p for p in self.pods
@@ -1992,7 +2248,7 @@ class Round(IRound):
                     len(p) < p.cap
         ])]
 
-        self.logic.make_pairings(self, self.unassigned, pods)
+        self.logic.make_pairings(self, cast(set[IPlayer], self.unassigned), pods)
 
         if self.seq < self.tour.config.n_rounds:
             for pod in self.pods:
@@ -2033,37 +2289,60 @@ class Round(IRound):
             pod.remove_result(player)
 
     def drop_player(self, player: Player):
-        if self.done:
+        if self.done and self != self.tour.last_round:
             raise ValueError('Can\'t drop player in a completed round.')
         if (pod:=self.get_location(player)) is not None:
-            if pod.done:
-                raise ValueError('Can\'t drop player in a completed pod.')
-            pod.remove_player(player)
+            if pod.done and self != self.tour.last_round:
+                raise ValueError('Can\'t drop player in a completed pod in a previous round.')
+            #pod.remove_player(player)
         self._dropped.add(player.uid)
+
+    def disable_player(self, player: Player, set_disabled: bool = True):
+        if self.done and self != self.tour.last_round:
+            raise ValueError('Can\'t disable player in a completed round.')
+        if (pod:=self.get_location(player)) is not None:
+            if pod.done and self != self.tour.last_round:
+                raise ValueError('Can\'t disable player in a completed pod in a previous round.')
+            #pod.remove_player(player)
+        if set_disabled:
+            self._disabled.add(player.uid)
+        else:
+            self._disabled.discard(player.uid)
 
     def serialize(self) -> dict[str, Any]:
         return {
             'tour': str(self._tour),
-            'uid': str(self.uid),
             'seq': self.seq,
-            'pods': [pod.serialize() for pod in self.pods],
-            'players': [str(p) for p in self._players],
+            'stage': self.stage.value,
             'logic': self._logic,
-            'game_loss': [str(p) for p in self._game_loss],
-            'byes': [str(p) for p in self._byes],
+            'uid': str(self.uid),
             'dropped': [str(p) for p in self._dropped],
+            'disabled': [str(p) for p in self._disabled],
+            'byes': [str(p) for p in self._byes],
+            'game_loss': [str(p) for p in self._game_loss],
+            'pods': [pod.serialize() for pod in self.pods],
         }
 
     @classmethod
     def inflate(cls, tour: Tournament, data: dict[str, Any]) -> Round:
         assert tour.uid == UUID(data['tour'])
         tour.discover_pairing_logic()
+        stage = Round.Stage(data['stage'])
         logic = tour.get_pairing_logic(data['logic'])
-        new_round = cls(tour, data['seq'], logic, UUID(data['uid']))
+
+        new_round: Round = cls(
+            tour,
+            data['seq'],
+            stage=stage,
+            pairing_logic=logic,
+            uid=UUID(data['uid']),
+            dropped={UUID(x) for x in data['dropped']},
+            disabled={UUID(x) for x in data['disabled']},
+            byes={UUID(x) for x in data['byes']},
+            game_loss={UUID(x) for x in data['game_loss']}
+
+        )
         pods = [Pod.inflate(new_round, pod) for pod in data['pods']]
         new_round._pods = [pod.uid for pod in pods]
-        new_round._game_loss = {UUID(x) for x in data['game_loss']}
-        new_round._byes = {UUID(x) for x in data['byes']}
-        new_round._dropped = {UUID(x) for x in data['dropped']}
         new_round.refresh_player_location_map()
         return new_round

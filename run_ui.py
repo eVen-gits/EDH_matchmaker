@@ -59,6 +59,9 @@ class PlayerListItem(QListWidgetItem):
 
         DROP = QColor(128, 128, 128)
 
+    # Class-level temporary context for sorting (set before sort, cleared after)
+    _sort_context: TournamentContext|None = None
+
     def __init__(self, player: Player, p_fmt=None, parent=None, context: TournamentContext|None=None):
         if p_fmt is None:
             p_fmt = '-n -p -l'.split()
@@ -69,10 +72,24 @@ class PlayerListItem(QListWidgetItem):
         self.player = player
 
     def __lt__(self, other: PlayerListItem):
-        return bool(self.player.__lt__(other.player))
+        # Use class-level sort context if available (set during sorting)
+        # Falls back to None if not set (shouldn't happen during normal sorting)
+        context = PlayerListItem._sort_context
+        return bool(self.player.__lt__(other.player, context=context))
 
     def __gt__(self, other: PlayerListItem):
-        return bool(self.player.__gt__(other.player))
+        # Use class-level sort context if available (set during sorting)
+        context = PlayerListItem._sort_context
+        return bool(self.player.__gt__(other.player, context=context))
+
+    @classmethod
+    def sort_with_context(cls, list_widget: QListWidget, context: TournamentContext):
+        """Sort the list widget with the given context. Context is temporary and cleared after sorting."""
+        cls._sort_context = context
+        try:
+            list_widget.sortItems(order=cls.sort_order())
+        finally:
+            cls._sort_context = None
 
     @staticmethod
     def sort_order():
@@ -324,7 +341,7 @@ class MainWindow(QMainWindow):
         # Check if it is on the item when you right-click, if it is not, delete and modify will not be displayed.
         item = self.ui.lv_players.itemAt(position)
         if item:
-            if item.player in self.core.dropped:
+            if item.player in self.core.tour_round.dropped_players:
                 return
             delete_player_action = QAction(
                 'Drop player'
@@ -463,7 +480,8 @@ class MainWindow(QMainWindow):
 
     def cb_sort_set(self, idx):
         self.update_player_sort_method()
-        self.ui.lv_players.sortItems(order=PlayerListItem.sort_order()) # pyright: ignore
+        context = TournamentContext(self.core, self.core.tour_round, self.core.get_standings(self.core.tour_round))
+        PlayerListItem.sort_with_context(self.ui.lv_players, context)
         pass
 
     @UILog.with_status
@@ -473,7 +491,10 @@ class MainWindow(QMainWindow):
         if len(players) == 1:
             player = players[0]
             self.ui.le_player_name.clear()
-            list_item = PlayerListItem(player, p_fmt=self.PLIST_FMT)
+            tour_round = self.core.tour_round
+            standings = self.core.get_standings(tour_round)
+            context = TournamentContext(self.core, tour_round, standings)
+            list_item = PlayerListItem(player, p_fmt=self.PLIST_FMT, context=context)
             list_item.setData(Qt.ItemDataRole.UserRole, player)
             self.ui.lv_players.addItem(list_item)
         self.ui_update_player_list()
@@ -489,11 +510,11 @@ class MainWindow(QMainWindow):
             self.ui_clear_pods()
             self.ui_create_pods()
             self.ui_update_player_list()
-            if self.core.tour_round.seq > 0:
-                Log.log("Number of repeat pairings per pod:")
-                repeat_pairings = self.core.tour_round.repeat_pairings()
-                for i, pod in enumerate(self.core.tour_round.pods):
-                    Log.log(f"Pod {i}: {repeat_pairings[pod]}")
+            #if self.core.tour_round.seq > 0:
+                #Log.log("Number of repeat pairings per pod:")
+                #repeat_pairings = self.core.tour_round.repeat_pairings()
+                #for i, pod in enumerate(self.core.tour_round.pods):
+                #    Log.log(f"Pod {i}: {repeat_pairings[pod]}")
 
 
     @UILog.with_status
@@ -549,7 +570,7 @@ class MainWindow(QMainWindow):
         player: Player = item.data(Qt.ItemDataRole.UserRole)
         result = player.result(self.core.tour_round)
 
-        if player in self.core.dropped:
+        if player in self.core.tour_round.dropped_players:
             item.setBackground(PlayerListItem.Color.DROP)
         elif player.seated(self.core.tour_round):
             if result == Player.EResult.PENDING:
@@ -580,7 +601,7 @@ class MainWindow(QMainWindow):
             self.set_list_item_color(item, context)
 
             item.setText(data.__repr__(self.PLIST_FMT, context=context))
-        self.ui.lv_players.sortItems(order=PlayerListItem.sort_order())
+        PlayerListItem.sort_with_context(self.ui.lv_players, context)
 
     def update_player_sort_method(self):
         sort_method, sort_order = self.ui.cb_sort.itemData(self.ui.cb_sort.currentIndex()) # type: ignore
@@ -599,7 +620,7 @@ class MainWindow(QMainWindow):
             self.set_list_item_color(list_item, context)
             self.ui.lv_players.addItem(list_item)
         self.update_player_sort_method()
-        self.ui.lv_players.sortItems(order=PlayerListItem.sort_order()) # type: ignore
+        PlayerListItem.sort_with_context(self.ui.lv_players, context)
 
     @UILog.with_status
     def random_results(self):
