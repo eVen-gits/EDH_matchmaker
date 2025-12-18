@@ -107,7 +107,7 @@ class ITournament(IHashable):
         raise NotImplementedError()
 
     @abstractmethod
-    def get_standings(self, tour_round: IRound) -> list[tuple[IPlayer, float]]:
+    def get_standings(self, tour_round: IRound) -> list[IPlayer]:
         raise NotImplementedError()
 
     @property
@@ -170,8 +170,13 @@ class IRound(IHashable):
 
     @property
     @abstractmethod
-    def active_players(self) -> list[IPlayer]:
+    def active_players(self) -> set[IPlayer]:
         raise NotImplementedError('Round.players not implemented - use subclass')
+
+    @property
+    @abstractmethod
+    def byes(self) -> set[IPlayer]:
+        raise NotImplementedError('Round.byes not implemented - use subclass')
 
     @property
     @abstractmethod
@@ -189,8 +194,11 @@ class IPairingLogic:
     def __init__(self, name: str):
         self.name = name
 
-    def make_pairings(self, tour_round:IRound, players: Sequence[IPlayer], pods:Sequence[IPod]) -> Sequence[IPlayer]:
+    def make_pairings(self, tour_round:IRound, players: set[IPlayer], pods:Sequence[IPod]) -> Sequence[IPlayer]:
         raise NotImplementedError('PairingLogic.make_pairings not implemented - use subclass')
+
+    def advance_topcut(self, tour_round: IRound, standings: list[IPlayer]) -> None:
+        raise NotImplementedError('PairingLogic.advance_topcut not implemented - use subclass')
 
 class ITournamentConfiguration:
     def __init__(self, **kwargs):

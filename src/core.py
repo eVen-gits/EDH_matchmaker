@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import List, Sequence, Union, Callable, Any
+from typing import List, Sequence, Union, Callable, Any, cast
 from typing_extensions import override
 from collections.abc import Iterable
 
@@ -664,6 +664,11 @@ class Tournament(ITournament):
     def last_round(self) -> Round|None:
         return self.rounds[-1] if self.rounds else None
 
+    def previous_round(self, tour_round: Round|None=None) -> Round|None:
+        if tour_round is None:
+            tour_round = self.tour_round
+        return self.rounds[self.rounds.index(tour_round) - 1] if self.rounds.index(tour_round) > 0 else None
+
     @property
     def final_swiss_round(self) -> Round|None:
         if len(self.rounds) >= self.config.n_rounds:
@@ -893,6 +898,7 @@ class Tournament(ITournament):
                     logic = self.get_pairing_logic("PairingTop16")
                 elif self.last_round.stage == Round.Stage.TOP_16:
                     stage = Round.Stage.TOP_4
+                    logic = self.get_pairing_logic("PairingTop4")
                 else:
                     Log.log('Tournament completed.')
                     return False
@@ -1143,17 +1149,23 @@ class Tournament(ITournament):
 
             if playoff_stage > 0:
                 #TODO: take the standings of previous playoff round and modify them to current results
+                previous_round = self.previous_round(tour_round)
+                assert previous_round is not None
+                standings = self.get_standings(previous_round)
+                advancing_players = tour_round.advancing_players(standings)
+                non_advancing = [p for p in standings if p not in advancing_players]
+                standings = advancing_players + non_advancing
                 pass
             else:
-                standings = sorted(self.players, key=lambda x: self.config.ranking(x, final_swiss), reverse=True)
-                advancing_players = self.tour_round.advancing_players(standings)
-                non_advancing = [p for p in standings if p not in advancing_players]
+                swiss_standings = self.get_standings(final_swiss)
+                advancing_players = tour_round.advancing_players(swiss_standings)
+                non_advancing = [p for p in swiss_standings if p not in advancing_players]
 
                 # Sort non-advancing players: draws rank above losses, then by original standings
-                standings_index = {player: idx for idx, player in enumerate(standings)}
+                standings_index = {player: idx for idx, player in enumerate(swiss_standings)}
                 non_advancing.sort(key=lambda x: (
                     0 if tour_round and x.result(tour_round) == Player.EResult.DRAW else 1,  # Draws first (0), losses second (1)
-                    standings_index.get(x, len(standings))  # Then by original standings position
+                    standings_index.get(x, len(swiss_standings))  # Then by original standings position
                 ))
 
                 standings = advancing_players + non_advancing
@@ -1998,8 +2010,8 @@ class Round(IRound):
         return Player.ELocation.UNASSIGNED
 
     @property
-    def byes(self) -> list[Player]:
-        return [Player.get(self.tour, x) for x in self._byes]
+    def byes(self) -> set[Player]:
+        return set(Player.get(self.tour, x) for x in self._byes)
 
     @property
     def game_loss(self) -> list[Player]:
@@ -2073,11 +2085,21 @@ class Round(IRound):
 
     @property
     def unassigned(self) -> set[Player]:
-        return {
-            p
-            for p in self.active_players
-            if p.location(self) == Player.ELocation.UNASSIGNED
-        }
+        seated_player_uids = set()
+        for pod in self.pods:
+            seated_player_uids.update(pod._players)
+
+        return set(
+            Player.get(self.tour, x)
+            for x in (
+                self.tour._players
+                - self._dropped
+                - self._disabled
+                - self._byes
+                - self._game_loss
+                - seated_player_uids
+            )
+        )
 
     def advancing_players(self, standings) -> list[Player]:
         """
@@ -2087,6 +2109,7 @@ class Round(IRound):
             list[Player]:
                 - If the round is a Swiss round, returns all active players.
                 - If the round is a playoff round, returns the players who advance to the next round of playoffs.
+                  It is by convention default_advancers (bye), winners, advancers by draw, in that order.
         """
         # Create index map for O(1) standings lookup instead of O(n) index() calls
         standings_index = {player: idx for idx, player in enumerate(standings)}
@@ -2196,10 +2219,10 @@ class Round(IRound):
             pod = Pod(self, start_table + i, cap=size)
             self._pods.append(pod.uid)
 
-    def disable_topcut(self):
+    def disable_topcut(self, standings: list[Player]):
         """Disable players who don't advance to top cut.
         They remain in the tournament but won't participate in top cut rounds."""
-        standings = self.tour.get_standings(self)
+        standings = self.tour.get_standings(self.tour.previous_round(self))
 
         # Disable players from bottom of standings until we reach top_cut size
         for p in standings[self.stage.value::]:
@@ -2207,7 +2230,16 @@ class Round(IRound):
 
     def create_pairings(self):
         if self.stage != Round.Stage.SWISS:
-            self.disable_topcut()
+            standings = self.tour.get_standings(self.tour.previous_round(self))
+            self.disable_topcut(standings)
+            if self.stage in [
+                Round.Stage.TOP_7,
+                Round.Stage.TOP_10,
+                Round.Stage.TOP_13,
+                Round.Stage.TOP_16,
+                Round.Stage.TOP_40,
+            ]:
+                self.logic.advance_topcut(self, cast(list[IPlayer], standings))
 
         self.create_pods()
         pods = [p for p in self.pods
@@ -2216,7 +2248,7 @@ class Round(IRound):
                     len(p) < p.cap
         ])]
 
-        self.logic.make_pairings(self, self.unassigned, pods)
+        self.logic.make_pairings(self, cast(set[IPlayer], self.unassigned), pods)
 
         if self.seq < self.tour.config.n_rounds:
             for pod in self.pods:

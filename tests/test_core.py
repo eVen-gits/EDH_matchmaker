@@ -227,8 +227,6 @@ class TestMatching(unittest.TestCase):
                     for p in t.tour_round.active_players:
                         self.assertEqual(len(p.pods(t.tour_round)), i+1)
 
-                    if len(t.tour_round.active_players) != n:
-                        print(len(t.players), n)
                     self.assertEqual(len(t.tour_round.active_players), n)
                     self.assertEqual(len(t.tour_round.unassigned), 0)
                     t.new_round()
@@ -378,7 +376,7 @@ class TestScoring(unittest.TestCase):
         self.t.create_pairings()
 
         assert self.t.tour_round is not None
-        bye = self.t.tour_round.byes[0]
+        bye = next(iter(self.t.tour_round.byes))
 
         for pod in self.t.tour_round.pods:
             self.t.report_win(pod.players[0])
