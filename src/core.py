@@ -1013,8 +1013,8 @@ class Tournament(ITournament):
                 #generate a random result
                 result = random.random()
                 rates = np.array(self.config.global_wr_seats[0:len(pod.players)] + [draw_rate])
-                rates = rates/sum(rates)
-                draw = result > np.cumsum(rates)[-2]
+                rates = np.cumsum(rates/sum(rates))
+                draw = result > rates[-2]
                 if not draw:
                     win = np.argmax([result < x for x in rates])
                     #Log.log('won "{}"'.format(pod.players[win].name))
