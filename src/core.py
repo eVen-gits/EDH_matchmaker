@@ -730,6 +730,25 @@ class Tournament(ITournament):
 
     @TournamentAction.action
     def add_player(self, *specs: Any, **player_attrs) -> list[Player]:
+        """
+        Add players to the tournament.
+
+        Args:
+            *specs: Player specifications. Can be:
+                - Player object
+                - (name, uid) tuple
+                - (name, decklist) tuple
+                - (name, uid, decklist) tuple
+                - dict with 'name' key
+            **player_attrs: Additional player attributes (decklist, uid, etc.)
+
+        Returns:
+            list[Player]: List of created Player objects
+
+        Raises:
+            ValueError: If player data is invalid
+        """
+
         # Handle keyword arguments merging with a single positional spec
         if player_attrs and len(specs) == 1 and 'name' not in player_attrs:
             spec = specs[0]
