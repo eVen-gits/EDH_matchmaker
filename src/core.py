@@ -729,9 +729,13 @@ class Tournament(ITournament):
         self._config = config
 
     @TournamentAction.action
-    def add_player(self, data: str|list[str|tuple[str, UUID|None]]|None=None):
+    def add_player(self, data: str|tuple[str, UUID|None]|list[str|tuple[str, UUID|None]]|None=None):
         new_players = []
+
+        # Handle single string or single tuple
         if isinstance(data, str):
+            data = [data]
+        elif isinstance(data, tuple):
             data = [data]
 
         # Check if names is a list of tuples/lists

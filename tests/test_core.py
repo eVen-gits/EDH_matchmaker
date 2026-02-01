@@ -22,6 +22,35 @@ class TestPlayer(unittest.TestCase):
             with self.subTest(name=name):
                 p = Player(self.t, name)
 
+    def test_add_player_refactor(self):
+        self.t.initialize_round()
+
+        # 1. Backward compatibility: single name
+        self.t.add_player("Player1")
+        self.assertEqual(len(self.t.players), 1)
+        p1 = list(self.t.players)[0]
+        self.assertEqual(p1.name, "Player1")
+
+        # 2. Backward compatibility: list of names
+        self.t.add_player(["Player2", "Player3"])
+        self.assertEqual(len(self.t.players), 3)
+
+        # 3. New functionality: single tuple with UUID
+        u4 = uuid4()
+        self.t.add_player(("Player4", u4))
+        self.assertEqual(len(self.t.players), 4)
+        p4 = [p for p in self.t.players if p.name == "Player4"][0]
+        self.assertEqual(p4.uid, u4)
+
+        # 4. New functionality: list of tuples with UUIDs
+        u6 = uuid4()
+        u7 = uuid4()
+        self.t.add_player([("Player6", u6), ("Player7", u7)])
+        p6 = [p for p in self.t.players if p.name == "Player6"][0]
+        self.assertEqual(p6.uid, u6)
+        p7 = [p for p in self.t.players if p.name == "Player7"][0]
+        self.assertEqual(p7.uid, u7)
+
 
 class TestTournamentPodSizing(unittest.TestCase):
 
