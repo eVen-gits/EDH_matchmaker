@@ -30,6 +30,7 @@ class TestPlayer(unittest.TestCase):
         self.assertEqual(len(self.t.players), 1)
         p1 = list(self.t.players)[0]
         self.assertEqual(p1.name, "Player1")
+        self.assertIsNone(p1.decklist)
 
         # 2. Backward compatibility: list of names
         self.t.add_player(["Player2", "Player3"])
@@ -41,6 +42,7 @@ class TestPlayer(unittest.TestCase):
         self.assertEqual(len(self.t.players), 4)
         p4 = [p for p in self.t.players if p.name == "Player4"][0]
         self.assertEqual(p4.uid, u4)
+        self.assertIsNone(p4.decklist)
 
         # 4. New functionality: list of tuples with UUIDs
         u6 = uuid4()
@@ -50,6 +52,107 @@ class TestPlayer(unittest.TestCase):
         self.assertEqual(p6.uid, u6)
         p7 = [p for p in self.t.players if p.name == "Player7"][0]
         self.assertEqual(p7.uid, u7)
+
+        # 5. New functionality: 3-tuple with decklist link
+        u8 = uuid4()
+        decklist_url = "https://moxfield.com/decks/jVKoDKgc0Ey2PcapxHIB_w"
+        self.t.add_player(("Player8", u8, decklist_url))
+        self.assertEqual(len(self.t.players), 7)
+        p8 = [p for p in self.t.players if p.name == "Player8"][0]
+        self.assertEqual(p8.uid, u8)
+        self.assertEqual(p8.decklist, decklist_url)
+
+    def test_add_player_new_interface(self):
+        self.t.initialize_round()
+        u1 = uuid4()
+        u2 = uuid4()
+
+        # Test multiple positional arguments of different types
+        self.t.add_player(
+            "Alice",
+            ("Bob", u1),
+            {"name": "Charlie", "uid": u2, "decklist": "http://list.com"}
+        )
+
+        player_names = {p.name for p in self.t.players}
+        self.assertTrue("Alice" in player_names)
+        self.assertTrue("Bob" in player_names)
+        self.assertTrue("Charlie" in player_names)
+
+        bob = [p for p in self.t.players if p.name == "Bob"][0]
+        self.assertEqual(bob.uid, u1)
+
+        charlie = [p for p in self.t.players if p.name == "Charlie"][0]
+        self.assertEqual(charlie.uid, u2)
+        self.assertEqual(charlie.decklist, "http://list.com")
+
+        # Test keyword arguments for a single player
+        self.t.add_player(name="David", decklist="http://david.com")
+        david = [p for p in self.t.players if p.name == "David"][0]
+        self.assertEqual(david.name, "David")
+        self.assertEqual(david.decklist, "http://david.com")
+
+        # Test mixed positional and keyword
+        self.t.add_player("Eve", name="Frank")
+        player_names = {p.name for p in self.t.players}
+        self.assertTrue("Eve" in player_names)
+        self.assertTrue("Frank" in player_names)
+
+    def test_add_player_refined_interface(self):
+        self.t.initialize_round()
+
+        # Test smart 2-tuple: (Name, UUID)
+        u1 = uuid4()
+        p = self.t.add_player(("SmartUID", u1))[0]
+        self.assertEqual(p.uid, u1)
+        self.assertIsNone(p.decklist)
+
+        # Test smart 2-tuple: (Name, Decklist)
+        p = self.t.add_player(("SmartDeck", "http://deck.list"))[0]
+        self.assertEqual(p.decklist, "http://deck.list")
+
+        # Test keyword merging with positional string
+        p = self.t.add_player("MergeString", decklist="http://merge.str")[0]
+        self.assertEqual(p.decklist, "http://merge.str")
+
+        # Test keyword merging with positional dict
+        p = self.t.add_player({"name": "MergeDict"}, decklist="http://merge.dict")[0]
+        self.assertEqual(p.decklist, "http://merge.dict")
+
+    def test_add_player_validation(self):
+        self.t.initialize_round()
+        # Test invalid type
+        with self.assertRaises(ValueError):
+            self.t.add_player(123)
+
+        # Test missing name in dict
+        with self.assertRaises(ValueError):
+            self.t.add_player({"decklist": "..."})
+
+    def test_player_serialization_with_decklist(self):
+        """Test that decklist is properly serialized and deserialized"""
+        # Add player with decklist
+        self.t.initialize_round()
+
+        u1 = uuid4()
+        decklist_url = "https://moxfield.com/decks/jVKoDKgc0Ey2PcapxHIB_w"
+        self.t.add_player(("TestPlayer", u1, decklist_url))
+
+        p1 = [p for p in self.t.players if p.name == "TestPlayer"][0]
+
+        # Serialize
+        serialized = p1.serialize()
+        self.assertEqual(serialized['name'], "TestPlayer")
+        self.assertEqual(serialized['uid'], str(u1))
+        self.assertEqual(serialized['decklist'], decklist_url)
+
+        del p1.CACHE[u1]
+
+        # Deserialize
+        p2 = Player.inflate(self.t, serialized)
+        self.assertEqual(p2.name, "TestPlayer")
+        self.assertEqual(p2.uid, u1)
+        self.assertEqual(p2.decklist, decklist_url)
 
 
 class TestTournamentPodSizing(unittest.TestCase):

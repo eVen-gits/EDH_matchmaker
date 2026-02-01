@@ -729,46 +729,88 @@ class Tournament(ITournament):
         self._config = config
 
     @TournamentAction.action
-    def add_player(self, data: str|tuple[str, UUID|None]|list[str|tuple[str, UUID|None]]|None=None):
+    def add_player(self, *specs: Any, **player_attrs) -> list[Player]:
+        # Handle keyword arguments merging with a single positional spec
+        if player_attrs and len(specs) == 1 and 'name' not in player_attrs:
+            spec = specs[0]
+            if isinstance(spec, str):
+                data = [{"name": spec, **player_attrs}]
+            elif isinstance(spec, dict):
+                data = [{**spec, **player_attrs}]
+            else:
+                data = list(specs) + [player_attrs]
+        else:
+            data = list(specs)
+            if player_attrs:
+                data.append(player_attrs)
+
+        # Handle backward compatibility: single positional list
+        if len(data) == 1 and isinstance(data[0], list):
+            data = data[0]
+
         new_players = []
-
-        # Handle single string or single tuple
-        if isinstance(data, str):
-            data = [data]
-        elif isinstance(data, tuple):
-            data = [data]
-
-        # Check if names is a list of tuples/lists
-        is_tuples = all(isinstance(item, (tuple, list)) for item in data)
-
         existing_names = set([p.name for p in self.players])
         existing_uids = set([p.uid for p in self.players])
 
         for entry in data:
-            if is_tuples:
-                name, uid = entry
+            if entry is None:
+                continue
+
+            name, uid, decklist = None, None, None
+
+            if isinstance(entry, (tuple, list)):
+                # Handle 1-tuple (name), 2-tuple (smart: name, uid/decklist), or 3-tuple (name, uid, decklist)
+                if len(entry) == 1:
+                    name = entry[0]
+                elif len(entry) == 2:
+                    name, second = entry
+                    if isinstance(second, UUID):
+                        uid = second
+                    elif isinstance(second, (str, type(None))):
+                        decklist = second
+                    else:
+                        raise ValueError(f"Unknown type for second element in player tuple: {type(second)}")
+                elif len(entry) == 3:
+                    name, uid, decklist = entry
+                else:
+                    raise ValueError(f"Player tuple/list must have 1-3 elements, got {len(entry)}")
+            elif isinstance(entry, dict):
+                # Handle dictionary specification
+                name = entry.get('name')
+                uid = entry.get('uid')
+                decklist = entry.get('decklist')
+            elif isinstance(entry, str):
+                # Handle single string as name
+                name = entry
             else:
-                name, uid = entry, None
+                raise ValueError(f"Invalid player specification type: {type(entry)}. Expected str, dict, tuple, or list.")
+
+            if not name or not isinstance(name, str):
+                raise ValueError(f"Player name must be a non-empty string, got {type(name)}: {name}")
+
             if name in existing_names:
                 Log.log('\tPlayer {} already enlisted.'.format(
                     name), level=Log.Level.WARNING)
                 continue
             if uid and uid in existing_uids:
-                Log.log('\tPlayer {} already enlisted.'.format(
+                Log.log('\tPlayer with UID {} already enlisted.'.format(
                     uid), level=Log.Level.WARNING)
                 continue
 
-            p = Player(self, name, uid)
+            # Create and register the player
+            p = Player(self, name, uid, decklist)
             self._players.add(p.uid)
             if p.uid not in self.tour_round._players:
                 self.tour_round._players.append(p.uid)
             new_players.append(p)
             existing_names.add(name)
+            existing_uids.add(p.uid)
             Log.log('\tAdded player {}'.format(
                 p.name), level=Log.Level.INFO)
         return new_players
 
     @TournamentAction.action
+
     def drop_player(self, players: list[Player]|Player) -> bool:
         if not isinstance(players, list):
             players = [players]
@@ -1377,10 +1419,11 @@ class Player(IPlayer):
     SORT_ORDER: SortOrder = SortOrder.ASCENDING
     FORMATTING = ['-p']
 
-    def __init__(self, tour: Tournament, name:str, uid: UUID|None = None):
+    def __init__(self, tour: Tournament, name:str, uid: UUID|None = None, decklist: str|None = None):
         self._tour = tour.uid
         super().__init__(uid=uid)
         self.name = name
+        self.decklist = decklist
         self.CACHE[self.uid] = self
         self._pod_id: UUID|None = None  # Direct reference to current pod
 
@@ -1764,12 +1807,13 @@ class Player(IPlayer):
             #'tour': str(self._tour),
             'uid': str(self.uid),
             'name': self.name,
+            'decklist': self.decklist,
         }
 
     @classmethod
     def inflate(cls, tour: Tournament, data: dict[str, Any]) -> Player:
         #assert tour.uid == UUID(data['tour'])
-        return cls(tour, data['name'], UUID(data['uid']))
+        return cls(tour, data['name'], UUID(data['uid']), data.get('decklist'))
 
 
 class Pod(IPod):
