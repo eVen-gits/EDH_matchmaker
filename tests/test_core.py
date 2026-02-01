@@ -260,6 +260,44 @@ class TestMatching(unittest.TestCase):
                     t.random_results()
                     pass
 
+    def test_snake_winners_not_paired(self):
+        """
+        Verify that Snake pairing logic prevents winners from the previous round
+        from being paired together. Since there are N pods, only N winners exist,
+        so they should all be in different pods in the next round.
+        """
+        tour_sizes = [12, 13, 14, 15, 16, 17, 18, 19, 20, 32, 64, 128]
+        for n in tqdm(tour_sizes, desc="Snake winners not paired"):
+            with self.subTest(n=n):
+                t = Tournament(self.config)
+                t.initialize_round()
+                t.add_player([f"P{i}" for i in range(n)])
+
+                # Round 1: Create pairings and determine winners
+                t.create_pairings()
+
+                # Award wins to first player in each pod (deterministic winners)
+                winners_r1 = []
+                for pod in t.tour_round.pods:
+                    winner = pod.players[0]
+                    t.report_win(winner)
+                    winners_r1.append(winner)
+
+                # Round 2: Snake pairing
+                t.new_round()
+                t.create_pairings()
+
+                # Verify: No two winners from R1 should be in the same pod in R2
+                violations = 0
+                for pod in t.tour_round.pods:
+                    winners_in_pod = [p for p in pod.players if p in winners_r1]
+                    if len(winners_in_pod) > 1:
+                        violations += 1
+                        print(f"Violation in Pod {pod.table}: {len(winners_in_pod)} winners paired together")
+
+                self.assertEqual(violations, 0,
+                    f"Snake pairing paired {violations} groups of winners together (should be 0)")
+
     def test_snake_no_repeat_matching(self):
         tour_sizes = [
             12, 13, 14,

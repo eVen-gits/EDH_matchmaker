@@ -17,8 +17,17 @@ class SortOrder(IntEnum):
 class IHashable:
     CACHE: dict[UUID, Any] = {}
 
-    def __init__(self):
-        self.uid: UUID = uuid4()
+    def __init__(self, uid: UUID|None=None):
+        if uid:
+            if uid in self.CACHE:
+                raise ValueError('UUID collision.')
+            elif not isinstance(uid, UUID):
+                raise ValueError('UUID type error.')
+            else:
+                self.uid = uid
+        else:
+            self.uid: UUID = uuid4()
+        self.CACHE[self.uid] = self
 
     @classmethod
     @abstractmethod
@@ -40,8 +49,8 @@ class IPlayer(IHashable):
         BYE = 3
         PENDING = 4
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, uid: UUID|None=None):
+        super().__init__(uid=uid)
         self.name: str = str()
         #self.rounds: list[IRound] = list()
         self.tour: ITournament
@@ -97,10 +106,10 @@ class IPlayer(IHashable):
         raise NotImplementedError()
 
 class ITournament(IHashable):
-    def __init__(self, config: ITournamentConfiguration | None = None):
-        super().__init__()
+    def __init__(self, config: ITournamentConfiguration|None=None, uid: UUID|None=None):
+        super().__init__(uid=uid)
         self.rounds: list[IRound] = list()
-        self.tour_round: IRound|None = None
+        self._round: IRound|None = None
 
     @abstractmethod
     def get_pod_sizes(self, n:int) -> Sequence[int]|None:
@@ -121,13 +130,14 @@ class IPod(IHashable):
         WIN = 1
         PENDING = 2
 
-    def __init__(self):
-        super().__init__()
+    def __init__(self, uid: UUID|None=None):
+        super().__init__(uid=uid)
+        self._tour: UUID
+        self._round: UUID
         self.table: int = -1
         self._players: list[UUID] = list()
         self.cap: int = 0
         self._result: set[UUID] = set()
-        self._round: UUID
 
     @property
     @abstractmethod
@@ -160,11 +170,11 @@ class IPod(IHashable):
         return len(self.players)
 
 class IRound(IHashable):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, uid: UUID|None=None):
+        super().__init__(uid=uid)
         self.seq:int = -1
         self.logic: IPairingLogic
-        self._tour: UUID = uuid4()
+        self._tour: UUID
         self._pods: list[UUID] = list()
         self._players: list[UUID] = list()
 

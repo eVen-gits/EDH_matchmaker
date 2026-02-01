@@ -25,6 +25,7 @@ import threading
 import importlib
 import pkgutil
 from pathlib import Path
+import functools
 
 # Load configuration from .env file
 load_dotenv()
@@ -422,6 +423,7 @@ class TournamentAction:
     def action(cls, func) -> Callable:
         @StandingsExport.auto_export
         @PodsExport.auto_export
+        @functools.wraps(func)
         def wrapper(self: Tournament, *original_args, **original_kwargs):
             #before = self.serialize()
             ret = func(self, *original_args, **original_kwargs)
@@ -629,8 +631,8 @@ class Tournament(ITournament):
     def __init__(self, config: Union[TournamentConfiguration, None]=None, uid: UUID|None=None) :  # type: ignore
         if config is None:
             config = TournamentConfiguration()
+        super().__init__(config=config, uid=uid)
         self._config = config
-        self.uid: UUID = uuid4() if uid is None else uid
         self.CACHE[self.uid] = self
 
         self.PLAYER_CACHE: dict[UUID, Player] = {}
@@ -727,25 +729,39 @@ class Tournament(ITournament):
         self._config = config
 
     @TournamentAction.action
-    def add_player(self, names: str|list[str]|None=None):
+    def add_player(self, data: str|list[str|tuple[str, UUID|None]]|None=None):
         new_players = []
-        if isinstance(names, str):
-            names = [names]
+        if isinstance(data, str):
+            data = [data]
+
+        # Check if names is a list of tuples/lists
+        is_tuples = all(isinstance(item, (tuple, list)) for item in data)
+
         existing_names = set([p.name for p in self.players])
-        for name in names:
+        existing_uids = set([p.uid for p in self.players])
+
+        for entry in data:
+            if is_tuples:
+                name, uid = entry
+            else:
+                name, uid = entry, None
             if name in existing_names:
                 Log.log('\tPlayer {} already enlisted.'.format(
                     name), level=Log.Level.WARNING)
                 continue
-            if name:
-                p = Player(self, name)
-                self._players.add(p.uid)
-                if p.uid not in self.tour_round._players:
-                    self.tour_round._players.append(p.uid)
-                new_players.append(p)
-                existing_names.add(name)
-                Log.log('\tAdded player {}'.format(
-                    p.name), level=Log.Level.INFO)
+            if uid and uid in existing_uids:
+                Log.log('\tPlayer {} already enlisted.'.format(
+                    uid), level=Log.Level.WARNING)
+                continue
+
+            p = Player(self, name, uid)
+            self._players.add(p.uid)
+            if p.uid not in self.tour_round._players:
+                self.tour_round._players.append(p.uid)
+            new_players.append(p)
+            existing_names.add(name)
+            Log.log('\tAdded player {}'.format(
+                p.name), level=Log.Level.INFO)
         return new_players
 
     @TournamentAction.action
@@ -1358,10 +1374,8 @@ class Player(IPlayer):
     FORMATTING = ['-p']
 
     def __init__(self, tour: Tournament, name:str, uid: UUID|None = None):
-        super().__init__()
         self._tour = tour.uid
-        if uid is not None:
-            self.uid = uid
+        super().__init__(uid=uid)
         self.name = name
         self.CACHE[self.uid] = self
         self._pod_id: UUID|None = None  # Direct reference to current pod
@@ -1756,12 +1770,9 @@ class Player(IPlayer):
 
 class Pod(IPod):
     def __init__(self, tour_round: Round, table:int, cap=0, uid: UUID|None = None):
-        super().__init__()
         self._tour: UUID = tour_round.tour.uid
         self._round: UUID = tour_round.uid
-        if uid is not None:
-            self.uid = uid
-        self.CACHE[self.uid] = self
+        super().__init__(uid=uid)
         self.table:int = table
         self.cap:int = cap
         self._players: list[UUID] = list()
@@ -1980,10 +1991,8 @@ class Round(IRound):
             byes: set[UUID]|None = None,
             game_loss: set[UUID]|None = None,
         ):
-        super().__init__()
-        if uid is not None:
-            self.uid = uid
         self._tour: UUID = tour.uid
+        super().__init__(uid=uid)
         self.tour.ROUND_CACHE[self.uid] = self
         self.seq:int = seq
         self.stage: Round.Stage = stage
@@ -2345,7 +2354,6 @@ class Round(IRound):
             disabled={UUID(x) for x in data['disabled']},
             byes={UUID(x) for x in data['byes']},
             game_loss={UUID(x) for x in data['game_loss']}
-
         )
         pods = [Pod.inflate(new_round, pod) for pod in data['pods']]
         new_round._pods = [pod.uid for pod in pods]
