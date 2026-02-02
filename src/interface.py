@@ -6,18 +6,29 @@ from datetime import datetime
 from uuid import UUID, uuid4
 
 class SortMethod(IntEnum):
+    """Enum for sorting methods."""
     ID = 0
     NAME = 1
     RANK = 2
 
 class SortOrder(IntEnum):
+    """Enum for sorting order."""
     ASCENDING = 0
     DESCENDING = 1
 
 class IHashable:
+    """Interface for hashable objects with UUIDs."""
     CACHE: dict[UUID, Any] = {}
 
     def __init__(self, uid: UUID|None=None):
+        """Initializes the IHashable object.
+
+        Args:
+            uid: The UUID of the object. If None, a new UUID is generated.
+        
+        Raises:
+            ValueError: If the UUID has a collision or is of invalid type.
+        """
         if uid:
             if uid in self.CACHE:
                 raise ValueError('UUID collision.')
@@ -32,10 +43,20 @@ class IHashable:
     @classmethod
     @abstractmethod
     def get(cls, ID: UUID) -> IHashable:
+        """Retrieves an object by its UUID.
+
+        Args:
+            ID: The UUID of the object.
+
+        Returns:
+            The object with the specified UUID.
+        """
         raise NotImplementedError()
 
 class IPlayer(IHashable):
+    """Interface for a player."""
     class ELocation(IntEnum):
+        """Enum for player location."""
         UNASSIGNED = 0
         SEATED = 1
         GAME_LOSS = 3
@@ -43,6 +64,7 @@ class IPlayer(IHashable):
         DROPPED = 5
 
     class EResult(IntEnum):
+        """Enum for match result."""
         LOSS = 0
         DRAW = 1
         WIN = 2
@@ -50,6 +72,7 @@ class IPlayer(IHashable):
         PENDING = 4
 
     def __init__(self, uid: UUID|None=None):
+        """Initializes the IPlayer."""
         super().__init__(uid=uid)
         self.name: str = str()
         #self.rounds: list[IRound] = list()
@@ -124,13 +147,16 @@ class ITournament(IHashable):
         raise NotImplementedError()
 
 class IPod(IHashable):
+    """Interface for a pod."""
 
     class EResult(IntEnum):
+        """Enum for pod result."""
         DRAW = 0
         WIN = 1
         PENDING = 2
 
     def __init__(self, uid: UUID|None=None):
+        """Initializes the IPod."""
         super().__init__(uid=uid)
         self._tour: UUID
         self._round: UUID
@@ -170,7 +196,9 @@ class IPod(IHashable):
         return len(self.players)
 
 class IRound(IHashable):
+    """Interface for a round."""
     def __init__(self, uid: UUID|None=None):
+        """Initializes the IRound."""
         super().__init__(uid=uid)
         self.seq:int = -1
         self.logic: IPairingLogic
@@ -199,15 +227,33 @@ class IRound(IHashable):
         raise NotImplementedError('Round.pods not implemented - use subclass')
 
 class IPairingLogic:
+    """Interface for pairing logic."""
     IS_COMPLETE=False
 
     def __init__(self, name: str):
+        """Initializes the IPairingLogic."""
         self.name = name
 
     def make_pairings(self, tour_round:IRound, players: set[IPlayer], pods:Sequence[IPod]) -> Sequence[IPlayer]:
+        """Creates pairings for a round.
+
+        Args:
+            tour_round: The current round.
+            players: The set of players to pair.
+            pods: The list of available pods.
+
+        Returns:
+            A sequence of players who could not be paired (if any).
+        """
         raise NotImplementedError('PairingLogic.make_pairings not implemented - use subclass')
 
     def advance_topcut(self, tour_round: IRound, standings: list[IPlayer]) -> None:
+        """Advances players to the top cut.
+        
+        Args:
+            tour_round: The current round.
+            standings: The list of players sorted by standing.
+        """
         raise NotImplementedError('PairingLogic.advance_topcut not implemented - use subclass')
 
 class ITournamentConfiguration:

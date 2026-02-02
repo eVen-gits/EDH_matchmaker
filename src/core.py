@@ -34,13 +34,16 @@ load_dotenv()
 #sys.setrecursionlimit(5000)  # Increase recursion limit
 
 class DataExport:
+    """Namespace for data export constants and enums."""
     class Format(Enum):
+        """Enum for export formats."""
         PLAIN = 0
         DISCORD = 1
         CSV = 2
         JSON = 3
 
     class Target(Enum):
+        """Enum for export targets."""
         CONSOLE = 0
         FILE = 1
         WEB = 2
@@ -48,8 +51,18 @@ class DataExport:
 
 
 class PodsExport(DataExport):
+    """Handles the export of tournament pods."""
+
     @classmethod
     def auto_export(cls, func):
+        """Decorator to automatically export pods after a function call.
+
+        Args:
+            func: The function to decorate.
+
+        Returns:
+            The decorated function.
+        """
         def auto_pods_export_wrapper(self: Tournament, *original_args, **original_kwargs):
             tour_round = self.tour_round
             ret = func(self, *original_args, **original_kwargs)
@@ -104,7 +117,15 @@ class PodsExport(DataExport):
 
 
 class TournamentContext:
+    """Context object holding tournament state for export operations."""
     def __init__(self, tour: Tournament, tour_round: Round, standings: list[Player]):
+        """Initializes the TournamentContext.
+
+        Args:
+            tour: The tournament instance.
+            tour_round: The specific round of the tournament.
+            standings: The list of players in the current standings.
+        """
         self.tour = tour
         self.tour_round = tour_round
         self.standings = standings
@@ -332,6 +353,11 @@ class StandingsExport(DataExport):
         return auto_standings_export_wrapper
 
     def serialize(self):
+        """Serializes the export configuration.
+
+        Returns:
+            A dictionary containing the serialized configuration.
+        """
         return {
             'fields': [f.value for f in self.fields],
             'format': self.format.value,
@@ -340,6 +366,14 @@ class StandingsExport(DataExport):
 
     @classmethod
     def inflate(cls, data:dict):
+        """Creates a StandingsExport instance from a dictionary.
+
+        Args:
+            data: The dictionary containing the configuration.
+
+        Returns:
+            A new StandingsExport instance.
+        """
         return cls(
             [StandingsExport.Field(f) for f in data['fields']],
             StandingsExport.Format(data['format']),
@@ -348,17 +382,20 @@ class StandingsExport(DataExport):
 
 
 class SortMethod(Enum):
+    """Enum for sorting methods."""
     ID = 0
     NAME = 1
     RANK = 2
 
 
 class SortOrder(Enum):
+    """Enum for sorting order."""
     ASCENDING = 0
     DESCENDING = 1
 
 
 class Log:
+    """Handles logging messages with different severity levels."""
     class Level(Enum):
         NONE = 0
         INFO = 1
@@ -366,7 +403,14 @@ class Log:
         ERROR = 3
 
     class LogEntry:
+        """Represents a single log entry."""
         def __init__(self, msg, level):
+            """Initializes a LogEntry.
+
+            Args:
+                msg: The log message.
+                level: The severity level of the log.
+            """
             self.msg = msg
             self.level = level
 
@@ -391,6 +435,12 @@ class Log:
 
     @classmethod
     def log(cls, str_log, level=Level.NONE):
+        """Logs a message with a specified level.
+
+        Args:
+            str_log: The message to log.
+            level: The severity level (default: Level.NONE).
+        """
         if cls.DISABLE:
             return
         entry = Log.LogEntry(str_log, level)
@@ -400,12 +450,20 @@ class Log:
 
     @classmethod
     def print(cls):
+        """Prints all log entries to the console."""
         for entry in cls.output:
             print(entry)
 
     @classmethod
     def export(cls, fpath):
+        """Exports the log to a file.
+
+        Args:
+            fpath: The file path to export to.
+        """
         try:
+            from pathlib import Path
+            Path(fpath).parent.mkdir(parents=True, exist_ok=True)
             with open(fpath, 'w') as f:
                 f.writelines([str(s)+'\n' for s in cls.output])
         except Exception as e:
@@ -421,6 +479,14 @@ class TournamentAction:
 
     @classmethod
     def action(cls, func) -> Callable:
+        """Decorator to mark a function as a tournament action.
+
+        Args:
+            func: The function to decorate.
+
+        Returns:
+            The decorated function.
+        """
         @StandingsExport.auto_export
         @PodsExport.auto_export
         @functools.wraps(func)
@@ -433,6 +499,11 @@ class TournamentAction:
 
     @classmethod
     def store(cls, tournament: Tournament):
+        """Stores the tournament state to a log file.
+
+        Args:
+            tournament: The tournament instance to store.
+        """
         if cls.LOGF is None:
             cls.LOGF = cls.DEFAULT_LOGF
         if cls.LOGF:
@@ -444,6 +515,14 @@ class TournamentAction:
 
     @classmethod
     def load(cls, logdir='logs/default.json') -> Tournament|None:
+        """Loads the tournament state from a log file.
+
+        Args:
+            logdir: The path to the log file (default: 'logs/default.json').
+
+        Returns:
+            The loaded tournament instance, or None if the file does not exist.
+        """
         if os.path.exists(logdir):
             cls.LOGF = logdir
             #try:
@@ -483,6 +562,11 @@ class TournamentConfiguration(ITournamentConfiguration):
         TOP_40 = 40
 
     def __init__(self, **kwargs):
+        """Initializes the TournamentConfiguration.
+
+        Args:
+            **kwargs: Arbitrary keyword arguments using the configuration.
+        """
         self.pod_sizes = kwargs.get('pod_sizes', [4, 3])
         self.allow_bye = kwargs.get('allow_bye', True)
         self.win_points = kwargs.get('win_points', 5)
@@ -517,15 +601,34 @@ class TournamentConfiguration(ITournamentConfiguration):
 
     @property
     def min_pod_size(self):
+        """Returns the minimum pod size.
+
+        Returns:
+            The minimum pod size.
+        """
         return min(self.pod_sizes)
 
     @property
     def max_pod_size(self):
+        """Returns the maximum pod size.
+
+        Returns:
+            The maximum pod size.
+        """
         return max(self.pod_sizes)
 
     @staticmethod
     @override
     def ranking(x:Player, tour_round: Round) -> tuple:
+        """Calculates the ranking score for a player.
+
+        Args:
+            x: The player.
+            tour_round: The current round.
+
+        Returns:
+            A tuple of ranking criteria.
+        """
         return (
             x.rating(tour_round),
             len(x.games(tour_round)),
@@ -620,7 +723,14 @@ class Tournament(ITournament):
 
     @classmethod
     def get_pairing_logic(cls, logic_name: str) -> IPairingLogic:
-        """Get a pairing logic instance by name."""
+        """Get a pairing logic instance by name.
+
+        Args:
+            logic_name: The name of the pairing logic.
+
+        Returns:
+            The pairing logic class.
+        """
         cls.discover_pairing_logic()
 
         if logic_name not in cls._pairing_logic_cache:
@@ -629,6 +739,12 @@ class Tournament(ITournament):
         return cls._pairing_logic_cache[logic_name]
 
     def __init__(self, config: Union[TournamentConfiguration, None]=None, uid: UUID|None=None) :  # type: ignore
+        """Initializes the Tournament.
+
+        Args:
+            config: The tournament configuration.
+            uid: The tournament UUID.
+        """
         if config is None:
             config = TournamentConfiguration()
         super().__init__(config=config, uid=uid)
@@ -653,6 +769,14 @@ class Tournament(ITournament):
 
     @classmethod
     def get(cls, uid: UUID) -> Tournament:
+        """Retrieves a tournament by its UUID.
+
+        Args:
+            uid: The tournament UUID.
+
+        Returns:
+            The tournament instance.
+        """
         return cls.CACHE[uid]
 
     @property
@@ -665,6 +789,11 @@ class Tournament(ITournament):
 
     @tour_round.setter
     def tour_round(self, tour_round: Round):
+        """Sets the current tournament round.
+
+        Args:
+            tour_round: The new round.
+        """
         self._round = tour_round.uid
 
     @property
@@ -700,27 +829,35 @@ class Tournament(ITournament):
         self._rounds = [r.uid for r in rounds]
 
     @property
-    def swiss_rounds(self) -> list[Round]:
+    def swiss_rounds(self):
+        """Returns the list of swiss rounds in the tournament."""
         return [r for r in self.rounds if r.stage == Round.Stage.SWISS]
 
     @property
-    def ended_rounds(self) -> list[Round]:
+    def ended_rounds(self):
+        """Returns the list of completed rounds in the tournament."""
         return [r for r in self.rounds if r.done]
 
     @property
-    def draw_rate(self):
-        n_draws = 0
-        n_matches = 0
+    def draw_rate(self) -> float:
+        """Calculates the draw rate for the tournament.
+
+        Returns:
+            The draw rate as a float.
+        """
+        draws = 0
+        matches = 0
         for tour_round in self.rounds:
             for pod in tour_round.pods:
                 if pod.done:
-                    n_matches += 1
+                    matches += 1
                     if pod.result_type == Pod.EResult.DRAW:
-                        n_draws += len(pod._result)
-        return n_draws/n_matches
+                        draws += len(pod._result)
+        return draws/matches
 
     @property
     def config(self) -> TournamentConfiguration:
+        """Returns the tournament configuration."""
         return self._config
 
     @config.setter
@@ -829,8 +966,12 @@ class Tournament(ITournament):
         return new_players
 
     @TournamentAction.action
-
     def drop_player(self, players: list[Player]|Player) -> bool:
+        """Drops a player or list of players from the tournament.
+
+        Args:
+            players: The player or list of players to drop.
+        """
         if not isinstance(players, list):
             players = [players]
         for p in players:
@@ -853,7 +994,12 @@ class Tournament(ITournament):
 
     @TournamentAction.action
     def disable_player(self, players: list[Player]|Player, set_disabled: bool=True) -> bool:
-        """Disable players from top cut. They remain in the tournament but won't participate in top cut rounds."""
+        """Disable players from top cut. They remain in the tournament but won't participate in top cut rounds.
+
+        Args:
+            players: The player or list of players to disable.
+            set_disabled: If True, disables the player; if False, re-enables them.
+        """
         if not isinstance(players, list):
             players = [players]
         for p in players:
@@ -862,6 +1008,12 @@ class Tournament(ITournament):
 
     @TournamentAction.action
     def rename_player(self, player, new_name):
+        """Renames a player in the tournament.
+
+        Args:
+            player: The player to rename.
+            new_name: The new name for the player.
+        """
         if player.name == new_name:
             return
         if new_name in [p.name for p in self.active_players]:
@@ -879,6 +1031,14 @@ class Tournament(ITournament):
                 player.name, new_name), level=Log.Level.INFO)
 
     def get_pod_sizes(self, n) -> list[int]|None:
+        """Determines possible pod sizes for a given number of players based on configuration.
+
+        Args:
+            n: The number of players.
+
+        Returns:
+            A list of integers representing the sizes of the pods, or None if no valid combination is found.
+        """
         # Stack to store (remaining_players, current_pod_size_index, current_solution)
         stack = [(n, 0, [])]
 
@@ -919,6 +1079,11 @@ class Tournament(ITournament):
         return None
 
     def initialize_round(self) -> bool:
+        """Initializes a new round in the tournament, determining its stage and pairing logic.
+
+        Returns:
+            True if a new round was successfully initialized, False otherwise.
+        """
         if self._round is not None and not self.tour_round.done:
             return False
         seq = len(self.rounds)
@@ -1018,6 +1183,11 @@ class Tournament(ITournament):
 
     @TournamentAction.action
     def create_pairings(self) -> bool:
+        """Creates pairings for the current round.
+
+        Returns:
+            True if pairings were created, False otherwise.
+        """
         if self.last_round is None or self.last_round.done:
             ok = self.initialize_round()
             if not ok:
@@ -1031,12 +1201,22 @@ class Tournament(ITournament):
 
     @TournamentAction.action
     def new_round(self) -> bool:
+        """Starts a new round.
+
+        Returns:
+            True if a new round was successfully started, False otherwise.
+        """
         if not self.last_round or self.last_round.done:
             return self.initialize_round()
         return False
 
     @TournamentAction.action
     def reset_pods(self) -> bool:
+        """Resets the pods for the current round.
+
+        Returns:
+            True if pods were reset, False otherwise.
+        """
         if not self.tour_round:
             return False
         if not self.tour_round.done:
@@ -1047,6 +1227,11 @@ class Tournament(ITournament):
 
     @TournamentAction.action
     def manual_pod(self, players: list[Player]):
+        """Creates a manual pod with the specified players.
+
+        Args:
+            players: A list of players to include in the manual pod.
+        """
         if self.tour_round is None or self.tour_round.done:
            if not self.new_round():
                 return
@@ -1061,6 +1246,11 @@ class Tournament(ITournament):
 
     @TournamentAction.action
     def report_win(self, players: list[Player]|Player):
+        """Reports a win for the specified player(s) in the current round.
+
+        Args:
+            players: The player or list of players who won.
+        """
         if self.tour_round:
             if not isinstance(players, list):
                 players = [players]
@@ -1069,6 +1259,11 @@ class Tournament(ITournament):
 
     @TournamentAction.action
     def report_draw(self, players: list[Player]|Player):
+        """Reports a draw for the specified player(s) in the current round.
+
+        Args:
+            players: The player or list of players who drew.
+        """
         if self.tour_round:
             if not isinstance(players, list):
                 players = [players]
@@ -1077,6 +1272,7 @@ class Tournament(ITournament):
 
     @TournamentAction.action
     def random_results(self):
+        """Generates random results for all incomplete pods in the current round."""
         if not self.tour_round:
             #Log.log(
             #    'A tour_round is not in progress.\nCreate pods first!',
@@ -1114,6 +1310,13 @@ class Tournament(ITournament):
 
     @TournamentAction.action
     def move_player_to_pod(self, pod: Pod, players: list[Player]|Player, manual=False):
+        """Moves a player or list of players to a specified pod.
+
+        Args:
+            pod: The target pod.
+            players: The player or list of players to move.
+            manual: If True, allows adding players even if the pod is full.
+        """
         if not isinstance(players, list):
             players = [players]
         for player in players:
@@ -1132,6 +1335,11 @@ class Tournament(ITournament):
 
     @TournamentAction.action
     def bench_players(self, players: Iterable[Player]|Player):
+        """Removes player(s) from their current pod, effectively benching them.
+
+        Args:
+            players: The player or iterable of players to bench.
+        """
         assert self.tour_round is not None
         if not isinstance(players, Iterable):
             players = [players]
@@ -1140,6 +1348,14 @@ class Tournament(ITournament):
 
     @TournamentAction.action
     def toggle_game_loss(self, players: Iterable[Player]|Player):
+        """Toggles the game loss status for player(s).
+
+        If a player is assigned a game loss, they are removed from their pod and marked as having lost.
+        If they already have a game loss, it is removed.
+
+        Args:
+            players: The player or iterable of players to toggle game loss for.
+        """
         if not isinstance(players, Iterable):
             players = [players]
 
@@ -1155,6 +1371,14 @@ class Tournament(ITournament):
 
     @TournamentAction.action
     def toggle_bye(self, players: Iterable[Player]|Player):
+        """Toggles the bye status for player(s).
+
+        If a player is assigned a bye, they are removed from their pod and marked as having a bye.
+        If they already have a bye, it is removed.
+
+        Args:
+            players: The player or iterable of players to toggle bye for.
+        """
         if not isinstance(players, Iterable):
             players = [players]
         for player in players:
@@ -1167,10 +1391,20 @@ class Tournament(ITournament):
 
     @TournamentAction.action
     def delete_pod(self, pod: Pod):
+        """Deletes a specified pod from the current round.
+
+        Args:
+            pod: The pod to delete.
+        """
         if self.tour_round:
             self.tour_round.remove_pod(pod)
 
     def remove_player_from_pod(self, player: Player):
+        """Removes a player from their current pod.
+
+        Args:
+            player: The player to remove.
+        """
         assert self.tour_round is not None
         pod = player.pod(self.tour_round)
         if pod:
@@ -1185,6 +1419,13 @@ class Tournament(ITournament):
         Calculate the rating of a player for a given round.
         The rating is the sum of the points for the player in the Swiss rounds up to and including the given round.
         If the round is not a Swiss round, the rating is the sum of the points for the player in the last Swiss round.
+
+        Args:
+            player: The player for whom to calculate the rating.
+            tour_round: The round up to which to calculate the rating.
+
+        Returns:
+            The player's rating as a float.
         """
         points = 0
         for i, i_tour_round in enumerate(self.rounds):
@@ -1203,6 +1444,11 @@ class Tournament(ITournament):
     # MISC ACTIONS
 
     def get_pods_str(self) -> str:
+        """Generates a string representation of the current round's pods.
+
+        Returns:
+            A formatted string showing the pods and players, including byes if applicable.
+        """
         if not self.tour_round:
             return ''
         standings = self.get_standings(self.tour_round)
@@ -1219,6 +1465,14 @@ class Tournament(ITournament):
         return export_str
 
     def get_standings(self, tour_round:Round|None=None) -> list[Player]:
+        """Calculates and returns the current standings of players.
+
+        Args:
+            tour_round: The round for which to calculate standings. Defaults to the current round.
+
+        Returns:
+            A list of Player objects, sorted by their standing.
+        """
         method = Player.SORT_METHOD
         order = Player.SORT_ORDER
         Player.SORT_METHOD = SortMethod.RANK
@@ -1271,6 +1525,20 @@ class Tournament(ITournament):
             tour_round: Round|None = None,
             standings: list[Player]|None = None
         ) -> str:
+        """Generates a formatted string of the tournament standings.
+
+        Args:
+            fields: A list of StandingsExport.Field to include in the standings.
+            style: The desired output format (e.g., PLAIN, CSV, DISCORD, JSON).
+            tour_round: The round for which to generate standings. Defaults to the current round.
+            standings: Pre-calculated standings. If None, standings will be calculated.
+
+        Returns:
+            A string containing the formatted standings.
+
+        Raises:
+            ValueError: If an invalid style is provided.
+        """
         #raise DeprecationWarning("get_standings_str is deprecated. Use get_standings instead.")
         if tour_round is None:
             tour_round = self.tour_round
@@ -1327,6 +1595,13 @@ class Tournament(ITournament):
 
     @staticmethod
     def send_request(api, data, headers):
+        """Sends a POST request to a specified API endpoint.
+
+        Args:
+            api: The API endpoint URL.
+            data: The JSON data to send.
+            headers: A dictionary of HTTP headers.
+        """
         try:
             response = requests.post(
                 api,
@@ -1347,6 +1622,13 @@ class Tournament(ITournament):
             var_export_param: Any,
             target_type: StandingsExport.Target,
         ):
+        """Exports a string of data to a specified target (file, web, discord, console).
+
+        Args:
+            data: The string data to export.
+            var_export_param: Parameter specific to the target type (e.g., file path, log level).
+            target_type: The target for the export (FILE, WEB, DISCORD, CONSOLE).
+        """
         if StandingsExport.Target.FILE == target_type:
             if not os.path.exists(os.path.dirname(var_export_param)):
                 os.makedirs(os.path.dirname(var_export_param))
@@ -1395,6 +1677,9 @@ class Tournament(ITournament):
             - a list of tour_round jsons (serialized from class)
 
         Objects are referenced to each other by ids.
+
+        Returns:
+            A dictionary representing the serialized tournament data.
         """
 
         data: dict[str, Any] = {}
@@ -1408,6 +1693,14 @@ class Tournament(ITournament):
 
     @classmethod
     def inflate(cls, data: dict[str, Any]) -> Tournament:
+        """Inflates a Tournament object from serialized data.
+
+        Args:
+            data: A dictionary containing the serialized tournament data.
+
+        Returns:
+            A Tournament instance.
+        """
         config = TournamentConfiguration.inflate(data['config'])
         tour_uid = UUID(data['uid'])
         if tour_uid in Tournament.CACHE:
@@ -1898,6 +2191,7 @@ class Pod(IPod):
 
     @property
     def players(self) -> list[Player]:
+        """Returns the list of players in the pod."""
         return [Player.get(self.tour, x) for x in self._players]
 
     @override
@@ -2140,6 +2434,7 @@ class Round(IRound):
 
     @property
     def done(self):
+        """Returns True if all pods in the round are done, False otherwise."""
         if len(self._pods) == 0:
             return False
         for pod in self.pods:

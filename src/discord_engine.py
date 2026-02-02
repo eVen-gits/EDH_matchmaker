@@ -8,10 +8,12 @@ import threading
 load_dotenv()
 
 class DiscordPoster:
+    """Singleton class to post messages to Discord."""
     _instance = None
     _lock = threading.Lock()
 
     def __new__(cls):
+        """Creates or returns the singleton instance."""
         with cls._lock:
             if cls._instance is None:
                 cls._instance = super().__new__(cls)
@@ -19,6 +21,7 @@ class DiscordPoster:
         return cls._instance
 
     def __init__(self):
+        """Initializes the DiscordPoster."""
         if self._initialized:
             return
 
@@ -96,7 +99,14 @@ class DiscordPoster:
 
 
     async def _send_message(self, message: str):
-        """Send a message to the channel and return the message ID."""
+        """Send a message to the channel and return the message ID.
+
+        Args:
+            message: The message to send.
+
+        Returns:
+            The ID of the sent message, or None if failed.
+        """
         channel = self.bot.get_channel(self.channel_id)
         if channel:
             sent_message = await channel.send(message)
@@ -105,7 +115,11 @@ class DiscordPoster:
             return None
 
     def post_message(self, message: str):
-        """Safely post a message from any thread using self.loop."""
+        """Safely post a message from any thread using self.loop.
+
+        Args:
+            message: The message to post.
+        """
         if not self.loop or not self.loop.is_running():
             return
 
