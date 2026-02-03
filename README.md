@@ -1,5 +1,5 @@
 # EDH_matchmaker #
-[![Documentation](https://img.shields.io/badge/docs-live-blue.svg)](https://even-gits.github.io/EDH_matchmaker/)
+[![Documentation](https://img.shields.io/badge/docs-live-blue.svg)](https://even-gits.github.io/EDH_matchmaker/) [![Build Status](https://github.com/eVen-gits/EDH_matchmaker/actions/workflows/run_tests.yml/badge.svg)](https://github.com/eVen-gits/EDH_matchmaker/actions/workflows/run_tests.yml)
 ![image](https://user-images.githubusercontent.com/2612606/166250998-7b4c721c-8a35-4ac2-ad87-e8fe02c46d11.png)
 
 ## Intro ##
