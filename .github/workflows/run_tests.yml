@@ -50,6 +50,7 @@ jobs:
           name: Test Results
           path: test-reports/*.xml
           reporter: java-junit
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload Test Reports
         uses: actions/upload-artifact@v4
