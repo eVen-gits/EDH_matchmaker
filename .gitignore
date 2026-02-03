@@ -13,3 +13,4 @@ logs/
 .env
 .coverage
 site/
+test-results.xml
