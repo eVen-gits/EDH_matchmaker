@@ -2,7 +2,14 @@ import unittest
 from src.core import *
 import names
 import random
-from tqdm import tqdm
+import os
+
+# Disable tqdm in CI environment to avoid log noise
+if os.environ.get('CI') or os.environ.get('GITHUB_ACTIONS'):
+    def tqdm(iterable, *args, **kwargs):
+        return iterable
+else:
+    from tqdm import tqdm
 from faker import Faker
 import time
 from itertools import product
