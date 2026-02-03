@@ -1,0 +1,36 @@
+site_name: EDH Matchmaker
+site_description: Matchmaking for EDH game
+site_url: https://even.github.io/EDH_matchmaker/
+
+theme:
+  name: material
+  features:
+    - navigation.instant
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            show_source: true
+            show_signature_annotations: true
+            separate_signature: true
+            merge_init_into_class: true
+
+markdown_extensions:
+  - admonition
+  - pymdownx.superfences
+  - pymdownx.highlight
+
+nav:
+  - Home: index.md
+  - API Reference:
+      - src.core: src/core.md
+      - src.discord_engine: src/discord_engine.md
+      - src.interface: src/interface.md
+      - src.misc: src/misc.md
