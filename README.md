@@ -57,6 +57,16 @@ You can check it by running `python run_ui.py --help`. Again, you can add a shor
 
 Alternatively, you can also set everything up through GUI once the program is running.
 
+## Testing
+
+The project uses `unittest` for testing. You can run tests locally using:
+
+```bash
+PYTHONPATH=. python tests/run_tests.py
+```
+
+Automated test results are generated on every push via GitHub Actions. You can view the latest test status via the badge at the top of this README or in the **Actions** tab.
+
 # Closing words
 
 This software is still in development. The best thing you can do to help me is by testing it and submiting bugs. Best way to do it is here, on github - open an issue and describe what's happening and how to reproduce it, so I can fix it. You can also add your tournament log.
