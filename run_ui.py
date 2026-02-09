@@ -187,6 +187,13 @@ class MainWindow(QMainWindow):
         self.init_sort_dropdown()
         self.ui.cb_sort.currentIndexChanged.connect(self.cb_sort_set)
 
+        # Inject player filter
+        self.le_filter = QLineEdit()
+        self.le_filter.setPlaceholderText("Filter players...")
+        self.le_filter.setClearButtonEnabled(True)
+        self.ui.verticalLayout_2.insertWidget(2, self.le_filter)
+        self.le_filter.textChanged.connect(self.ui_filter_players)
+
         self.ui.pb_add_player.clicked.connect(
             lambda: self.add_player(self.ui.le_player_name.text()))
         self.ui.le_player_name.returnPressed.connect(
@@ -387,6 +394,11 @@ class MainWindow(QMainWindow):
                 self,
                 triggered=lambda: self.lva_bye()
             )) # type: ignore
+            pop_menu.addAction(QAction(
+                'Set table preference...',
+                self,
+                triggered=lambda: self.lva_set_table_preference()
+            )) # type: ignore
         pop_menu.exec(self.ui.lv_players.mapToGlobal(position))
 
     def lva_remove_player(self):
@@ -448,6 +460,47 @@ class MainWindow(QMainWindow):
         )
         if ok:
             self.toggle_bye(players)
+
+    def lva_set_table_preference(self, players: list[Player] | None = None):
+        if players is None:
+            players = [
+                item.data(Qt.ItemDataRole.UserRole)
+                for item in self.ui.lv_players.selectedItems()
+            ]
+
+        if not players:
+            return
+
+        current_pref = ""
+        if len(players) == 1:
+            current_pref = ", ".join(map(str, players[0].table_preference))
+
+        text, ok = QInputDialog.getText(
+            self,
+            'Set Table Preference',
+            'Enter table numbers (1-indexed, comma separated) for {}:'.format(
+                ', '.join([p.name for p in players])),
+            text=current_pref
+        )
+
+        if ok:
+            try:
+                # Parse comma separated integers
+                if text.strip() == "":
+                    prefs = []
+                else:
+                    prefs = [int(p.strip()) for p in text.split(',') if p.strip()]
+
+                for p in players:
+                    p.set_table_preference(prefs)
+
+                Log.log("Set table preferences for {} to {}".format(
+                    ', '.join([p.name for p in players]),
+                    prefs
+                ))
+                self.ui_update_player_list()
+            except ValueError:
+                QMessageBox.critical(self, "Error", "Invalid input. Please enter a comma-separated list of numbers.")
 
     @UILog.with_status
     def toggle_game_loss(self, players: list[Player]):
@@ -602,6 +655,15 @@ class MainWindow(QMainWindow):
 
             item.setText(data.__repr__(self.PLIST_FMT, context=context))
         PlayerListItem.sort_with_context(self.ui.lv_players, context)
+        self.ui_filter_players()
+
+    def ui_filter_players(self):
+        filter_text = self.le_filter.text().lower()
+        for i in range(self.ui.lv_players.count()):
+            item = self.ui.lv_players.item(i)
+            # Access player via the item property defined in core.py (it's actually PlayerListItem class in run_ui.py)
+            player_name = item.player.name.lower()
+            item.setHidden(filter_text not in player_name)
 
     def update_player_sort_method(self):
         sort_method, sort_order = self.ui.cb_sort.itemData(self.ui.cb_sort.currentIndex()) # type: ignore
@@ -621,6 +683,7 @@ class MainWindow(QMainWindow):
             self.ui.lv_players.addItem(list_item)
         self.update_player_sort_method()
         PlayerListItem.sort_with_context(self.ui.lv_players, context)
+        self.ui_filter_players()
 
     @UILog.with_status
     def random_results(self):
@@ -800,6 +863,11 @@ class PodWidget(QWidget):
             'Assign bye',
             self,
             triggered=self.assign_bye
+        )) # type: ignore
+        pop_menu.addAction(QAction(
+            'Set table preference...',
+            self,
+            triggered=lambda: self.app.lva_set_table_preference(selected_pod_players)
         )) # type: ignore
         pop_menu.addSeparator()
         pop_menu.addAction(

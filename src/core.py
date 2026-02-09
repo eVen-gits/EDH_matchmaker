@@ -1949,7 +1949,7 @@ class Player(IPlayer):
         return pods
 
     def played(self, tour_round: Round|None=None) -> list[Player]:
-        """Retrieves a list of unique opponents played against.
+        """Retrieves a list of unique opponents played against in completed pods.
 
         Args:
             tour_round: The round up to which to check.
@@ -1961,24 +1961,24 @@ class Player(IPlayer):
             tour_round = self.tour.tour_round
         players = set()
         for p in self.pods(tour_round):
-            if isinstance(p, Pod):
+            if isinstance(p, Pod) and p.done:
                 players.update(p.players)
         if players:
-            players.remove(self)
+            players.discard(self)
         return list(players)
 
     def games(self, tour_round: Round|None=None):
-        """Retrieves all played games (pods) excluding byes and other non-game locations.
+        """Retrieves all completed games (pods) excluding byes and other non-game locations.
 
         Args:
             tour_round: The round up to which to check.
 
         Returns:
-            list[Pod]: A list of actual game pods.
+            list[Pod]: A list of actual completed game pods.
         """
         if tour_round is None:
             tour_round = self.tour.tour_round
-        return [p for p in self.pods(tour_round) if isinstance(p, Pod)]
+        return [p for p in self.pods(tour_round) if isinstance(p, Pod) and p.done]
 
     def byes(self, tour_round: Round|None=None):
         """Counts the number of byes received.
@@ -2122,7 +2122,7 @@ class Player(IPlayer):
             for
             round
             in rounds
-            if self.pod(round) is not None
+            if self.pod(round) is not None and self.pod(round).done
         ]
         if not pods:
             return np.float64(0.5)
