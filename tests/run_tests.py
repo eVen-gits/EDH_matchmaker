@@ -11,11 +11,12 @@ try:
 except ImportError:
     xmlrunner = None
 
+
 def load_tests():
     # Discover tests in tests.test_core
     # We explicitly only want to run tests from test_core as requested
     loader = unittest.TestLoader()
-    suite = loader.loadTestsFromName('tests.test_core')
+    suite = loader.loadTestsFromName("tests.test_core")
 
     filtered_suite = unittest.TestSuite()
 
@@ -26,26 +27,27 @@ def load_tests():
         if isinstance(test, unittest.TestSuite):
             for t in test:
                 # Check if the test belongs to TestPerformance class
-                if t.__class__.__name__ == 'TestPerformance':
+                if t.__class__.__name__ == "TestPerformance":
                     continue
                 filtered_suite.addTest(t)
         else:
-             if test.__class__.__name__ == 'TestPerformance':
+            if test.__class__.__name__ == "TestPerformance":
                 continue
-             filtered_suite.addTest(test)
+            filtered_suite.addTest(test)
 
     return filtered_suite
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     suite = load_tests()
 
     # Create test-reports directory if it doesn't exist
-    if not os.path.exists('test-reports'):
-        os.makedirs('test-reports')
+    if not os.path.exists("test-reports"):
+        os.makedirs("test-reports")
 
     if xmlrunner:
         print("Running tests with XML generating runner...")
-        runner = xmlrunner.XMLTestRunner(output='test-reports', outsuffix='')
+        runner = xmlrunner.XMLTestRunner(output="test-reports", outsuffix="")
     else:
         print("xmlrunner not found, running with standard TextTestRunner...")
         runner = unittest.TextTestRunner()

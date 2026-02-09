@@ -5,22 +5,28 @@ from typing import Sequence, Callable, Any
 from datetime import datetime
 from uuid import UUID, uuid4
 
+
 class SortMethod(IntEnum):
     """Enum for sorting methods."""
+
     ID = 0
     NAME = 1
     RANK = 2
 
+
 class SortOrder(IntEnum):
     """Enum for sorting order."""
+
     ASCENDING = 0
     DESCENDING = 1
 
+
 class IHashable:
     """Interface for hashable objects with UUIDs."""
+
     CACHE: dict[UUID, Any] = {}
 
-    def __init__(self, uid: UUID|None=None):
+    def __init__(self, uid: UUID | None = None):
         """Initializes the IHashable object.
 
         Args:
@@ -31,9 +37,9 @@ class IHashable:
         """
         if uid:
             if uid in self.CACHE:
-                raise ValueError('UUID collision.')
+                raise ValueError("UUID collision.")
             elif not isinstance(uid, UUID):
-                raise ValueError('UUID type error.')
+                raise ValueError("UUID type error.")
             else:
                 self.uid = uid
         else:
@@ -53,10 +59,13 @@ class IHashable:
         """
         raise NotImplementedError()
 
+
 class IPlayer(IHashable):
     """Interface for a player."""
+
     class ELocation(IntEnum):
         """Enum for player location."""
+
         UNASSIGNED = 0
         SEATED = 1
         GAME_LOSS = 3
@@ -65,20 +74,21 @@ class IPlayer(IHashable):
 
     class EResult(IntEnum):
         """Enum for match result."""
+
         LOSS = 0
         DRAW = 1
         WIN = 2
         BYE = 3
         PENDING = 4
 
-    def __init__(self, uid: UUID|None=None):
+    def __init__(self, uid: UUID | None = None):
         """Initializes the IPlayer."""
         super().__init__(uid=uid)
         self.name: str = str()
-        #self.rounds: list[IRound] = list()
+        # self.rounds: list[IRound] = list()
         self.tour: ITournament
-        #self.location: IPlayer.ELocation = IPlayer.ELocation.UNSEATED
-        #self.result: IPlayer.EResult = IPlayer.EResult.PENDING
+        # self.location: IPlayer.ELocation = IPlayer.ELocation.UNSEATED
+        # self.result: IPlayer.EResult = IPlayer.EResult.PENDING
 
     @abstractmethod
     def played(self, tour_round: IRound) -> list[IPlayer]:
@@ -89,11 +99,13 @@ class IPlayer(IHashable):
         raise NotImplementedError()
 
     @abstractmethod
-    def pod(self, tour_round: IRound) -> IPod|None:
+    def pod(self, tour_round: IRound) -> IPod | None:
         raise NotImplementedError()
 
     @abstractmethod
-    def set_result(self, tour_round: IRound, result: IPlayer.EResult) -> IPlayer.EResult:
+    def set_result(
+        self, tour_round: IRound, result: IPlayer.EResult
+    ) -> IPlayer.EResult:
         raise NotImplementedError()
 
     @abstractmethod
@@ -128,14 +140,17 @@ class IPlayer(IHashable):
     def draws(self, tour_round: IRound) -> int:
         raise NotImplementedError()
 
+
 class ITournament(IHashable):
-    def __init__(self, config: ITournamentConfiguration|None=None, uid: UUID|None=None):
+    def __init__(
+        self, config: ITournamentConfiguration | None = None, uid: UUID | None = None
+    ):
         super().__init__(uid=uid)
         self.rounds: list[IRound] = list()
-        self._round: IRound|None = None
+        self._round: IRound | None = None
 
     @abstractmethod
-    def get_pod_sizes(self, n:int) -> Sequence[int]|None:
+    def get_pod_sizes(self, n: int) -> Sequence[int] | None:
         raise NotImplementedError()
 
     @abstractmethod
@@ -146,16 +161,18 @@ class ITournament(IHashable):
     def config(self) -> ITournamentConfiguration:
         raise NotImplementedError()
 
+
 class IPod(IHashable):
     """Interface for a pod."""
 
     class EResult(IntEnum):
         """Enum for pod result."""
+
         DRAW = 0
         WIN = 1
         PENDING = 2
 
-    def __init__(self, uid: UUID|None=None):
+    def __init__(self, uid: UUID | None = None):
         """Initializes the IPod."""
         super().__init__(uid=uid)
         self._tour: UUID
@@ -172,7 +189,7 @@ class IPod(IHashable):
     @property
     @abstractmethod
     def players(self) -> list[IPlayer]:
-        raise NotImplementedError('Pod.players not implemented - use subclass')
+        raise NotImplementedError("Pod.players not implemented - use subclass")
 
     @abstractmethod
     def auto_assign_seats(self):
@@ -194,12 +211,14 @@ class IPod(IHashable):
     def __len__(self):
         return len(self.players)
 
+
 class IRound(IHashable):
     """Interface for a round."""
-    def __init__(self, uid: UUID|None=None):
+
+    def __init__(self, uid: UUID | None = None):
         """Initializes the IRound."""
         super().__init__(uid=uid)
-        self.seq:int = -1
+        self.seq: int = -1
         self.logic: IPairingLogic
         self._tour: UUID
         self._pods: list[UUID] = list()
@@ -208,32 +227,36 @@ class IRound(IHashable):
     @property
     @abstractmethod
     def active_players(self) -> set[IPlayer]:
-        raise NotImplementedError('Round.players not implemented - use subclass')
+        raise NotImplementedError("Round.players not implemented - use subclass")
 
     @property
     @abstractmethod
     def byes(self) -> set[IPlayer]:
-        raise NotImplementedError('Round.byes not implemented - use subclass')
+        raise NotImplementedError("Round.byes not implemented - use subclass")
 
     @property
     @abstractmethod
     def tour(self) -> ITournament:
-        raise NotImplementedError('Round.tour not implemented - use subclass')
+        raise NotImplementedError("Round.tour not implemented - use subclass")
 
     @property
     @abstractmethod
     def pods(self) -> list[IPod]:
-        raise NotImplementedError('Round.pods not implemented - use subclass')
+        raise NotImplementedError("Round.pods not implemented - use subclass")
+
 
 class IPairingLogic:
     """Interface for pairing logic."""
-    IS_COMPLETE=False
+
+    IS_COMPLETE = False
 
     def __init__(self, name: str):
         """Initializes the IPairingLogic."""
         self.name = name
 
-    def make_pairings(self, tour_round:IRound, players: set[IPlayer], pods:Sequence[IPod]) -> Sequence[IPlayer]:
+    def make_pairings(
+        self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]
+    ) -> Sequence[IPlayer]:
         """Creates pairings for a round.
 
         Args:
@@ -244,7 +267,9 @@ class IPairingLogic:
         Returns:
             A sequence of players who could not be paired (if any).
         """
-        raise NotImplementedError('PairingLogic.make_pairings not implemented - use subclass')
+        raise NotImplementedError(
+            "PairingLogic.make_pairings not implemented - use subclass"
+        )
 
     def advance_topcut(self, tour_round: IRound, standings: list[IPlayer]) -> None:
         """Advances players to the top cut.
@@ -253,7 +278,10 @@ class IPairingLogic:
             tour_round: The current round.
             standings: The list of players sorted by standing.
         """
-        raise NotImplementedError('PairingLogic.advance_topcut not implemented - use subclass')
+        raise NotImplementedError(
+            "PairingLogic.advance_topcut not implemented - use subclass"
+        )
+
 
 class ITournamentConfiguration:
     def __init__(self, **kwargs):

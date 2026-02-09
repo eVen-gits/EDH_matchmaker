@@ -10,11 +10,12 @@ import sys
 import numpy as np
 from ..core import timeit
 
+
 class CommonPairing(IPairingLogic):
     def __init__(self, name: str):
         super().__init__(name)
 
-    def evaluate_pod(self, player: IPlayer, pod:IPod, tour_round: IRound) -> int:
+    def evaluate_pod(self, player: IPlayer, pod: IPod, tour_round: IRound) -> int:
         score = 0
         if len(pod) == pod.cap:
             return -sys.maxsize
@@ -23,44 +24,44 @@ class CommonPairing(IPairingLogic):
         if pod.cap < player.tour.config.max_pod_size:
             for prev_pod in player.pods(tour_round):
                 if isinstance(prev_pod, IPod):
-                    score -= sum([
-                        10
-                        for _
-                        in prev_pod.players
-                        if prev_pod.cap < player.tour.config.max_pod_size
-                    ])
+                    score -= sum(
+                        [
+                            10
+                            for _ in prev_pod.players
+                            if prev_pod.cap < player.tour.config.max_pod_size
+                        ]
+                    )
         return score
 
     def make_pairings(self, players: list[IPlayer], pods: list[IPod]) -> set[IPlayer]:
-        raise NotImplementedError('PairingLogic.make_pairings not implemented - use subclass')
+        raise NotImplementedError(
+            "PairingLogic.make_pairings not implemented - use subclass"
+        )
 
     def bye_matching(self, player: IPlayer, tour_round: IRound) -> tuple:
         return (
             -len(player.games(tour_round)),
             player.rating(tour_round),
-            -len(player.played(tour_round))
+            -len(player.played(tour_round)),
         )
 
-    def assign_byes(self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]) -> set[IPlayer]:
+    def assign_byes(
+        self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]
+    ) -> set[IPlayer]:
         capacity = sum([pod.cap - len(pod.players) for pod in pods])
         n_byes = len(players) - capacity
 
-        matching: Callable[[IPlayer], tuple] = lambda x: self.bye_matching(x, tour_round)
+        matching: Callable[[IPlayer], tuple] = lambda x: self.bye_matching(
+            x, tour_round
+        )
         player_matches = {p: matching(p) for p in players}
         keys: list[tuple] = sorted(set(player_matches.values()), reverse=True)
 
-        buckets = [
-            [
-                p for p in players
-                if player_matches[p] == k
-            ]
-            for k in keys
-        ]
-
+        buckets = [[p for p in players if player_matches[p] == k] for k in keys]
 
         byes = set()
         for b in buckets[::-1]:
-            byes.update(random.sample(b, min(len(b), n_byes-len(byes))))
+            byes.update(random.sample(b, min(len(b), n_byes - len(byes))))
             if len(byes) >= n_byes:
                 break
         pass
@@ -69,11 +70,14 @@ class CommonPairing(IPairingLogic):
 
         return byes
 
+
 class PairingRandom(CommonPairing):
-    IS_COMPLETE=True
+    IS_COMPLETE = True
 
     @override
-    def make_pairings(self, tour_round: IRound, players: set[IPlayer], pods: list[IPod]) -> set[IPlayer]:
+    def make_pairings(
+        self, tour_round: IRound, players: set[IPlayer], pods: list[IPod]
+    ) -> set[IPlayer]:
         byes = self.assign_byes(tour_round, players, pods)
         active_players = list(players - byes)
         random.shuffle(active_players)
@@ -86,25 +90,30 @@ class PairingRandom(CommonPairing):
 
         return players
 
-class PairingSnake(CommonPairing):
-    IS_COMPLETE=True
 
-    #Snake pods logic for 2nd tour_round
-    #First bucket is players with most points and least unique opponents
-    #Players are then distributed in buckets based on points and unique opponents
-    #Players are then distributed in pods based on bucket order
+class PairingSnake(CommonPairing):
+    IS_COMPLETE = True
+
+    # Snake pods logic for 2nd tour_round
+    # First bucket is players with most points and least unique opponents
+    # Players are then distributed in buckets based on points and unique opponents
+    # Players are then distributed in pods based on bucket order
 
     def snake_ranking(self, player: IPlayer, tour_round: IRound) -> tuple[float, int]:
         """Helper method to get snake ranking for a player."""
         return (player.rating(tour_round), -len(player.played(tour_round)))
 
     @override
-    def make_pairings(self, tour_round: IRound, players: set[IPlayer], pods: list[IPod]) -> set[IPlayer]:
-        prev_round: IRound = tour_round.tour.rounds[tour_round.seq-1]
+    def make_pairings(
+        self, tour_round: IRound, players: set[IPlayer], pods: list[IPod]
+    ) -> set[IPlayer]:
+        prev_round: IRound = tour_round.tour.rounds[tour_round.seq - 1]
         byes = self.assign_byes(tour_round, players, pods)
         active_players = tour_round.active_players - byes
 
-        snake_ranking: Callable[[IPlayer], tuple[float, int]] = lambda x: self.snake_ranking(x, tour_round)
+        snake_ranking: Callable[[IPlayer], tuple[float, int]] = (
+            lambda x: self.snake_ranking(x, tour_round)
+        )
 
         # 1. Determine Buckets
         # Map: ranking_key -> List[Player]
@@ -132,7 +141,9 @@ class PairingSnake(CommonPairing):
 
         for p in active_players:
             prev_pods = p.pods(prev_round)
-            p_prev_pod = prev_pods[-1] if prev_pods and isinstance(prev_pods[-1], IPod) else None
+            p_prev_pod = (
+                prev_pods[-1] if prev_pods and isinstance(prev_pods[-1], IPod) else None
+            )
             player_prev_pod[p] = p_prev_pod
 
             rank = snake_ranking(p)
@@ -199,22 +210,22 @@ class PairingSnake(CommonPairing):
                     # random.shuffle(matches) # Optional: Adds more randomness but costs time.
 
                     for prev_pod in matches:
-                         if prev_pod not in forbidden_prev_pods[pod_idx]:
-                             players_list = candidates[bucket_key][prev_pod]
-                             if players_list:
-                                 # FOUND A MATCH
-                                 player = players_list.pop()
-                                 if not players_list:
-                                     del candidates[bucket_key][prev_pod]
+                        if prev_pod not in forbidden_prev_pods[pod_idx]:
+                            players_list = candidates[bucket_key][prev_pod]
+                            if players_list:
+                                # FOUND A MATCH
+                                player = players_list.pop()
+                                if not players_list:
+                                    del candidates[bucket_key][prev_pod]
 
-                                 pod.add_player(player)
-                                 forbidden_prev_pods[pod_idx].add(prev_pod)
-                                 placed = True
-                                 players_in_bucket_count -= 1
+                                pod.add_player(player)
+                                forbidden_prev_pods[pod_idx].add(prev_pod)
+                                placed = True
+                                players_in_bucket_count -= 1
 
-                                 # Update current_pod_idx to next one for fair distribution
-                                 current_pod_idx = (pod_idx + 1) % n_pods
-                                 break
+                                # Update current_pod_idx to next one for fair distribution
+                                current_pod_idx = (pod_idx + 1) % n_pods
+                                break
 
                     if placed:
                         break
@@ -238,7 +249,9 @@ class PairingSnake(CommonPairing):
                             # Pick any player from this bucket
                             # Get first available group
                             if not candidates[bucket_key]:
-                                raise ValueError("Bucket logic error: count > 0 but no candidates.")
+                                raise ValueError(
+                                    "Bucket logic error: count > 0 but no candidates."
+                                )
 
                             prev_pod = next(iter(candidates[bucket_key]))
                             players_list = candidates[bucket_key][prev_pod]
@@ -254,31 +267,35 @@ class PairingSnake(CommonPairing):
                             break
 
                     if not fallback_placed:
-                         raise ValueError('Critical failure: No pod has capacity left but players remain.')
-
+                        raise ValueError(
+                            "Critical failure: No pod has capacity left but players remain."
+                        )
 
         return players
 
+
 class PairingDefault(CommonPairing):
-    IS_COMPLETE=True
+    IS_COMPLETE = True
 
     def matching(self, player: IPlayer, tour_round: IRound) -> tuple:
         return (
             -len(player.games(tour_round)),
             -len(player.played(tour_round)),
             player.rating(tour_round),
-            player.opponent_pointrate(tour_round)
+            player.opponent_pointrate(tour_round),
         )
 
     @override
-    def make_pairings(self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]) -> set[IPlayer]:
-        #matching = lambda x: (
+    def make_pairings(
+        self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]
+    ) -> set[IPlayer]:
+        # matching = lambda x: (
         #    -len(x.games(tour_round)),
         #    -len(x.played(tour_round)),
         #    x.rating(tour_round),
         #    x.opponent_pointrate(tour_round)
-        #)
-        #standings = tour_round.tour.get_standings(tour_round)
+        # )
+        # standings = tour_round.tour.get_standings(tour_round)
         matching = lambda x: self.matching(x, tour_round)
 
         byes = self.assign_byes(tour_round, players, pods)
@@ -292,13 +309,18 @@ class PairingDefault(CommonPairing):
             pods[index].add_player(p)
         return players
 
+
 class PairingTop4(CommonPairing):
-    IS_COMPLETE=True
+    IS_COMPLETE = True
 
     @override
-    def make_pairings(self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]) -> set[IPlayer]:
+    def make_pairings(
+        self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]
+    ) -> set[IPlayer]:
         standings = tour_round.tour.get_standings(tour_round)
-        assignable_players = sorted(tour_round.active_players, key=lambda x: standings.index(x))
+        assignable_players = sorted(
+            tour_round.active_players, key=lambda x: standings.index(x)
+        )
 
         # Distribute players across pods in snake order
         pod_index = 0
@@ -322,8 +344,9 @@ class PairingTop4(CommonPairing):
 
         return players
 
+
 class PairingSemiCommon(CommonPairing):
-    N_BYES=-1
+    N_BYES = -1
 
     @classmethod
     def advance_topcut(cls, tour_round: IRound, standings: list[IPlayer]) -> None:
@@ -333,31 +356,45 @@ class PairingSemiCommon(CommonPairing):
             p.set_result(tour_round, IPlayer.EResult.BYE)
 
     @staticmethod
-    def make_pairings(n_byes: int, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]) -> set[IPlayer]:
+    def make_pairings(
+        n_byes: int, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]
+    ) -> set[IPlayer]:
         standings = tour_round.tour.get_standings(tour_round)
 
-        assignable_players = sorted((tour_round.active_players - set(tour_round.byes)), key=lambda x: standings.index(x))
+        assignable_players = sorted(
+            (tour_round.active_players - set(tour_round.byes)),
+            key=lambda x: standings.index(x),
+        )
 
         n_pods = len(pods)
-        for i,p in enumerate(assignable_players):
-            pods[i%n_pods].add_player(p)
+        for i, p in enumerate(assignable_players):
+            pods[i % n_pods].add_player(p)
         return players
+
 
 class PairingTop7(PairingSemiCommon):
-    IS_COMPLETE=True
-    N_BYES=3
+    IS_COMPLETE = True
+    N_BYES = 3
 
     @override
-    def make_pairings(self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]) -> set[IPlayer]:
-        players = PairingSemiCommon.make_pairings(self.N_BYES, tour_round=tour_round, players=players, pods=pods)
+    def make_pairings(
+        self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]
+    ) -> set[IPlayer]:
+        players = PairingSemiCommon.make_pairings(
+            self.N_BYES, tour_round=tour_round, players=players, pods=pods
+        )
         return players
 
+
 class PairingTop10(PairingSemiCommon):
-    IS_COMPLETE=True
-    N_BYES=2
+    IS_COMPLETE = True
+    N_BYES = 2
+
     @override
-    def make_pairings(self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]) -> set[IPlayer]:
-        '''standings = tour_round.tour.get_standings(tour_round)
+    def make_pairings(
+        self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]
+    ) -> set[IPlayer]:
+        """standings = tour_round.tour.get_standings(tour_round)
 
         p1 = standings[0]
         p2 = standings[1]
@@ -369,34 +406,51 @@ class PairingTop10(PairingSemiCommon):
         for i,p in enumerate(assignable_players):
             pods[i%2].add_player(p)
 
-        return players'''
-        players = PairingSemiCommon.make_pairings(self.N_BYES, tour_round=tour_round, players=players, pods=pods)
+        return players"""
+        players = PairingSemiCommon.make_pairings(
+            self.N_BYES, tour_round=tour_round, players=players, pods=pods
+        )
 
         return players
+
 
 class PairingTop13(PairingSemiCommon):
-    IS_COMPLETE=True
-    N_BYES=1
+    IS_COMPLETE = True
+    N_BYES = 1
 
     @override
-    def make_pairings(self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]) -> set[IPlayer]:
-        players = PairingSemiCommon.make_pairings(self.N_BYES, tour_round=tour_round, players=players, pods=pods)
+    def make_pairings(
+        self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]
+    ) -> set[IPlayer]:
+        players = PairingSemiCommon.make_pairings(
+            self.N_BYES, tour_round=tour_round, players=players, pods=pods
+        )
         return players
+
 
 class PairingTop16(PairingSemiCommon):
-    IS_COMPLETE=True
-    N_BYES=0
+    IS_COMPLETE = True
+    N_BYES = 0
 
     @override
-    def make_pairings(self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]) -> set[IPlayer]:
-        players = PairingSemiCommon.make_pairings(self.N_BYES, tour_round=tour_round, players=players, pods=pods)
+    def make_pairings(
+        self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]
+    ) -> set[IPlayer]:
+        players = PairingSemiCommon.make_pairings(
+            self.N_BYES, tour_round=tour_round, players=players, pods=pods
+        )
         return players
 
+
 class PairingTop40(PairingSemiCommon):
-    IS_COMPLETE=True
-    N_BYES=16
+    IS_COMPLETE = True
+    N_BYES = 16
 
     @override
-    def make_pairings(self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]) -> set[IPlayer]:
-        players = PairingSemiCommon.make_pairings(self.N_BYES, tour_round=tour_round, players=players, pods=pods)
+    def make_pairings(
+        self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]
+    ) -> set[IPlayer]:
+        players = PairingSemiCommon.make_pairings(
+            self.N_BYES, tour_round=tour_round, players=players, pods=pods
+        )
         return players

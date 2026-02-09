@@ -6,6 +6,7 @@ import time
 
 class Json2Obj:
     """Converts a dictionary to an object."""
+
     def __init__(self, data):
         """Initializes the Json2Obj.
 
@@ -26,6 +27,7 @@ class Json2Obj:
                     else:
                         self.__dict__[i].append(item)
 
+
 def generate_player_names(n: int) -> list[str]:
     """Generates a list of random player names.
 
@@ -41,6 +43,7 @@ def generate_player_names(n: int) -> list[str]:
         names.add(fkr.name())
     return list(names)
 
+
 def timeit(method):
     """Decorator to measure execution time of a function.
 
@@ -50,19 +53,23 @@ def timeit(method):
     Returns:
         The decorated function.
     """
+
     def timed(*args, **kw):
-        sys.stdout.write('\rt({}) ...'.format(method.__name__))
+        sys.stdout.write("\rt({}) ...".format(method.__name__))
         sys.stdout.flush()
 
         ts = time.time()
         result = method(*args, **kw)
         te = time.time()
-        if 'log_time' in kw:
-            name = kw.get('log_name', method.__name__.upper())
-            kw['log_time'][name] = int((te - ts) * 1000)
+        if "log_time" in kw:
+            name = kw.get("log_name", method.__name__.upper())
+            kw["log_time"][name] = int((te - ts) * 1000)
         else:
-            #print('%r  %2.2f ms' % (method.__name__, (te - ts) * 1000))
-            sys.stdout.write('\rt({}) = {:.2f} ms\n'.format(method.__name__, (te - ts) * 1000))
+            # print('%r  %2.2f ms' % (method.__name__, (te - ts) * 1000))
+            sys.stdout.write(
+                "\rt({}) = {:.2f} ms\n".format(method.__name__, (te - ts) * 1000)
+            )
             sys.stdout.flush()
         return result
+
     return timed
