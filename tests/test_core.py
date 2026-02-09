@@ -641,23 +641,137 @@ class TestPod(unittest.TestCase):
             self.pod.reorder_players([0, 1, 2, 2])
 
 
-'''#TODO: Implement this test
-class TestSeatNormalization(unittest.TestCase):
-    def test_close_to_equal(self):
-        t = Tournament(
-            TournamentConfiguration(
-                pod_sizes=[4],
-                allow_bye=False,
-                snake_pods=True,
-            )
+class TestTablePreferences(unittest.TestCase):
+    def setUp(self) -> None:
+        self.config = TournamentConfiguration(
+            pod_sizes=[4, 3],
+            allow_bye=False,
+            auto_export=False,
         )
-        t.add_player([
-            f"{i}:{fkr.name()}" for i in range(16)
-        ])
+        self.t = Tournament(self.config)
+        self.t.initialize_round()
 
-        for i in tqdm(range(500)):
-            t.create_pairings()
-            t.random_results()
-            pass
+    def test_basic_preference(self) -> None:
+        """
+        Test that a single player's preference is satisfied.
+        """
+        players = self.t.add_player([f"P{i}" for i in range(128)])
 
-        pass'''
+        # Lock P0 to Table with index 0 (Table 1)
+        p0 = players[0]
+        p0.set_table_preference([1])
+
+        for _ in tqdm(range(50)):
+            self.t.create_pairings()
+
+            # Verify P0 is in Table 2 (index 1)
+            self.assertEqual(p0.pod(self.t.tour_round).table, 1)
+            self.t.reset_pods()
+
+    def test_best_effort_satisfaction(self) -> None:
+        """
+        Test that the best effort satisfaction works.
+        5 players want indices 1, 2, 3, 4, 5.
+        At least 4 have to be satisfied.
+        """
+        players = self.t.add_player([f"P{i}" for i in range(128)])
+
+        # Five players want Index 0 (Table 1).
+        p_pref = players[:5]
+        for p in p_pref:
+            p.set_table_preference([1, 2, 3, 4])
+
+        for _ in tqdm(range(50)):
+            self.t.create_pairings()
+
+            #at least 4 players should have preference satisfied
+            satisfied_players = sum([1 for p in p_pref if p.pod(self.t.tour_round).table in p.table_preference])
+            self.assertGreaterEqual(satisfied_players, 4)
+            self.t.reset_pods()
+
+    def test_no_preference_swap(self) -> None:
+        """
+        Test that the no preference swap works.
+        4 players want index 1, 4 players want index 0.
+        Players in Pod A should swap with players in Pod B.
+        """
+        players = self.t.add_player([f"P{i}" for i in range(128)])
+
+        # P0-P3 in Pod A, P4-P7 in Pod B
+        # Pod A wants Index 1, Pod B wants Index 0
+        for p in players[0:4]:
+            p.set_table_preference([2])
+        for p in players[4:8]:
+            p.set_table_preference([1])
+
+        # Manually assign
+        self.t.tour_round.create_pods()
+
+        pod1 = self.t.tour_round.pods[0] # Index 0 / Table 1
+        pod2 = self.t.tour_round.pods[1] # Index 1 / Table 2
+        for p in players[0:4]:
+            pod1.add_player(p)
+        for p in players[4:8]:
+            pod2.add_player(p)
+
+        self.t.create_pairings()
+
+        # They should have swapped
+        for p in players[0:4]:
+            self.assertEqual(p.pod(self.t.tour_round).table, 2)
+        for p in players[4:8]:
+            self.assertEqual(p.pod(self.t.tour_round).table, 1)
+
+    def test_stable_reordering(self) -> None:
+        """
+        Test that the stable reordering works.
+        12 players = 3 pods (Pod 0, Pod 1, Pod 2).
+
+        Pod 0: P0-P3
+        Pod 1: P4-P7
+        Pod 2: P8-P11
+
+        Player in pod 1 want  Table 1 (index 0).
+        Expected final order: [Pod 1, Pod 0, Pod 2]
+        """
+        players = self.t.add_player([f"P{i}" for i in range(12)])
+
+        round = self.t.tour_round
+        round.create_pods()
+        round.refresh_player_location_map()
+
+        pods = round.pods
+        p0, p1, p2 = pods[0], pods[1], pods[2]
+
+        # Assign players manually
+        for i, p in enumerate(players):
+            pods[i//4].add_player(p)
+
+        # Pod 1 (originally Table 2) wants Table 1 (index 0)
+        for p in p1.players:
+            p.set_table_preference([1])
+
+        # pod1 is moved to index 0.
+        # Remaining: pod0, pod2. They fill index 1 and index 2.
+        # Expected final order: [pod1, pod0, pod2]
+
+        round.apply_table_preference()
+
+        self.assertEqual(round.pods[0].uid, p1.uid)
+        self.assertEqual(round.pods[1].uid, p0.uid)
+        self.assertEqual(round.pods[2].uid, p2.uid)
+
+    def test_anonimity_serialization(self) -> None:
+        p = self.t.add_player("Anon")[0]
+        p.table_preference = [1, 2, 3]
+
+        serialized = p.serialize()
+        self.assertNotIn('table_preference', serialized)
+
+        # Use the tour's cache directly to avoid collision
+        uid = p.uid
+        del self.t.PLAYER_CACHE[uid]
+
+        # Re-inflate and check that it's empty
+        p_inflated = Player.inflate(self.t, serialized)
+        self.assertEqual(p_inflated.table_preference, [])

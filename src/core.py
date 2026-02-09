@@ -1865,8 +1865,8 @@ class Player(IPlayer):
         self.decklist = decklist
         self.CACHE[self.uid] = self
         self._pod_id: UUID|None = None  # Direct reference to current pod
+        self.table_preference: list[int] = []
 
-    #ACTIONS
     #ACTIONS
     def set_result(self, tour_round: Round, result: Player.EResult) -> None:
         """Sets the result for the player in a specific round.
@@ -1876,6 +1876,9 @@ class Player(IPlayer):
             result: The result to set (WIN, LOSS, DRAW, BYE).
         """
         tour_round.set_result(self, result)
+
+    def set_table_preference(self, table_preference: list[int]) -> None:
+        self.table_preference = table_preference
 
     #QUERIES
 
@@ -2353,7 +2356,7 @@ class Pod(IPod):
         cap (int): The capacity of the pod (maximum number of players).
         _players (list[UUID]): List of player UUIDs in the pod.
     """
-    def __init__(self, tour_round: Round, table:int, cap=0, uid: UUID|None = None):
+    def __init__(self, tour_round: Round, table: int, cap=0, uid: UUID|None = None):
         """Initializes a new Pod instance.
 
         Args:
@@ -2365,11 +2368,20 @@ class Pod(IPod):
         self._tour: UUID = tour_round.tour.uid
         self._round: UUID = tour_round.uid
         super().__init__(uid=uid)
-        self.table:int = table
         self.cap:int = cap
         self._players: list[UUID] = list()
         #self._players: list[UUID] = list() #TODO: make references to players
         #self.discord_message_id: None|int = None
+
+    @property
+    def table(self) -> int:
+        """Returns the table number of the pod.
+        The table number is determined by the pod's index in the round's pod list (+1).
+        """
+        try:
+            return self.tour_round._pods.index(self.uid) + 1
+        except ValueError:
+            return -1
 
     @property
     def CACHE(self) -> dict[UUID, Pod]:
@@ -2727,6 +2739,11 @@ class Round(IRound):
 
     @property
     def all_players_assigned(self):
+        """Checks if all active players are assigned to pods.
+
+        Returns:
+            bool: True if all active players are assigned to pods, False otherwise.
+        """
         seated = len(self.seated)
         n_players_to_play = seated + len(self.unassigned)
         if n_players_to_play == 0:
@@ -2740,10 +2757,20 @@ class Round(IRound):
 
     @property
     def seated(self) -> set[Player]:
+        """Returns the set of players who are currently assigned to pods.
+
+        Returns:
+            set[Player]: A set of Player instances that are assigned to pods.
+        """
         return {p for p in self.active_players if p.pod(self)}
 
     @property
     def unassigned(self) -> set[Player]:
+        """Returns the set of players who are not currently assigned to pods.
+
+        Returns:
+            set[Player]: A set of Player instances that are not assigned to pods.
+        """
         seated_player_uids = set()
         for pod in self.pods:
             seated_player_uids.update(pod._players)
@@ -2853,6 +2880,14 @@ class Round(IRound):
         return data
 
     def reset_pods(self) -> bool:
+        """Resets all pods in the round, clearing their assignments.
+
+        This method removes all players from all pods and clears the bye list.
+        It is useful for resetting the round before creating new pairings.
+
+        Returns:
+            bool: Always returns True, as the reset is always successful.
+        """
         pods = [Pod.get(self.tour, x) for x in self._pods]
         #if any([not pod.done for pod in pods]):
         #    return False
@@ -2862,13 +2897,21 @@ class Round(IRound):
         return True
 
     def remove_pod(self, pod: Pod) -> bool:
+        """Removes a pod from the round, clearing its assignments.
+
+        Args:
+            pod: The pod to remove.
+
+        Returns:
+            bool: True if the pod was successfully removed, False otherwise.
+        """
         #if not pod.done:
         pod.clear()
         self._pods.remove(pod.uid)
         return True
         #return False
 
-    def create_pods(self):
+    def create_pods(self) -> None:
         """Creates empty pod slots for the round.
 
         This method calculates the number and size of pods required based on the number of
@@ -2895,7 +2938,7 @@ class Round(IRound):
         for p in standings[self.stage.value::]:
             self.disable_player(p, set_disabled=True)
 
-    def create_pairings(self):
+    def create_pairings(self) -> None:
         """Executes the pairing logic to assign players to pods.
 
         This method uses the round's `pairing_logic` to determine match-ups and assigns
@@ -2927,12 +2970,77 @@ class Round(IRound):
                 pod.auto_auto_assign_seats()
 
         self.sort_pods()
-        #for pod in self.pods:
-        #    Log.log(pod, Log.Level.NONE)
+        self.apply_table_preference()
 
-    def sort_pods(self):
+    def sort_pods(self) -> None:
+        """Sort pods by number of players and average rating."""
+
         pods_sorted = sorted(self.pods, key=lambda x: (len(x.players), np.average([p.rating(self) for p in x.players])), reverse=True)
         self._pods[:] = [pod.uid for pod in pods_sorted]
+
+    def apply_table_preference(self) -> bool:
+        """Try to apply table preferences for players. Pod index is table number.
+        Preserves the relative power-sorted order of non-locked pods.
+        Prioritizes maximizing the number of satisfied preferences.
+
+        Returns:
+            bool: True if table preferences were applied, False otherwise.
+        """
+        pods = self.pods # Already sorted by power
+        n = len(pods)
+        if n == 0:
+            return False
+
+        result_pods = [None] * n
+        assigned_pod_uids = set()
+        any_swapped = False
+
+        # Pass 1: Handle Locked Pods (Best effort satisfaction)
+        # We want to satisfy as many preferences as possible.
+        # Primary priority: Number of players satisfied in that pod.
+        # Secondary priority: Original power order (tie-breaker).
+
+        possibilities = []
+        for rank, pod in enumerate(pods):
+            # Aggregated preferences for players in this pod (1-indexed)
+            counts = {}
+            for p in pod.players:
+                for pref in p.table_preference:
+                    target_idx = pref - 1 # Convert to 0-indexed
+                    if 0 <= target_idx < n:
+                        counts[target_idx] = counts.get(target_idx, 0) + 1
+
+            for target_idx, count in counts.items():
+                # Sort key: (-count, rank, target_idx)
+                # (Higher count first, then higher power first, then lower index first)
+                possibilities.append((-count, rank, pod, target_idx))
+
+        possibilities.sort()
+
+        for _, _, pod, target_idx in possibilities:
+            if pod.uid not in assigned_pod_uids and result_pods[target_idx] is None:
+                result_pods[target_idx] = pod
+                assigned_pod_uids.add(pod.uid)
+                any_swapped = True
+
+        # Pass 2: Fill gaps with remaining pods (Preserving relative power order)
+        pod_iter = iter(pods)
+        for i in range(n):
+            if result_pods[i] is None:
+                # Find the next pod that hasn't been assigned yet
+                try:
+                    while True:
+                        next_pod = next(pod_iter)
+                        if next_pod.uid not in assigned_pod_uids:
+                            result_pods[i] = next_pod
+                            break
+                except StopIteration:
+                    break # Should not happen
+
+        # Update the underlying UUID list
+        self._pods[:] = [p.uid for p in result_pods if p is not None]
+
+        return any_swapped
 
     def set_result(self, player: Player, result: IPlayer.EResult) -> None:
         if result == IPlayer.EResult.BYE:

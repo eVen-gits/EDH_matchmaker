@@ -160,7 +160,6 @@ class IPod(IHashable):
         super().__init__(uid=uid)
         self._tour: UUID
         self._round: UUID
-        self.table: int = -1
         self._players: list[UUID] = list()
         self.cap: int = 0
         self._result: set[UUID] = set()
