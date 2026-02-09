@@ -64,9 +64,15 @@ class PodsExport(DataExport):
             The decorated function.
         """
         def auto_pods_export_wrapper(self: Tournament, *original_args, **original_kwargs):
-            tour_round = self.tour_round
+            try:
+                tour_round = self.tour_round
+            except (KeyError, ValueError):
+                tour_round = None
             ret = func(self, *original_args, **original_kwargs)
-            tour_round = tour_round or self.tour_round
+            try:
+                tour_round = tour_round or self.tour_round
+            except (KeyError, ValueError):
+                tour_round = None
             if self.config.auto_export:
                 logf = TournamentAction.LOGF
                 if logf and tour_round:
@@ -1038,7 +1044,7 @@ class Tournament(ITournament):
             # Create and register the player
             p = Player(self, name, uid, decklist)
             self._players.add(p.uid)
-            if p.uid not in self.tour_round._players:
+            if self._round and p.uid not in self.tour_round._players:
                 self.tour_round._players.append(p.uid)
             new_players.append(p)
             existing_names.add(name)
@@ -2004,7 +2010,7 @@ class Player(IPlayer):
         """
         if tour_round is None:
             tour_round = self.tour.tour_round
-        return len([p for p in self.games(tour_round) if p._result is self.uid])
+        return len([p for p in self.games(tour_round) if p.result_type == Pod.EResult.WIN and self.uid in p._result])
 
     def record(self, tour_round: Round|None=None) -> list[Player.EResult]:
         """Retrieves the full history of results.
@@ -3009,6 +3015,8 @@ class Round(IRound):
                     target_idx = pref - 1 # Convert to 0-indexed
                     if 0 <= target_idx < n:
                         counts[target_idx] = counts.get(target_idx, 0) + 1
+                    else:
+                         Log.log(f"Player {p.name} has invalid table preference: {pref}. Max table index is {n}", level=Log.Level.WARNING)
 
             for target_idx, count in counts.items():
                 # Sort key: (-count, rank, target_idx)
