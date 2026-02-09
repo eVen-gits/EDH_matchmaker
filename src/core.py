@@ -680,6 +680,13 @@ class TournamentConfiguration(ITournamentConfiguration):
 
 
 class Tournament(ITournament):
+    """
+    Represents a tournament, managing players, rounds, and pairings.
+
+    Attributes:
+        CACHE (dict[UUID, Tournament]): Global cache of tournament instances.
+        _pairing_logic_cache (dict[str, type[IPairingLogic]]): Cache of discovered pairing logic implementations.
+    """
     # CONFIGURATION
     # Logic: Points is primary sorting key,
     # then opponent pointrate, - CHANGE - moved this upwards and added dummy opponents with 33% pointrate
@@ -694,8 +701,6 @@ class Tournament(ITournament):
         """Discover and cache all pairing logic implementations from src/pairing_logic."""
         if cls._pairing_logic_cache:
             return
-
-
 
         # Get the base directory of the project
         base_dir = Path(__file__).parent.parent
@@ -739,11 +744,11 @@ class Tournament(ITournament):
         return cls._pairing_logic_cache[logic_name]
 
     def __init__(self, config: Union[TournamentConfiguration, None]=None, uid: UUID|None=None) :  # type: ignore
-        """Initializes the Tournament.
+        """Initializes a new Tournament instance.
 
         Args:
-            config: The tournament configuration.
-            uid: The tournament UUID.
+            config: The configuration object for the tournament. If None, a default configuration is used.
+            uid: The unique identifier for the tournament. If None, a new UUID is generated.
         """
         if config is None:
             config = TournamentConfiguration()
@@ -798,15 +803,42 @@ class Tournament(ITournament):
 
     @property
     def last_round(self) -> Round|None:
+        """
+        Returns the last round of the tournament.
+
+        Returns:
+            Round|None:
+                - The last round if it has been played.
+                - None if no rounds have been played.
+        """
         return self.rounds[-1] if self.rounds else None
 
     def previous_round(self, tour_round: Round|None=None) -> Round|None:
+        """
+        Returns the previous round of the tournament.
+
+        Args:
+            tour_round: The current round.
+
+        Returns:
+            Round|None:
+                - The previous round if it exists.
+                - None if the current round is the first round.
+        """
         if tour_round is None:
             tour_round = self.tour_round
         return self.rounds[self.rounds.index(tour_round) - 1] if self.rounds.index(tour_round) > 0 else None
 
     @property
     def final_swiss_round(self) -> Round|None:
+        """
+        Returns the final Swiss round of the tournament.
+
+        Returns:
+            Round|None:
+                - The final Swiss round if it has been played.
+                - None if the final round has not been played yet.
+        """
         if len(self.rounds) >= self.config.n_rounds:
             last_round = self.rounds[self.config.n_rounds - 1]
             if last_round.stage != Round.Stage.SWISS:
@@ -816,34 +848,69 @@ class Tournament(ITournament):
 
     @property
     def pods(self) -> list[Pod]|None:
+        """
+        Returns the list of pods in the current round.
+
+        Returns:
+            list[Pod]|None:
+                - The list of pods if the current round has been set.
+                - None if the current round has not been set.
+        """
         if not self.tour_round:
             return None
         return self.tour_round.pods
 
     @property
     def rounds(self) -> list[Round]:
+        """
+        Returns the list of rounds in the tournament.
+
+        Returns:
+            list[Round]:
+                - The list of rounds.
+        """
         return [Round.get(self, x) for x in self._rounds]
 
     @rounds.setter
     def rounds(self, rounds: list[Round]):
+        """
+        Sets the list of rounds in the tournament.
+
+        Args:
+            rounds: The list of rounds.
+        """
         self._rounds = [r.uid for r in rounds]
 
     @property
     def swiss_rounds(self):
-        """Returns the list of swiss rounds in the tournament."""
+        """
+        Returns the list of swiss rounds in the tournament.
+
+        Returns:
+            list[Round]:
+                - The list of swiss rounds.
+        """
         return [r for r in self.rounds if r.stage == Round.Stage.SWISS]
 
     @property
     def ended_rounds(self):
-        """Returns the list of completed rounds in the tournament."""
+        """
+        Returns the list of completed rounds in the tournament.
+
+        Returns:
+            list[Round]:
+                - The list of completed rounds.
+        """
         return [r for r in self.rounds if r.done]
 
     @property
     def draw_rate(self) -> float:
-        """Calculates the draw rate for the tournament.
+        """
+        Calculates the draw rate for the tournament.
 
         Returns:
-            The draw rate as a float.
+            float:
+                - The draw rate as a float.
         """
         draws = 0
         matches = 0
@@ -857,33 +924,48 @@ class Tournament(ITournament):
 
     @property
     def config(self) -> TournamentConfiguration:
-        """Returns the tournament configuration."""
+        """
+        Returns the tournament configuration.
+
+        Returns:
+            TournamentConfiguration:
+                - The tournament configuration.
+        """
         return self._config
 
     @config.setter
     @TournamentAction.action
     def config(self, config: TournamentConfiguration):
+        """
+        Sets the tournament configuration.
+
+        Args:
+            config: The tournament configuration.
+        """
         self._config = config
 
     @TournamentAction.action
     def add_player(self, *specs: Any, **player_attrs) -> list[Player]:
-        """
-        Add players to the tournament.
+        """Adds players to the tournament.
+
+        This method supports flexible input formats for defining players.
 
         Args:
-            *specs: Player specifications. Can be:
-                - Player object
-                - (name, uid) tuple
-                - (name, decklist) tuple
-                - (name, uid, decklist) tuple
-                - dict with 'name' key
-            **player_attrs: Additional player attributes (decklist, uid, etc.)
+            *specs: Variable length argument list. Each argument can be:
+                - A Player object.
+                - A tuple/list of (name,), (name, uid/decklist), or (name, uid, decklist).
+                - A dictionary containing 'name', and optionally 'uid' and 'decklist'.
+                - A string representing the player's name.
+            **player_attrs: arbitrary keyword arguments to be applied to all new players
+                            (e.g., decklist="link", uid=UUID(...)).
+                            If only one positional argument is provided and it's a string or dict,
+                            these attributes are merged with it.
 
         Returns:
-            list[Player]: List of created Player objects
+            list[Player]: A list of the newly created and added Player objects.
 
         Raises:
-            ValueError: If player data is invalid
+            ValueError: If the player specification is invalid or incomplete.
         """
 
         # Handle keyword arguments merging with a single positional spec
@@ -969,8 +1051,14 @@ class Tournament(ITournament):
     def drop_player(self, players: list[Player]|Player) -> bool:
         """Drops a player or list of players from the tournament.
 
+        Dropped players are removed from future pairings but their history remains.
+        If a player is dropped during an active round, they might need to be resolved in the current pod first.
+
         Args:
             players: The player or list of players to drop.
+
+        Returns:
+            bool: True if the drop was successful, False otherwise.
         """
         if not isinstance(players, list):
             players = [players]
@@ -994,11 +1082,16 @@ class Tournament(ITournament):
 
     @TournamentAction.action
     def disable_player(self, players: list[Player]|Player, set_disabled: bool=True) -> bool:
-        """Disable players from top cut. They remain in the tournament but won't participate in top cut rounds.
+        """Disables or enables players for top cut participation.
+
+        Disabled players remain in the tournament structure but are excluded from top cut calculations and pairings.
 
         Args:
-            players: The player or list of players to disable.
-            set_disabled: If True, disables the player; if False, re-enables them.
+            players: The player or list of players to disable/enable.
+            set_disabled: If True, disables the player. If False, re-enables them.
+
+        Returns:
+            bool: Always returns True.
         """
         if not isinstance(players, list):
             players = [players]
@@ -1010,8 +1103,10 @@ class Tournament(ITournament):
     def rename_player(self, player, new_name):
         """Renames a player in the tournament.
 
+        This updates the player's name across all historical records in the tournament (pods, rounds).
+
         Args:
-            player: The player to rename.
+            player: The player object to rename.
             new_name: The new name for the player.
         """
         if player.name == new_name:
@@ -1079,10 +1174,14 @@ class Tournament(ITournament):
         return None
 
     def initialize_round(self) -> bool:
-        """Initializes a new round in the tournament, determining its stage and pairing logic.
+        """Initializes a new round in the tournament.
+
+        This method determines the appropriate stage (Swiss, Top Cut) and pairing logic based on the
+        tournament configuration and current progress. It does not create pairings, only sets up the round structure.
 
         Returns:
-            True if a new round was successfully initialized, False otherwise.
+            bool: True if a new ro  und was successfully initialized. False if a round is already in progress,
+                  the maximum number of rounds has been reached, or the tournament is completed.
         """
         if self._round is not None and not self.tour_round.done:
             return False
@@ -1185,8 +1284,12 @@ class Tournament(ITournament):
     def create_pairings(self) -> bool:
         """Creates pairings for the current round.
 
+        If the round has not been initialized or previous rounds are not complete, this method attempts
+        to handle those states.
+
         Returns:
-            True if pairings were created, False otherwise.
+            bool: True if pairings were successfully created (or were already created). False if
+                  pairings could not be created (e.g., due to initialization failure).
         """
         if self.last_round is None or self.last_round.done:
             ok = self.initialize_round()
@@ -1464,14 +1567,19 @@ class Tournament(ITournament):
             ])
         return export_str
 
+    @override
     def get_standings(self, tour_round:Round|None=None) -> list[Player]:
-        """Calculates and returns the current standings of players.
+        """Calculates and retrieves the standings for a specific round.
+
+        Use this instead of accessing the players list directly, as this method ensures
+        players are sorted according to the tournament's ranking configuration.
 
         Args:
-            tour_round: The round for which to calculate standings. Defaults to the current round.
+            tour_round: The round for which to calculate standings.
+                        If None, uses the current round.
 
         Returns:
-            A list of Player objects, sorted by their standing.
+            list[Player]: A list of players sorted by their current standing.
         """
         method = Player.SORT_METHOD
         order = Player.SORT_ORDER
@@ -1668,18 +1776,18 @@ class Tournament(ITournament):
             Log.log(data, level=var_export_param)
 
     def serialize(self) -> dict[str, Any]:
-        """
-        Returns a JSON string of the tournament, that can be serialized.
-        It contains:
-            - tournament configuration json (serialized from class)
-            - a list of player jsons (serialized from class)
-            - a list of pod jsons (serialized from class)
-            - a list of tour_round jsons (serialized from class)
+        """Serializes the tournament state to a JSON-compatible dictionary.
 
-        Objects are referenced to each other by ids.
+        The serialization includes:
+        - specific tournament configuration
+        - list of players (including their state)
+        - list of pods (including their state)
+        - list of rounds (including pairings and results)
+
+        All objects are cross-referenced by their unique IDs to maintain integrity upon restoration.
 
         Returns:
-            A dictionary representing the serialized tournament data.
+            dict: A dictionary representing the serialized tournament data.
         """
 
         data: dict[str, Any] = {}
@@ -1693,13 +1801,16 @@ class Tournament(ITournament):
 
     @classmethod
     def inflate(cls, data: dict[str, Any]) -> Tournament:
-        """Inflates a Tournament object from serialized data.
+        """Creates a Tournament instance from serialized data.
+
+        This method reconstructs the entire tournament state, including players, rounds, and pods,
+        linking them back together using their UUIDs.
 
         Args:
-            data: A dictionary containing the serialized tournament data.
+            data: A dictionary containing the serialized tournament data (as produced by `serialize`).
 
         Returns:
-            A Tournament instance.
+            Tournament: The reconstructed Tournament instance.
         """
         config = TournamentConfiguration.inflate(data['config'])
         tour_uid = UUID(data['uid'])
@@ -1727,11 +1838,27 @@ class Tournament(ITournament):
 
 
 class Player(IPlayer):
+    """
+    Represents a player in the tournament.
+
+    Attributes:
+        SORT_METHOD (SortMethod): The method used for sorting players (ID, Name, Rank).
+        SORT_ORDER (SortOrder): The order used for sorting (Ascending, Descending).
+        CACHE (dict[UUID, Player]): Global cache of player instances.
+    """
     SORT_METHOD: SortMethod = SortMethod.ID
     SORT_ORDER: SortOrder = SortOrder.ASCENDING
     FORMATTING = ['-p']
 
     def __init__(self, tour: Tournament, name:str, uid: UUID|None = None, decklist: str|None = None):
+        """Initializes a new Player instance.
+
+        Args:
+            tour: The tournament the player belongs to.
+            name: The name of the player.
+            uid: The unique identifier for the player. If None, a new UUID is generated.
+            decklist: Optional URL or string representing the player's decklist.
+        """
         self._tour = tour.uid
         super().__init__(uid=uid)
         self.name = name
@@ -1740,7 +1867,14 @@ class Player(IPlayer):
         self._pod_id: UUID|None = None  # Direct reference to current pod
 
     #ACTIONS
+    #ACTIONS
     def set_result(self, tour_round: Round, result: Player.EResult) -> None:
+        """Sets the result for the player in a specific round.
+
+        Args:
+            tour_round: The round where the result occurred.
+            result: The result to set (WIN, LOSS, DRAW, BYE).
+        """
         tour_round.set_result(self, result)
 
     #QUERIES
@@ -1751,6 +1885,14 @@ class Player(IPlayer):
         return tour_round.get_location(self)
 
     def result(self, tour_round: Round) -> Player.EResult:
+        """Retrieves the player's result for a specific round.
+
+        Args:
+            tour_round: The round to query.
+
+        Returns:
+            Player.EResult: The result (WIN, LOSS, DRAW, BYE, PENDING).
+        """
         if self.uid in tour_round._byes:
             return Player.EResult.BYE
         if self.uid in tour_round._game_loss:
@@ -1767,11 +1909,27 @@ class Player(IPlayer):
         return Player.EResult.PENDING
 
     def rating(self, tour_round: Round|None) -> float:
+        """Calculates the player's rating (win percentage) up to a specific round.
+
+        Args:
+            tour_round: The round up to which to calculate rating. If None, uses current round.
+
+        Returns:
+            float: The rating as a decimal (0.0 to 1.0).
+        """
         if tour_round is None:
             return 0
         return self.tour.rating(self, tour_round)
 
     def pods(self, tour_round: Round|None=None) -> list[Pod|Player.ELocation]:
+        """Retrieves all pods or locations the player has been assigned to.
+
+        Args:
+            tour_round: The round up to which to include pods.
+
+        Returns:
+            list[Pod|Player.ELocation]: A list of pods or location markers (e.g. BYE).
+        """
         if tour_round is None:
             tour_round = self.tour.tour_round
         pods:list[Pod|Player.ELocation] = [None for _ in range(tour_round.seq+1)] # type: ignore
@@ -1788,6 +1946,14 @@ class Player(IPlayer):
         return pods
 
     def played(self, tour_round: Round|None=None) -> list[Player]:
+        """Retrieves a list of unique opponents played against.
+
+        Args:
+            tour_round: The round up to which to check.
+
+        Returns:
+            list[Player]: A list of unique opponents.
+        """
         if tour_round is None:
             tour_round = self.tour.tour_round
         players = set()
@@ -1799,21 +1965,53 @@ class Player(IPlayer):
         return list(players)
 
     def games(self, tour_round: Round|None=None):
+        """Retrieves all played games (pods) excluding byes and other non-game locations.
+
+        Args:
+            tour_round: The round up to which to check.
+
+        Returns:
+            list[Pod]: A list of actual game pods.
+        """
         if tour_round is None:
             tour_round = self.tour.tour_round
         return [p for p in self.pods(tour_round) if isinstance(p, Pod)]
 
     def byes(self, tour_round: Round|None=None):
+        """Counts the number of byes received.
+
+        Args:
+            tour_round: The round up to which to count.
+
+        Returns:
+            int: The number of byes.
+        """
         if tour_round is None:
             tour_round = self.tour.tour_round
         return len([p for p in self.record(tour_round) if p is Player.EResult.BYE])
 
     def wins(self, tour_round: Round|None=None):
+        """Counts the number of wins.
+
+        Args:
+            tour_round: The round up to which to count.
+
+        Returns:
+            int: The number of wins.
+        """
         if tour_round is None:
             tour_round = self.tour.tour_round
         return len([p for p in self.games(tour_round) if p._result is self.uid])
 
     def record(self, tour_round: Round|None=None) -> list[Player.EResult]:
+        """Retrieves the full history of results.
+
+        Args:
+            tour_round: The round up to which to retrieve the record.
+
+        Returns:
+            list[Player.EResult]: A chronological list of results.
+        """
         seq = list()
         if tour_round is None:
             tour_round = self.tour.tour_round
@@ -1839,6 +2037,16 @@ class Player(IPlayer):
         return seq
 
     def seat_history(self, tour_round: Round|None=None) -> str:
+        """Generates a string representation of the player's seat history.
+
+        Format: "seat/pod_size" for each round.
+
+        Args:
+            tour_round: The round up to which to generate history.
+
+        Returns:
+            str: The seat history string.
+        """
         if tour_round is None:
             tour_round = self.tour.tour_round
         pods = self.pods(tour_round)
@@ -1856,6 +2064,14 @@ class Player(IPlayer):
         return ret_str
 
     def pointrate(self, tour_round: Round|None=None):
+        """Calculates the point rate (actual points / maximum possible points).
+
+        Args:
+            tour_round: The round up to which to calculate.
+
+        Returns:
+            float: The point rate.
+        """
         if len(self.games(tour_round)) == 0:
             return 0
         if tour_round is None:
@@ -2129,7 +2345,23 @@ class Player(IPlayer):
 
 
 class Pod(IPod):
+    """
+    Represents a single pod (table) in a round.
+
+    Attributes:
+        table (int): The table number.
+        cap (int): The capacity of the pod (maximum number of players).
+        _players (list[UUID]): List of player UUIDs in the pod.
+    """
     def __init__(self, tour_round: Round, table:int, cap=0, uid: UUID|None = None):
+        """Initializes a new Pod instance.
+
+        Args:
+            tour_round: The round the pod belongs to.
+            table: The table number.
+            cap: The player capacity of the pod.
+            uid: Optional UUID.
+        """
         self._tour: UUID = tour_round.tour.uid
         self._round: UUID = tour_round.uid
         super().__init__(uid=uid)
@@ -2163,6 +2395,11 @@ class Pod(IPod):
 
     @property
     def result(self) -> set[Player]:
+        """Retrieves the players involved in the result of the pod (e.g., winners or drawers).
+
+        Returns:
+            set[Player]: A set of players.
+        """
         return {Player.get(self.tour, x) for x in self._result}
 
     @property
@@ -2196,6 +2433,16 @@ class Pod(IPod):
 
     @override
     def add_player(self, player: Player, manual=False, player_pod_map=None) -> bool:
+        """Adds a player to the pod.
+
+        Args:
+            player: The player to add.
+            manual: If True, allows exceeding the pod's capacity.
+            player_pod_map: Optional map to update player locations (internal use).
+
+        Returns:
+            bool: True if the player was added, False otherwise (e.g., if full and not manual).
+        """
         if len(self) >= self.cap and self.cap and not manual:
             return False
         if pod:=player.pod(self.tour_round):
@@ -2238,6 +2485,11 @@ class Pod(IPod):
 
     @override
     def assign_seats(self):
+        """Assigns seats to players in the pod.
+
+        Seat assignment attempts to balance seating positions based on players' history,
+        giving preference to players who have had poor seat variance in the past.
+        """
         # Average seating positions
         average_positions = [p.average_seat(self.tour.ended_rounds) for p in self.players]
         n = len(average_positions)
@@ -2325,6 +2577,15 @@ class Pod(IPod):
 
 
 class Round(IRound):
+    """
+    Represents a single round in the tournament.
+
+    Attributes:
+        seq (int): The sequence number of the round (0-indexed).
+        stage (Stage): The stage of the round (Swiss, Top X).
+        logic (IPairingLogic): The pairing logic used for this round.
+        CACHE (dict[UUID, Round]): Global cache of round instances.
+    """
     class Stage(Enum):
         SWISS = 0
         TOP_4 = 4
@@ -2352,6 +2613,19 @@ class Round(IRound):
             byes: set[UUID]|None = None,
             game_loss: set[UUID]|None = None,
         ):
+        """Initializes a new Round instance.
+
+        Args:
+            tour: The tournament the round belongs to.
+            seq: The sequence number of the round.
+            stage: The stage of the round (e.g., Swiss, Top 4).
+            pairing_logic: The logic used for pairing players in this round.
+            uid: Optional UUID.
+            dropped: Optional set of dropped player UUIDs.
+            disabled: Optional set of disabled player UUIDs.
+            byes: Optional set of player UUIDs who have byes.
+            game_loss: Optional set of player UUIDs who have game losses.
+        """
         self._tour: UUID = tour.uid
         super().__init__(uid=uid)
         self.tour.ROUND_CACHE[self.uid] = self
@@ -2434,7 +2708,14 @@ class Round(IRound):
 
     @property
     def done(self):
-        """Returns True if all pods in the round are done, False otherwise."""
+        """Checks if the round is completed.
+
+        A round is considered done if all pods within it have reported results
+        (i.e., no pending pods remain).
+
+        Returns:
+            bool: True if the round is done, False otherwise.
+        """
         if len(self._pods) == 0:
             return False
         for pod in self.pods:
@@ -2478,14 +2759,17 @@ class Round(IRound):
         )
 
     def advancing_players(self, standings) -> list[Player]:
-        """
-        Returns the players who advance to the next round. Sorted by standing in that round.
+        """Determines which players advance to the next round.
+
+        This is primarily used for transitions from Swiss to Top Cut, or between Top Cut rounds.
+
+        Args:
+           standings: A list of players sorted by their current standing.
 
         Returns:
-            list[Player]:
-                - If the round is a Swiss round, returns all active players.
-                - If the round is a playoff round, returns the players who advance to the next round of playoffs.
-                  It is by convention default_advancers (bye), winners, advancers by draw, in that order.
+            list[Player]: The list of players who advance.
+                - For Swiss rounds, typically all active players return.
+                - For Top Cut rounds, only winners (and potentially high-seeded byes) advance.
         """
         # Create index map for O(1) standings lookup instead of O(n) index() calls
         standings_index = {player: idx for idx, player in enumerate(standings)}
@@ -2583,6 +2867,11 @@ class Round(IRound):
         #return False
 
     def create_pods(self):
+        """Creates empty pod slots for the round.
+
+        This method calculates the number and size of pods required based on the number of
+        active players and the tournament configuration, then initializes these pods.
+        """
         seats_required = len(self.unassigned) - sum([pod.cap-len(pod) for pod in self.pods if not pod.done])
         if seats_required == 0:
             return
@@ -2605,6 +2894,11 @@ class Round(IRound):
             self.disable_player(p, set_disabled=True)
 
     def create_pairings(self):
+        """Executes the pairing logic to assign players to pods.
+
+        This method uses the round's `pairing_logic` to determine match-ups and assigns
+        players to the pods created by `create_pods`.
+        """
         if self.stage != Round.Stage.SWISS:
             standings = self.tour.get_standings(self.tour.previous_round(self))
             self.disable_topcut(standings)
