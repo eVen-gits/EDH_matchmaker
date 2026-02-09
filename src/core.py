@@ -2484,7 +2484,7 @@ class Pod(IPod):
         ])
 
     @override
-    def assign_seats(self):
+    def auto_auto_assign_seats(self):
         """Assigns seats to players in the pod.
 
         Seat assignment attempts to balance seating positions based on players' history,
@@ -2498,19 +2498,6 @@ class Pod(IPod):
             random.shuffle(self.players)
             return
 
-        '''distribution = [1] * n
-        for i in range(n):
-            distribution[i] += (2*(1-average_positions[i]))**3
-        #normalize
-        distribution = [x/sum(distribution) for x in distribution]
-
-        # Generate random seat assignment based on probabilities
-        seat_assignment = np.random.choice(
-            range(1, n+1, 1),
-            size=n,
-            replace=False,
-            p=distribution
-        )'''
         #partially sort players based on seating positions
         #those that have same average_seat should be randomly ordered
         seat_assignment = [0] * n
@@ -2522,6 +2509,21 @@ class Pod(IPod):
         self._players[:] = np.take(self._players, np.argsort(seat_assignment))
 
         pass
+
+    def reorder_players(self, order: list[int]) -> None:
+        """Reorders the players in the pod.
+
+        Args:
+            order: A list of integers representing the new order of the players.
+        """
+        if len(order) != len(self._players):
+            raise ValueError('Order must have the same length as the number of players')
+        if any([x not in range(len(self._players)) for x in order]):
+            raise ValueError('Order must contain all integers from 0 to n-1')
+        if len(set(order)) != len(order):
+            raise ValueError('Order must not contain duplicate integers')
+
+        self._players[:] = np.take(self._players, order)
 
     def clear(self):
         players = [p for p in self.players]
@@ -2922,7 +2924,7 @@ class Round(IRound):
 
         if self.seq < self.tour.config.n_rounds:
             for pod in self.pods:
-                pod.assign_seats()
+                pod.auto_auto_assign_seats()
 
         self.sort_pods()
         #for pod in self.pods:

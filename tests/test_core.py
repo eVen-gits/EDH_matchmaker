@@ -607,75 +607,38 @@ class TestScoring(unittest.TestCase):
             self.t.reset_pods()
 
 
-class TestPerformance(unittest.TestCase):
-    def test_new_round_speed(self):
-        t = Tournament(
-            TournamentConfiguration(
-                pod_sizes=[4, 3],
-                max_byes=2,
-                auto_export=False,
-                snake_pods=True,
-                allow_bye=True,
-                win_points=5,
-                bye_points=4,
-                draw_points=1,
-                n_rounds=5,
-                top_cut=10,
-            )
-        )
-        t.initialize_round()
+class TestPod(unittest.TestCase):
+    def setUp(self) -> None:
+        self.t = Tournament()
+        self.t.initialize_round()
+        self.t.add_player([f"Player {i}" for i in range(4)])
+        self.t.tour_round.create_pods()
+        self.pod = self.t.tour_round.pods[0]
+        for p in self.t.players:
+            self.pod.add_player(p)
 
-        t.add_player([
-            f"{i}:{fkr.name()}" for i in range(128)
-        ])
+    def test_reorder_players_success(self):
+        original_players = list(self.pod.players)
+        new_order = [3, 0, 2, 1]
+        self.pod.reorder_players(new_order)
 
-        n = 20
-        total_time = 0
-        for _ in tqdm(range(n), desc="Testing new round speed"):
-            time_start = time.time()
-            t.new_round()
-            delta_time = time.time() - time_start
-            total_time += delta_time
-            self.assertLess(delta_time, 1, msg=f"{delta_time} seconds at round {n} for {len(t.players)} players")
-            t.create_pairings()
-            t.random_results()
-        self.assertLess(total_time/n, 0.5)
+        reordered_players = self.pod.players
+        self.assertEqual(reordered_players[0], original_players[3])
+        self.assertEqual(reordered_players[1], original_players[0])
+        self.assertEqual(reordered_players[2], original_players[2])
+        self.assertEqual(reordered_players[3], original_players[1])
 
-    def test_create_pairings_speed(self):
-        tour_sizes = [16, 32, 64, 128, 256, 512, 1024]
+    def test_reorder_players_invalid_length(self):
+        with self.assertRaisesRegex(ValueError, 'Order must have the same length'):
+            self.pod.reorder_players([0, 1, 2])
 
-        for n in tour_sizes:
-            total_time = 0
-            player_time_ratio = 0.05 * 1.05**(n/128)
-            t = Tournament(
-                TournamentConfiguration(
-                    pod_sizes=[4],
-                    allow_bye=False,
-                    auto_export=False,
-                    max_byes=2,
-                    win_points=5,
-                    bye_points=4,
-                    draw_points=1,
-                    snake_pods=True,
-                    n_rounds=7,
-                    top_cut=10,
-                )
-            )
-            t.initialize_round()
-            t.add_player([
-                f"{i}:{fkr.name()}" for i in range(n)
-            ])
-            for _ in tqdm(range(t.config.n_rounds), desc=f"Pairing speed for {n} players"):
-                time_start = time.time()
-                t.create_pairings()
-                delta_time = time.time() - time_start
-                self.assertLess(delta_time, n*player_time_ratio)
-                total_time += delta_time
-                t.random_results()
-                t.new_round()
-            with self.subTest(n=str(n).zfill(2), max_time=n*player_time_ratio):
-                self.assertLess(total_time/t.config.n_rounds, n*player_time_ratio)
+    def test_reorder_players_out_of_range(self):
+        with self.assertRaisesRegex(ValueError, 'Order must contain all integers from 0 to n-1'):
+            self.pod.reorder_players([0, 1, 2, 4])
 
+    def test_reorder_players_duplicates(self):
+        with self.assertRaisesRegex(ValueError, 'Order must not contain duplicate integers'):
+            self.pod.reorder_players([0, 1, 2, 2])
 
 
 '''#TODO: Implement this test

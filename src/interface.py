@@ -25,7 +25,7 @@ class IHashable:
 
         Args:
             uid: The UUID of the object. If None, a new UUID is generated.
-        
+
         Raises:
             ValueError: If the UUID has a collision or is of invalid type.
         """
@@ -176,7 +176,7 @@ class IPod(IHashable):
         raise NotImplementedError('Pod.players not implemented - use subclass')
 
     @abstractmethod
-    def assign_seats(self):
+    def auto_assign_seats(self):
         pass
 
     @abstractmethod
@@ -249,7 +249,7 @@ class IPairingLogic:
 
     def advance_topcut(self, tour_round: IRound, standings: list[IPlayer]) -> None:
         """Advances players to the top cut.
-        
+
         Args:
             tour_round: The current round.
             standings: The list of players sorted by standing.
