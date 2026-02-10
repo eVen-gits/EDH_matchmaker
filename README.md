@@ -1,41 +1,57 @@
-# EDH_matchmaker #
-[![Documentation](https://img.shields.io/badge/docs-live-blue.svg)](https://even-gits.github.io/EDH_matchmaker/) [![Build Status](https://github.com/eVen-gits/EDH_matchmaker/actions/workflows/run_tests.yml/badge.svg)](https://github.com/eVen-gits/EDH_matchmaker/actions/workflows/run_tests.yml)
+# EDH Matchmaker
+
+[![Documentation](https://img.shields.io/badge/docs-live-blue.svg)](https://even-gits.github.io/EDH_matchmaker/)
+[![Build Status](https://github.com/eVen-gits/EDH_matchmaker/actions/workflows/run_tests.yml/badge.svg)](https://github.com/eVen-gits/EDH_matchmaker/actions/workflows/run_tests.yml)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
+
 ![image](https://user-images.githubusercontent.com/2612606/166250998-7b4c721c-8a35-4ac2-ad87-e8fe02c46d11.png)
 
-## Intro ##
+A comprehensive tool for managing Commander (EDH) tournaments with Swiss pairings.
 
-Long over due update on readme... here are some recent highlights.
-The CLI option is no longer supported. The program, for the time being, is meant for use through UI.
-Eventually, there will probably be some sort of Discord integration, but first, the rough edges have to be brushed out.
+## Features
 
-## Installation: ##
+- **Swiss Pairings**: Automated pairing logic optimized for EDH (4-player pods).
+- **Tournament Management**: Track standings, drops, and round history.
+- **Standings Export**: Export results for external use.
+- **Cross-Platform**: Runs on Linux, Windows, and macOS (Python-based).
 
-The software was developed on Linux and installation should be rather straight forward. It's cross-platform, so I believe it should work on mac too, but I can't check. Either way, Windows has it's own issues, so here's how you do it.
+## Installation
 
-### Windows ###
+### Prerequisites
+- Python 3.10+
+- pip
 
-First, you need python 3 and pip working.
-The easiest way to do this on Windows is by downloading the latest python version from [official site](https://www.python.org/downloads/) (an installer). Generally, following default steps is OK, but you have to change one thing:
+### Setup
 
-**Important:** When installing, you have a couple of checkboxes. The one you want to tick is the "Add python to PATH" (or something similar).
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/eVen-gits/EDH_matchmaker.git
+   cd EDH_matchmaker
+   ```
 
-Now this should generally work, but sometimes, it doesn't. Ask Microsoft why.
+2. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-At any point during the following steps, you can check if python and pip are recognized in your command prompt/powershell. You can check it by running the command `python --version` and/or `pip --version`. If both are outputing something, you can skip the following steps, otherwise you have to troubleshoot your python installation and you can continue.
+## Usage
 
-To make sure it's added, go to your start menu, and search for "Edit the system environment variables". Might not be exact steps, but something along those lines (*use google*).
+Run the user interface:
 
-Once you find it, depending on the version of Windows you have, you will have different sections. Search for "Path" variable and check if your python installation dirrectory is also added. Since this is not really the scope of this installation guide, you will have to figure this on your own as it can differ a bit from system to system, but generally something along those lines.
+```bash
+python run_ui.py
+```
 
-Right, now that you've checked that python is actually in your Path variable, it's still possible that python is not recognized. Windows 10 can hide it behind some *feature*. I'll try to find what it was, but I think it was something along system integration of python or something. To be added.
+Or with additional options:
+```bash
+python run_ui.py --help
+```
 
-Rebooting your system might help the machine recognize python and pip if you're sure they're in your Path variable (especially on older versions of Windows).
+## Contributing
 
-### Once python is sorted, the actual installation
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct, and the process for submitting pull requests.
 
-First, you have to install the require packages. This is rather simple.
-You have to open your command prompt/powershell/terminal in the directory where you've downloaded the software.
-On windows, you can do this from the file menu. I assume linux/mac users shouldn't have a problem here.
+## License
 
 The command is `pip install -r requirements.txt`
 
@@ -75,3 +91,4 @@ Also you can star this project for more exposure :)
 
 Best regards,
 /E
+This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
