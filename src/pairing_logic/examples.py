@@ -13,7 +13,7 @@ from ..core import timeit
 
 class CommonPairing(IPairingLogic):
     def __init__(self, name: str):
-        super().__init__(name)
+        self.name = name
 
     def evaluate_pod(self, player: IPlayer, pod: IPod, tour_round: IRound) -> int:
         score = 0
@@ -33,9 +33,14 @@ class CommonPairing(IPairingLogic):
                     )
         return score
 
-    def make_pairings(self, players: list[IPlayer], pods: list[IPod]) -> set[IPlayer]:
+    def make_pairings(self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]) -> set[IPlayer]:
         raise NotImplementedError(
             "PairingLogic.make_pairings not implemented - use subclass"
+        )
+
+    def advance_topcut(self, tour_round: IRound, standings: list[IPlayer]) -> None:
+        raise NotImplementedError(
+            "PairingLogic.advance_topcut not implemented - use subclass"
         )
 
     def bye_matching(self, player: IPlayer, tour_round: IRound) -> tuple:

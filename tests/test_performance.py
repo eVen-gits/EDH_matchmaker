@@ -33,7 +33,7 @@ class TestPerformance(unittest.TestCase):
                 top_cut=10,
             )
         )
-        t.initialize_round()
+        t.new_round()
 
         t.add_player([f"{i}:{fkr.name()}" for i in range(128)])
 
@@ -73,7 +73,7 @@ class TestPerformance(unittest.TestCase):
                     top_cut=10,
                 )
             )
-            t.initialize_round()
+            t.new_round()
             t.add_player([f"{i}:{fkr.name()}" for i in range(n)])
             for _ in tqdm(
                 range(t.config.n_rounds), desc=f"Pairing speed for {n} players"
@@ -104,7 +104,7 @@ class TestLarge(unittest.TestCase):
                         auto_export=False,
                     )
                 )
-                t.initialize_round()
+                t.new_round()
 
                 t.add_player([f"{i}:{fkr.name()}" for i in range(n)])
                 for _ in range(n_rounds):
@@ -124,7 +124,7 @@ class TestLarge(unittest.TestCase):
                 auto_export=False,
             )
         )
-        t.initialize_round()
+        t.new_round()
 
         t.add_player([f"{i}:{fkr.name()}" for i in range(tour_size)])
         for i in tqdm(range(n_rounds), desc="Many rounds"):
@@ -148,7 +148,7 @@ class TestLarge(unittest.TestCase):
                         auto_export=False,
                     )
                 )
-                t.initialize_round()
+                t.new_round()
 
                 t.add_player([f"{i}:{fkr.name()}" for i in range(n)])
                 for _ in range(n_rounds):
@@ -168,7 +168,7 @@ class TestLarge(unittest.TestCase):
                 auto_export=False,
             )
         )
-        t.initialize_round()
+        t.new_round()
 
         t.add_player([f"{i}:{fkr.name()}" for i in range(tour_size)])
         for i in range(n_rounds):

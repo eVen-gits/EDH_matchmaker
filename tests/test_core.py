@@ -1,7 +1,7 @@
 import unittest
+from run_ui import generate_player_names
 from src.core import Tournament, Player, TournamentAction, TournamentConfiguration
 from uuid import uuid4
-import names
 import random
 import os
 
@@ -13,7 +13,6 @@ if os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS"):
 else:
     from tqdm import tqdm
 from faker import Faker
-import time
 from itertools import product
 
 fkr = Faker()
@@ -32,7 +31,7 @@ class TestPlayer(unittest.TestCase):
                 p = Player(self.t, name)
 
     def test_add_player_refactor(self):
-        self.t.initialize_round()
+        self.t.new_round()
 
         # 1. Backward compatibility: single name
         self.t.add_player("Player1")
@@ -72,7 +71,7 @@ class TestPlayer(unittest.TestCase):
         self.assertEqual(p8.decklist, decklist_url)
 
     def test_add_player_new_interface(self):
-        self.t.initialize_round()
+        self.t.new_round()
         u1 = uuid4()
         u2 = uuid4()
 
@@ -108,7 +107,7 @@ class TestPlayer(unittest.TestCase):
         self.assertTrue("Frank" in player_names)
 
     def test_add_player_refined_interface(self):
-        self.t.initialize_round()
+        self.t.new_round()
 
         # Test smart 2-tuple: (Name, UUID)
         u1 = uuid4()
@@ -129,7 +128,7 @@ class TestPlayer(unittest.TestCase):
         self.assertEqual(p.decklist, "http://merge.dict")
 
     def test_add_player_validation(self):
-        self.t.initialize_round()
+        self.t.new_round()
         # Test invalid type
         with self.assertRaises(ValueError):
             self.t.add_player(123)
@@ -141,7 +140,7 @@ class TestPlayer(unittest.TestCase):
     def test_player_serialization_with_decklist(self):
         """Test that decklist is properly serialized and deserialized"""
         # Add player with decklist
-        self.t.initialize_round()
+        self.t.new_round()
 
         u1 = uuid4()
         decklist_url = "https://moxfield.com/decks/jVKoDKgc0Ey2PcapxHIB_w"
@@ -173,7 +172,7 @@ class TestTournamentPodSizing(unittest.TestCase):
                 auto_export=False,
             )
         )
-        t.initialize_round()
+        t.new_round()
 
         pod_sizes = {
             0: None,
@@ -211,7 +210,7 @@ class TestTournamentPodSizing(unittest.TestCase):
                 auto_export=False,
             )
         )
-        t.initialize_round()
+        t.new_round()
 
         pod_sizes = (
             (0, [], 0),
@@ -255,7 +254,7 @@ class TestTournamentPodSizing(unittest.TestCase):
                 auto_export=False,
             )
         )
-        t.initialize_round()
+        t.new_round()
 
         pod_sizes = (
             (0, [], 0),
@@ -299,7 +298,7 @@ class TestTournamentPodSizing(unittest.TestCase):
                 auto_export=False,
             )
         )
-        t.initialize_round()
+        t.new_round()
 
         pod_sizes = (
             (0, [], 0),
@@ -353,7 +352,7 @@ class TestMatching(unittest.TestCase):
         tour_sizes = range(16, 128)
         for n in tqdm(tour_sizes, desc="Testing all players assigned"):
             t = Tournament(self.config)
-            t.initialize_round()
+            t.new_round()
             t.add_player([f"{i}:{fkr.name()}" for i in range(n)])
             for i in range(self.n_rounds):
                 # with self.subTest(n=str(n).zfill(2), round=str(i+1).zfill(2)):
@@ -370,7 +369,7 @@ class TestMatching(unittest.TestCase):
         tour_sizes = range(16, 128)
         for n in tour_sizes:
             t = Tournament(self.config)
-            t.initialize_round()
+            t.new_round()
             t.add_player([f"{i}:{fkr.name()}" for i in range(n)])
             self.assertEqual(len(t.players), n)
             for i in range(self.n_rounds):
@@ -403,7 +402,7 @@ class TestMatching(unittest.TestCase):
         for n in tqdm(tour_sizes, desc="Snake winners not paired"):
             with self.subTest(n=n):
                 t = Tournament(self.config)
-                t.initialize_round()
+                t.new_round()
                 t.add_player([f"P{i}" for i in range(n)])
 
                 # Round 1: Create pairings and determine winners
@@ -489,7 +488,7 @@ class TestMatching(unittest.TestCase):
                     #    break
 
                     t = Tournament(self.config)
-                    t.initialize_round()
+                    t.new_round()
                     t.add_player(player_names)
 
                     t.tour_round.create_pods()
@@ -541,7 +540,7 @@ class TestScoring(unittest.TestCase):
                 auto_export=False,
             )
         )
-        self.t.initialize_round()
+        self.t.new_round()
         Player.FORMATTING = ["-p", "-w", "-o"]
 
     def test_bye_scoring(self):
@@ -607,7 +606,7 @@ class TestScoring(unittest.TestCase):
 class TestPod(unittest.TestCase):
     def setUp(self) -> None:
         self.t = Tournament()
-        self.t.initialize_round()
+        self.t.new_round()
         self.t.add_player([f"Player {i}" for i in range(4)])
         self.t.tour_round.create_pods()
         self.pod = self.t.tour_round.pods[0]
@@ -650,7 +649,7 @@ class TestTablePreferences(unittest.TestCase):
             auto_export=False,
         )
         self.t = Tournament(self.config)
-        self.t.initialize_round()
+        self.t.new_round()
 
     def test_basic_preference(self) -> None:
         """
@@ -762,7 +761,7 @@ class TestTablePreferences(unittest.TestCase):
         # Remaining: pod0, pod2. They fill index 1 and index 2.
         # Expected final order: [pod1, pod0, pod2]
 
-        round.apply_table_preference()
+        round.sort_pods()
 
         self.assertEqual(round.pods[0].uid, p1.uid)
         self.assertEqual(round.pods[1].uid, p0.uid)
@@ -782,3 +781,49 @@ class TestTablePreferences(unittest.TestCase):
         # Re-inflate and check that it's empty
         p_inflated = Player.inflate(self.t, serialized)
         self.assertEqual(p_inflated.table_preference, [])
+
+
+class TestRoundCreation(unittest.TestCase):
+    def test_modified_n_rounds(self) -> None:
+        """
+        Test that the core does not allow to create more than n rounds even if it's modified.
+        """
+
+        config = TournamentConfiguration(
+            pod_sizes=[4],
+            allow_bye=False,
+            auto_export=False,
+            n_rounds=2,
+        )
+        t = Tournament(config)
+        t.add_player(generate_player_names(16))
+        t.create_pairings()
+        t.random_results()
+        t.create_pairings()
+        t.tour_round.delete()
+        t.config.n_rounds = 1
+
+        self.assertFalse(t.create_pairings())
+
+    def test_modified_n_rounds_reset_pods(self) -> None:
+        """
+        Test that the core does not allow to reset pods if n_rounds is modified.
+        """
+
+        t = Tournament(config = TournamentConfiguration(
+            pod_sizes=[4],
+            n_rounds=2,
+            allow_bye=False,
+            auto_export=False,
+        ))
+        t.add_player(generate_player_names(16))
+        t.create_pairings()
+        t.random_results()
+        t.create_pairings()
+        t.reset_pods()
+        new_config = TournamentConfiguration(
+            pod_sizes=[4],
+            n_rounds=1,
+        )
+        with self.assertRaises(ValueError):
+            t.config = new_config

@@ -59,8 +59,7 @@ class IHashable:
         """
         raise NotImplementedError()
 
-
-class IPlayer(IHashable):
+class IPlayer(IHashable, ABC):
     """Interface for a player."""
 
     class ELocation(IntEnum):
@@ -81,88 +80,65 @@ class IPlayer(IHashable):
         BYE = 3
         PENDING = 4
 
-    def __init__(self, uid: UUID | None = None):
-        """Initializes the IPlayer."""
-        super().__init__(uid=uid)
-        self.name: str = str()
-        # self.rounds: list[IRound] = list()
-        self.tour: ITournament
-        # self.location: IPlayer.ELocation = IPlayer.ELocation.UNSEATED
-        # self.result: IPlayer.EResult = IPlayer.EResult.PENDING
+    name: str
+    tour: ITournament
 
     @abstractmethod
-    def played(self, tour_round: IRound) -> list[IPlayer]:
-        raise NotImplementedError()
+    def played(self, tour_round: IRound) -> list[IPlayer]: ...
 
     @abstractmethod
-    def location(self, tour_round: IRound) -> IPlayer.ELocation:
-        raise NotImplementedError()
+    def location(self, tour_round: IRound) -> IPlayer.ELocation: ...
 
     @abstractmethod
-    def pod(self, tour_round: IRound) -> IPod | None:
-        raise NotImplementedError()
+    def pod(self, tour_round: IRound) -> IPod | None: ...
 
     @abstractmethod
     def set_result(
         self, tour_round: IRound, result: IPlayer.EResult
-    ) -> IPlayer.EResult:
-        raise NotImplementedError()
+    ) -> IPlayer.EResult: ...
 
     @abstractmethod
-    def pods(self, tour_round: IRound) -> list[IPod]:
-        raise NotImplementedError()
+    def pods(self, tour_round: IRound) -> list[IPod]: ...
 
     @abstractmethod
-    def rating(self, tour_round: IRound) -> float:
-        raise NotImplementedError()
+    def rating(self, tour_round: IRound) -> float: ...
 
     @abstractmethod
-    def opponent_pointrate(self, tour_round: IRound) -> float:
-        raise NotImplementedError()
+    def opponent_pointrate(self, tour_round: IRound) -> float: ...
 
     @abstractmethod
-    def games(self, tour_round: IRound) -> list[IRound]:
-        raise NotImplementedError()
+    def games(self, tour_round: IRound) -> list[IRound]: ...
 
     @abstractmethod
-    def byes(self, tour_round: IRound) -> int:
-        raise NotImplementedError()
+    def byes(self, tour_round: IRound) -> int: ...
 
     @abstractmethod
-    def wins(self, tour_round: IRound) -> int:
-        raise NotImplementedError()
+    def wins(self, tour_round: IRound) -> int: ...
 
     @abstractmethod
-    def losses(self, tour_round: IRound) -> int:
-        raise NotImplementedError()
+    def losses(self, tour_round: IRound) -> int: ...
 
     @abstractmethod
-    def draws(self, tour_round: IRound) -> int:
-        raise NotImplementedError()
+    def draws(self, tour_round: IRound) -> int: ...
 
 
-class ITournament(IHashable):
-    def __init__(
-        self, config: ITournamentConfiguration | None = None, uid: UUID | None = None
-    ):
-        super().__init__(uid=uid)
-        self.rounds: list[IRound] = list()
-        self._round: IRound | None = None
-
+class ITournament(IHashable, ABC):
+    @property
     @abstractmethod
-    def get_pod_sizes(self, n: int) -> Sequence[int] | None:
-        raise NotImplementedError()
-
-    @abstractmethod
-    def get_standings(self, tour_round: IRound) -> list[IPlayer]:
-        raise NotImplementedError()
+    def rounds(self) -> Sequence[IRound]: ...
 
     @property
-    def config(self) -> ITournamentConfiguration:
-        raise NotImplementedError()
+    @abstractmethod
+    def config(self) -> ITournamentConfiguration: ...
+
+    @abstractmethod
+    def get_pod_sizes(self, n: int) -> Sequence[int] | None: ...
+
+    @abstractmethod
+    def get_standings(self, tour_round: IRound) -> list[IPlayer]: ...
 
 
-class IPod(IHashable):
+class IPod(IHashable, ABC):
     """Interface for a pod."""
 
     class EResult(IntEnum):
@@ -172,88 +148,69 @@ class IPod(IHashable):
         WIN = 1
         PENDING = 2
 
-    def __init__(self, uid: UUID | None = None):
-        """Initializes the IPod."""
-        super().__init__(uid=uid)
-        self._tour: UUID
-        self._round: UUID
-        self._players: list[UUID] = list()
-        self.cap: int = 0
-        self._result: set[UUID] = set()
+    _tour: UUID
+    _round: UUID
+    _players: list[UUID]
+    cap: int
+    _result: set[UUID]
 
     @property
     @abstractmethod
-    def result(self) -> set[IPlayer.EResult]:
-        raise NotImplementedError()
+    def result(self) -> set[IPlayer.EResult]: ...
 
     @property
     @abstractmethod
-    def players(self) -> list[IPlayer]:
-        raise NotImplementedError("Pod.players not implemented - use subclass")
+    def players(self) -> list[IPlayer]: ...
 
     @abstractmethod
-    def auto_assign_seats(self):
-        pass
+    def auto_assign_seats(self): ...
 
     @abstractmethod
-    def add_player(self, player: IPlayer):
-        pass
+    def add_player(self, player: IPlayer): ...
 
     @abstractmethod
-    def remove_player(self, player: IPlayer):
-        pass
+    def remove_player(self, player: IPlayer): ...
 
     @property
     @abstractmethod
-    def tour_round(self) -> IRound:
-        raise NotImplementedError()
+    def tour_round(self) -> IRound: ...
 
     def __len__(self):
         return len(self.players)
 
 
-class IRound(IHashable):
+class IRound(IHashable, ABC):
     """Interface for a round."""
-
-    def __init__(self, uid: UUID | None = None):
-        """Initializes the IRound."""
-        super().__init__(uid=uid)
-        self.seq: int = -1
-        self.logic: IPairingLogic
-        self._tour: UUID
-        self._pods: list[UUID] = list()
-        self._players: list[UUID] = list()
+    seq: int
+    logic: IPairingLogic
+    _tour: UUID
+    _pods: list[UUID]
+    _players: list[UUID]
 
     @property
     @abstractmethod
-    def active_players(self) -> set[IPlayer]:
-        raise NotImplementedError("Round.players not implemented - use subclass")
+    def active_players(self) -> set[IPlayer]: ...
 
     @property
     @abstractmethod
-    def byes(self) -> set[IPlayer]:
-        raise NotImplementedError("Round.byes not implemented - use subclass")
+    def byes(self) -> set[IPlayer]: ...
 
     @property
     @abstractmethod
-    def tour(self) -> ITournament:
-        raise NotImplementedError("Round.tour not implemented - use subclass")
+    def tour(self) -> ITournament: ...
 
     @property
     @abstractmethod
-    def pods(self) -> list[IPod]:
-        raise NotImplementedError("Round.pods not implemented - use subclass")
+    def pods(self) -> list[IPod]: ...
 
 
-class IPairingLogic:
+class IPairingLogic(ABC):
     """Interface for pairing logic."""
 
-    IS_COMPLETE = False
+    IS_COMPLETE: bool = False
+    name: str
 
-    def __init__(self, name: str):
-        """Initializes the IPairingLogic."""
-        self.name = name
-
+    @abstractmethod
     def make_pairings(
         self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]
     ) -> Sequence[IPlayer]:
@@ -267,10 +224,9 @@ class IPairingLogic:
         Returns:
             A sequence of players who could not be paired (if any).
         """
-        raise NotImplementedError(
-            "PairingLogic.make_pairings not implemented - use subclass"
-        )
+        ...
 
+    @abstractmethod
     def advance_topcut(self, tour_round: IRound, standings: list[IPlayer]) -> None:
         """Advances players to the top cut.
 
@@ -278,16 +234,13 @@ class IPairingLogic:
             tour_round: The current round.
             standings: The list of players sorted by standing.
         """
-        raise NotImplementedError(
-            "PairingLogic.advance_topcut not implemented - use subclass"
-        )
+        ...
 
 
-class ITournamentConfiguration:
-    def __init__(self, **kwargs):
-        self.allow_bye: bool
-        self.min_pod_size: int
-        self.max_pod_size: int
-        self.ranking: tuple[float]
-        self.matching: tuple[float]
-        self.player_id: Callable[[], UUID]
+class ITournamentConfiguration(ABC):
+    allow_bye: bool = False
+    min_pod_size: int
+    max_pod_size: int
+    ranking: tuple[float, ...]
+    matching: tuple[float, ...]
+    player_id: Callable[[], UUID]
