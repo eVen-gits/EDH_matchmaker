@@ -1,7 +1,7 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from enum import IntEnum
-from typing import Sequence, Callable, Any
+from typing import Sequence, Callable, Any, Mapping
 from datetime import datetime
 from uuid import UUID, uuid4
 
@@ -237,10 +237,40 @@ class IPairingLogic(ABC):
         ...
 
 
+class IStandingsExport(ABC):
+    """Interface for standings export configuration."""
+
+    dir: str
+
+    @abstractmethod
+    def serialize(self) -> Mapping[str, object]: ...
+
+
 class ITournamentConfiguration(ABC):
-    allow_bye: bool = False
-    min_pod_size: int
-    max_pod_size: int
-    ranking: tuple[float, ...]
-    matching: tuple[float, ...]
-    player_id: Callable[[], UUID]
+    pod_sizes: Sequence[int] = (4, 3)
+    allow_bye: bool = True
+    win_points: int = 7
+    bye_points: int = 3
+    draw_points: int = 1
+    snake_pods: bool = True
+    n_rounds: int = 4
+    max_byes: int = 2
+    auto_export: bool = True
+    standings_export: IStandingsExport
+    global_wr_seats: Sequence[float] = (
+        # 0.2553,
+        # 0.2232,
+        # 0.1847,
+        # 0.1428,
+        # New data: all 50+ player events since [2024-09-30;2025-05-05]
+        0.2470,
+        0.1928,
+        0.1672,
+        0.1458,
+    )
+    top_cut: int = 0
+
+
+    @staticmethod
+    @abstractmethod
+    def ranking(x: IPlayer, tour_round: IRound) -> tuple: ...

@@ -11,7 +11,7 @@ import math
 import os
 import random
 from datetime import datetime
-from enum import Enum
+from enum import Enum, IntEnum
 
 from .discord_engine import DiscordPoster
 from .interface import (
@@ -20,6 +20,7 @@ from .interface import (
     IPod,
     IRound,
     IPairingLogic,
+    IStandingsExport,
     ITournamentConfiguration,
 )
 from .misc import Json2Obj, generate_player_names, timeit
@@ -176,7 +177,7 @@ class TournamentContext:
         self.standings = standings
 
 
-class StandingsExport(DataExport):
+class StandingsExport(DataExport, IStandingsExport):
     class Field(Enum):
         STANDING = 0  # Standing
         ID = 1  # Player ID
@@ -610,7 +611,7 @@ class TournamentAction:
 
 
 class TournamentConfiguration(ITournamentConfiguration):
-    class TopCut(Enum):
+    class TopCut(IntEnum):
         NONE = 0
         TOP_4 = 4
         TOP_7 = 7
@@ -625,27 +626,27 @@ class TournamentConfiguration(ITournamentConfiguration):
         Args:
             **kwargs: Arbitrary keyword arguments using the configuration.
         """
-        self.pod_sizes = kwargs.get("pod_sizes", [4, 3])
-        self.allow_bye = kwargs.get("allow_bye", True)
-        self.win_points = kwargs.get("win_points", 5)
-        self.bye_points = kwargs.get("bye_points", 4)
-        self.draw_points = kwargs.get("draw_points", 1)
-        self.snake_pods = kwargs.get("snake_pods", True)
-        self.n_rounds = kwargs.get("n_rounds", 5)
+        self.pod_sizes: Sequence[int] = kwargs.get("pod_sizes", [4, 3])
+        self.allow_bye: bool = kwargs.get("allow_bye", True)
+        self.win_points: int = kwargs.get("win_points", 5)
+        self.bye_points: int = kwargs.get("bye_points", 4)
+        self.draw_points: int = kwargs.get("draw_points", 1)
+        self.snake_pods: bool = kwargs.get("snake_pods", True)
+        self.n_rounds: int = kwargs.get("n_rounds", 5)
         # Parse int or enum for TopCut
-        tc_val = kwargs.get("top_cut", TournamentConfiguration.TopCut.NONE)
+        tc_val: TournamentConfiguration.TopCut | int = kwargs.get("top_cut", TournamentConfiguration.TopCut.NONE)
         if isinstance(tc_val, TournamentConfiguration.TopCut):
-            self.top_cut = tc_val
+            self.top_cut: TournamentConfiguration.TopCut = tc_val
         else:
             # If it's already an int, map to Enum
             try:
                 self.top_cut = TournamentConfiguration.TopCut(tc_val)
             except Exception:
                 self.top_cut = TournamentConfiguration.TopCut.NONE
-        self.max_byes = kwargs.get("max_byes", 2)
-        self.auto_export = kwargs.get("auto_export", True)
-        self.standings_export = kwargs.get("standings_export", StandingsExport())
-        self.global_wr_seats = kwargs.get(
+        self.max_byes: int = kwargs.get("max_byes", 2)
+        self.auto_export: bool = kwargs.get("auto_export", True)
+        self.standings_export: IStandingsExport = kwargs.get("standings_export", StandingsExport())
+        self.global_wr_seats: Sequence[float] = kwargs.get(
             "global_wr_seats",
             [
                 # 0.2553,
@@ -828,7 +829,7 @@ class Tournament(ITournament):
             config = TournamentConfiguration()
         super().__init__(uid=uid)
         self.__config = config
-        self.CACHE[self.uid] = self
+        #self.CACHE[self.uid] = self
 
         self.PLAYER_CACHE: dict[UUID, Player] = {}
         self.POD_CACHE: dict[UUID, Pod] = {}
