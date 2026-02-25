@@ -2752,6 +2752,9 @@ class Pod(IPod):
 
     def reorder_players(self, order: list[int]) -> None:
         """Reorders the players in the pod.
+        Passing range(len(self._players)) will result no change in the order.
+        Passing [0, 1, 2, 3] will result no change in the order.
+        Passing [3, 2, 1, 0] will reverse the order of the players.
 
         Args:
             order: A list of integers representing the new order of the players.
@@ -2766,6 +2769,9 @@ class Pod(IPod):
         self._players[:] = np.take(self._players, order)
 
     def clear(self):
+        """Clears the pod of all players.
+        This method is called by the round when the pod is removed.
+        """
         players = [p for p in self.players]
         for p in players:
             self.remove_player(p, cleanup=False)
@@ -2773,6 +2779,9 @@ class Pod(IPod):
 
     @property
     def name(self):
+        """Returns the name of the pod.
+        The name of the pod is "Pod {}".format(self.table).
+        """
         return "Pod {}".format(self.table)
 
     @override
@@ -3242,11 +3251,9 @@ class Round(IRound):
                 pod.auto_auto_assign_seats()
 
         self.sort_pods()
-        self.apply_table_preference()
 
-    def sort_pods(self) -> None:
-        """Sort pods by number of players and average rating."""
-
+    def sort_pods_by_power(self) -> None:
+        """Sort pods by number of players and average rating to establish a power-level baseline."""
         pods_sorted = sorted(
             self.pods,
             key=lambda x: (
@@ -3257,7 +3264,7 @@ class Round(IRound):
         )
         self._pods[:] = [pod.uid for pod in pods_sorted]
 
-    def apply_table_preference(self) -> bool:
+    def sort_pods(self) -> bool:
         """Try to apply table preferences for players. Pod index is table number.
         Preserves the relative power-sorted order of non-locked pods.
         Prioritizes maximizing the number of satisfied preferences.
@@ -3265,7 +3272,9 @@ class Round(IRound):
         Returns:
             bool: True if table preferences were applied, False otherwise.
         """
-        pods = self.pods  # Already sorted by power
+        self.sort_pods_by_power()
+
+        pods = self.pods  # Expect pods to be already sorted by power
         n = len(pods)
         if n == 0:
             return False
