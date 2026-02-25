@@ -1129,7 +1129,15 @@ class TournamentConfigDialog(QDialog):
             t.initialize_round()
             TournamentAction.store(t)
         else:
-            self.parent().core.config = self.config
+            try:
+                self.parent().core.config = self.config
+            except Exception as e:
+                QMessageBox.critical(
+                    self,
+                    "Error",
+                    str(e),
+                )
+                return
 
         self.close()
 

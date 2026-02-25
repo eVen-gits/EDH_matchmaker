@@ -819,7 +819,7 @@ class Tournament(ITournament):
         if config is None:
             config = TournamentConfiguration()
         super().__init__(config=config, uid=uid)
-        self._config = config
+        self.__config = config
         self.CACHE[self.uid] = self
 
         self.PLAYER_CACHE: dict[UUID, Player] = {}
@@ -992,6 +992,22 @@ class Tournament(ITournament):
                         draws += len(pod._result)
         return draws / matches
 
+    def __validate_config(self, config: TournamentConfiguration) -> bool:
+        """
+        Validates the tournament configuration.
+
+        Args:
+            config: The tournament configuration.
+
+        Returns:
+            bool:
+                - True if the configuration is valid.
+                - False if the configuration is invalid.
+        """
+        if len(self.rounds) >= config.n_rounds:
+            raise ValueError("Tournament has already reached the maximum number of rounds.")
+        return True
+
     @property
     def config(self) -> TournamentConfiguration:
         """
@@ -1001,7 +1017,7 @@ class Tournament(ITournament):
             TournamentConfiguration:
                 - The tournament configuration.
         """
-        return self._config
+        return self.__config
 
     @config.setter
     @TournamentAction.action
@@ -1012,7 +1028,8 @@ class Tournament(ITournament):
         Args:
             config: The tournament configuration.
         """
-        self._config = config
+        self.__validate_config(config)
+        self.__config = config
 
     @TournamentAction.action
     def add_player(self, *specs: Any, **player_attrs) -> list[Player]:
@@ -1410,9 +1427,8 @@ class Tournament(ITournament):
         if not self.tour_round:
             return False
         if not self.tour_round.done:
-            if not self.tour_round.reset_pods():
-                return False
-            return True
+            ok = self.tour_round.reset_pods()
+            #self.delete_round()
         return False
 
     @TournamentAction.action
@@ -2132,6 +2148,44 @@ class Player(IPlayer):
             ]
         )
 
+    def draws(self, tour_round: Round | None = None):
+        """Counts the number of draws.
+
+        Args:
+            tour_round: The round up to which to count.
+
+        Returns:
+            int: The number of draws.
+        """
+        if tour_round is None:
+            tour_round = self.tour.tour_round
+        return len(
+            [
+                p
+                for p in self.games(tour_round)
+                if p.result_type == Pod.EResult.DRAW and self.uid in p._result
+            ]
+        )
+
+    def losses(self, tour_round: Round | None = None):
+        """Counts the number of losses.
+
+        Args:
+            tour_round: The round up to which to count.
+
+        Returns:
+            int: The number of losses.
+        """
+        if tour_round is None:
+            tour_round = self.tour.tour_round
+        return len(
+            [
+                p
+                for p in self.games(tour_round)
+                if p.result_type == Pod.EResult.LOSS and self.uid in p._result
+            ]
+        )
+
     def record(self, tour_round: Round | None = None) -> list[Player.EResult]:
         """Retrieves the full history of results.
 
@@ -2195,7 +2249,7 @@ class Player(IPlayer):
         )
         return ret_str
 
-    def pointrate(self, tour_round: Round | None = None):
+    def pointrate(self, tour_round: Round | None = None) -> float:
         """Calculates the point rate (actual points / maximum possible points).
 
         Args:
@@ -3082,6 +3136,23 @@ class Round(IRound):
 
         return data
 
+    def delete_round(self) -> bool:
+        """Deletes the current round if it's not completed.
+
+        This method removes the current round from the tournament and clears all pods and bye list.
+
+        Returns:
+            bool: True if the round was deleted, False otherwise.
+        """
+        ok = self.reset_pods()
+        if not ok:
+            return False
+        if not self.tour_round:
+            return False
+        self.tour_round = None
+        self._rounds.pop()
+        return True
+
     def reset_pods(self) -> bool:
         """Resets all pods in the round, clearing their assignments.
 
@@ -3089,7 +3160,7 @@ class Round(IRound):
         It is useful for resetting the round before creating new pairings.
 
         Returns:
-            bool: Always returns True, as the reset is always successful.
+            bool: True if the reset was successful, False otherwise.
         """
         pods = [Pod.get(self.tour, x) for x in self._pods]
         # if any([not pod.done for pod in pods]):
