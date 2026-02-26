@@ -1,8 +1,7 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from enum import IntEnum
-from typing import Sequence, Callable, Any, Mapping
-from datetime import datetime
+from collections.abc import Mapping, Sequence
 from uuid import UUID, uuid4
 
 
@@ -24,7 +23,7 @@ class SortOrder(IntEnum):
 class IHashable:
     """Interface for hashable objects with UUIDs."""
 
-    CACHE: dict[UUID, Any] = {}
+    CACHE: dict[UUID, IHashable] = {}
 
     def __init__(self, uid: UUID | None = None):
         """Initializes the IHashable object.
@@ -38,8 +37,6 @@ class IHashable:
         if uid:
             if uid in self.CACHE:
                 raise ValueError("UUID collision.")
-            elif not isinstance(uid, UUID):
-                raise ValueError("UUID type error.")
             else:
                 self.uid = uid
         else:
@@ -47,7 +44,6 @@ class IHashable:
         self.CACHE[self.uid] = self
 
     @classmethod
-    @abstractmethod
     def get(cls, ID: UUID) -> IHashable:
         """Retrieves an object by its UUID.
 
@@ -57,7 +53,8 @@ class IHashable:
         Returns:
             The object with the specified UUID.
         """
-        raise NotImplementedError()
+        return cls.CACHE[ID]
+
 
 class IPlayer(IHashable, ABC):
     """Interface for a player."""
@@ -98,10 +95,12 @@ class IPlayer(IHashable, ABC):
     ) -> IPlayer.EResult: ...
 
     @abstractmethod
-    def pods(self, tour_round: IRound) -> list[IPod]: ...
+    def pods(
+        self, tour_round: IRound | None = None
+    ) -> list[IPod | IPlayer.ELocation]: ...
 
     @abstractmethod
-    def rating(self, tour_round: IRound) -> float: ...
+    def rating(self, tour_round: IRound | None = None) -> float: ...
 
     @abstractmethod
     def opponent_pointrate(self, tour_round: IRound) -> float: ...
@@ -181,6 +180,7 @@ class IPod(IHashable, ABC):
 
 class IRound(IHashable, ABC):
     """Interface for a round."""
+
     seq: int
     logic: IPairingLogic
     _tour: UUID
@@ -213,7 +213,7 @@ class IPairingLogic(ABC):
     @abstractmethod
     def make_pairings(
         self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]
-    ) -> Sequence[IPlayer]:
+    ) -> set[IPlayer]:
         """Creates pairings for a round.
 
         Args:
@@ -222,7 +222,7 @@ class IPairingLogic(ABC):
             pods: The list of available pods.
 
         Returns:
-            A sequence of players who could not be paired (if any).
+            A set of players who could not be paired (if any).
         """
         ...
 
@@ -270,7 +270,14 @@ class ITournamentConfiguration(ABC):
     )
     top_cut: int = 0
 
+    @property
+    @abstractmethod
+    def max_pod_size(self) -> int: ...
+
+    @property
+    @abstractmethod
+    def min_pod_size(self) -> int: ...
 
     @staticmethod
     @abstractmethod
-    def ranking(x: IPlayer, tour_round: IRound) -> tuple: ...
+    def ranking(x: IPlayer, tour_round: IRound) -> tuple[int | float | str, ...]: ...

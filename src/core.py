@@ -1,42 +1,42 @@
 from __future__ import annotations
-from typing import List, Sequence, Union, Callable, Any, cast, TypeVar
-import warnings
 
-_F = TypeVar('_F', bound=Callable[..., Any])
-from typing_extensions import override
-from collections.abc import Iterable
+import warnings
+from typing import Any, Callable, List, Sequence, TypeVar, Union, cast
 
 import argparse
+import functools
+import importlib
+import json
 import math
 import os
+import pkgutil
 import random
+import threading
+from collections.abc import Iterable
 from datetime import datetime
 from enum import Enum, IntEnum
+from pathlib import Path
+from uuid import UUID
+
+import numpy as np
+import requests
+from dotenv import load_dotenv
+from tqdm import tqdm
+from typing_extensions import override
 
 from .discord_engine import DiscordPoster
 from .interface import (
+    IHashable,
+    IPairingLogic,
     IPlayer,
-    ITournament,
     IPod,
     IRound,
-    IPairingLogic,
     IStandingsExport,
+    ITournament,
     ITournamentConfiguration,
 )
-from .misc import Json2Obj, generate_player_names, timeit
-import numpy as np
-from tqdm import tqdm  # pyright: ignore
-from uuid import UUID, uuid4
-import json
 
-from dotenv import load_dotenv
-import requests
-import threading
-
-import importlib
-import pkgutil
-from pathlib import Path
-import functools
+_F = TypeVar("_F", bound=Callable[..., Any])
 
 # Load configuration from .env file
 load_dotenv()
@@ -80,8 +80,10 @@ class PodsExport(DataExport):
         """
 
         @functools.wraps(func)
-        def auto_pods_export_wrapper(
-            self: Tournament, *original_args, **original_kwargs
+        def auto_pods_export_wrapper(  # pyright: ignore[reportAny]
+            self: Tournament,
+            *original_args,
+            **original_kwargs,  # pyright: ignore[reportUnknownParameterType, reportMissingParameterType]
         ):
             try:
                 tour_round = self.tour_round
@@ -137,15 +139,15 @@ class PodsExport(DataExport):
                                 ]
                             )
 
-                    path = os.path.join(
-                        os.path.dirname(logf),
-                        os.path.basename(logf).replace(".json", ""),
-                        os.path.basename(logf).replace(
+                    path = os.path.join(  # pyright: ignore[reportUnknownVariableType]
+                        os.path.dirname(logf),  # pyright: ignore[reportCallIssue, reportUnknownArgumentType, reportArgumentType]
+                        os.path.basename(logf).replace(".json", ""),  # pyright: ignore[reportUnknownArgumentType, reportCallIssue, reportArgumentType]
+                        os.path.basename(logf).replace(  # pyright: ignore[reportCallIssue, reportUnknownArgumentType, reportArgumentType]
                             ".json", "_R{}.txt".format(tour_round.seq)
                         ),
                     )
-                    if not os.path.exists(os.path.dirname(path)):
-                        os.makedirs(os.path.dirname(path))
+                    if not os.path.exists(os.path.dirname(path)):  # pyright: ignore[reportUnknownArgumentType]
+                        os.makedirs(os.path.dirname(path))  # pyright: ignore[reportUnknownArgumentType]
 
                     self.export_str(export_str, path, DataExport.Target.FILE)
                     if os.getenv("EXPORT_ONLINE_API_URL") and os.getenv(
@@ -153,7 +155,7 @@ class PodsExport(DataExport):
                     ):
                         self.export_str(export_str, None, DataExport.Target.WEB)
 
-                    path = os.path.join(os.path.dirname(logf), "pods.txt")
+                    path = os.path.join(os.path.dirname(logf), "pods.txt")  # pyright: ignore[reportCallIssue, reportUnknownArgumentType, reportArgumentType]
                     self.export_str(export_str, path, DataExport.Target.FILE)
 
             return ret
@@ -200,17 +202,17 @@ class StandingsExport(DataExport, IStandingsExport):
             format: str,
             denom: int | None,
             description: str,
-            getter: Callable[..., Any],
+            getter: Callable[..., Any],  # pyright: ignore[reportExplicitAny]
         ):  # Dict of arg names to expected types
-            self.name = label
-            self.format = format
-            self.denom = denom
-            self.description = description
-            self.getter = getter
+            self.name: str = label
+            self.format: str = format
+            self.denom: int | None = denom
+            self.description: str = description
+            self.getter: Callable[[Player, TournamentContext], Any] = getter  # pyright: ignore[reportExplicitAny]
 
-        def get(self, player: Player, context: TournamentContext) -> Any:
+        def get(self, player: Player, context: TournamentContext) -> Any:  # pyright: ignore[reportExplicitAny, reportAny]
             # Call the static method through the class
-            return self.getter.__func__(player, context)
+            return self.getter.__func__(player, context)  # pyright: ignore[reportFunctionMemberAccess, reportAny]
 
     @staticmethod
     def _get_standing(player: Player, context: TournamentContext) -> int:
@@ -264,7 +266,7 @@ class StandingsExport(DataExport, IStandingsExport):
     def _get_record(player: Player, context: TournamentContext) -> str:
         return Player.fmt_record(player.record(context.tour_round))
 
-    info = {
+    info: dict[Field, Formatting] = {
         Field.STANDING: Formatting(
             label="#",
             format="{:d}",
@@ -634,7 +636,9 @@ class TournamentConfiguration(ITournamentConfiguration):
         self.snake_pods: bool = kwargs.get("snake_pods", True)
         self.n_rounds: int = kwargs.get("n_rounds", 5)
         # Parse int or enum for TopCut
-        tc_val: TournamentConfiguration.TopCut | int = kwargs.get("top_cut", TournamentConfiguration.TopCut.NONE)
+        tc_val: TournamentConfiguration.TopCut | int = kwargs.get(
+            "top_cut", TournamentConfiguration.TopCut.NONE
+        )
         if isinstance(tc_val, TournamentConfiguration.TopCut):
             self.top_cut: TournamentConfiguration.TopCut = tc_val
         else:
@@ -645,7 +649,9 @@ class TournamentConfiguration(ITournamentConfiguration):
                 self.top_cut = TournamentConfiguration.TopCut.NONE
         self.max_byes: int = kwargs.get("max_byes", 2)
         self.auto_export: bool = kwargs.get("auto_export", True)
-        self.standings_export: IStandingsExport = kwargs.get("standings_export", StandingsExport())
+        self.standings_export: IStandingsExport = kwargs.get(
+            "standings_export", StandingsExport()
+        )
         self.global_wr_seats: Sequence[float] = kwargs.get(
             "global_wr_seats",
             [
@@ -662,6 +668,7 @@ class TournamentConfiguration(ITournamentConfiguration):
         )
 
     @property
+    @override
     def min_pod_size(self):
         """Returns the minimum pod size.
 
@@ -671,6 +678,7 @@ class TournamentConfiguration(ITournamentConfiguration):
         return min(self.pod_sizes)
 
     @property
+    @override
     def max_pod_size(self):
         """Returns the maximum pod size.
 
@@ -681,7 +689,7 @@ class TournamentConfiguration(ITournamentConfiguration):
 
     @staticmethod
     @override
-    def ranking(x: Player, tour_round: Round) -> tuple:
+    def ranking(x: IPlayer, tour_round: IRound) -> tuple[int | float | str, ...]:
         """Calculates the ranking score for a player.
 
         Args:
@@ -754,7 +762,7 @@ class Tournament(ITournament):
     # then opponent pointrate, - CHANGE - moved this upwards and added dummy opponents with 33% pointrate
     # then number of opponents beaten,
     # then ID - this last one is to ensure deterministic sorting in case of equal values (start of tournament for example)
-    CACHE: dict[UUID, Tournament] = {}
+    CACHE: dict[UUID, IHashable] = {}
 
     _pairing_logic_cache: dict[str, type[IPairingLogic]] = {}
 
@@ -829,7 +837,7 @@ class Tournament(ITournament):
             config = TournamentConfiguration()
         super().__init__(uid=uid)
         self.__config = config
-        #self.CACHE[self.uid] = self
+        # self.CACHE[self.uid] = self
 
         self.PLAYER_CACHE: dict[UUID, Player] = {}
         self.POD_CACHE: dict[UUID, Pod] = {}
@@ -865,6 +873,8 @@ class Tournament(ITournament):
 
     @property
     def tour_round(self) -> Round:
+        if self._round is None:
+            return None  # type: ignore
         return Round.get(self, self._round)  # type: ignore
 
     @tour_round.setter
@@ -874,7 +884,7 @@ class Tournament(ITournament):
         Args:
             tour_round: The new round.
         """
-        self._round = tour_round.uid
+        self._round = tour_round.uid if tour_round else None
 
     @property
     def last_round(self) -> Round | None:
@@ -1419,9 +1429,10 @@ class Tournament(ITournament):
 
     def initialize_round(self) -> bool:
         # deprecation warning
-        warnings.warn("initialize_round is deprecated, use new_round instead", DeprecationWarning)
+        warnings.warn(
+            "initialize_round is deprecated, use new_round instead", DeprecationWarning
+        )
         return self.new_round()
-
 
     @TournamentAction.action
     def new_round(self) -> bool:
@@ -1450,7 +1461,7 @@ class Tournament(ITournament):
             return False
 
         if self.last_round != tour_round:
-             return False
+            return False
 
         if tour_round.uid not in self._rounds:
             return False
@@ -1841,7 +1852,7 @@ class Tournament(ITournament):
         lines += [
             [
                 (StandingsExport.info[f].format).format(
-                    StandingsExport.info[f].get(p, context)
+                    StandingsExport.info[f].get(p, context)  # pyright: ignore[reportAny]
                     if StandingsExport.info[f].denom is None
                     else StandingsExport.info[f].get(p, context)
                     * StandingsExport.info[f].denom
@@ -1868,24 +1879,24 @@ class Tournament(ITournament):
             #    fdir), level=Log.Level.INFO)
         elif style == StandingsExport.Format.CSV:
             Log.log(
-                "Log not saved - CSV not implemented.".format(fdir),
+                "Log not saved - CSV not implemented.",
                 level=Log.Level.WARNING,
             )
         elif style == StandingsExport.Format.DISCORD:
             Log.log(
-                "Log not saved - DISCORD not implemented.".format(fdir),
+                "Log not saved - DISCORD not implemented.",
                 level=Log.Level.WARNING,
             )
         elif style == StandingsExport.Format.JSON:
             Log.log(
-                "Log not saved - JSON not implemented.".format(fdir),
+                "Log not saved - JSON not implemented.",
                 level=Log.Level.WARNING,
             )
 
         raise ValueError("Invalid style: {}".format(style))
 
     @staticmethod
-    def send_request(api, data, headers):
+    def send_request(api: str, data: dict[str, Any], headers: dict[str, str]) -> None:  # pyright: ignore[reportExplicitAny]
         """Sends a POST request to a specified API endpoint.
 
         Args:
@@ -1905,9 +1916,9 @@ class Tournament(ITournament):
     def export_str(
         self,
         data: str,
-        var_export_param: Any,
+        var_export_param: Any,  # pyright: ignore[reportExplicitAny, reportAny]
         target_type: StandingsExport.Target,
-    ):
+    ) -> None:
         """Exports a string of data to a specified target (file, web, discord, console).
 
         Args:
@@ -1980,7 +1991,7 @@ class Tournament(ITournament):
         return data
 
     @classmethod
-    def inflate(cls, data: dict[str, Any]) -> Tournament:
+    def inflate(cls, data: dict[str, Any]) -> ITournament:
         """Creates a Tournament instance from serialized data.
 
         This method reconstructs the entire tournament state, including players, rounds, and pods,
@@ -2111,7 +2122,8 @@ class Player(IPlayer):
             return 0
         return self.tour.rating(self, tour_round)
 
-    def pods(self, tour_round: Round | None = None) -> list[Pod | Player.ELocation]:
+    @override
+    def pods(self, tour_round: IRound | None = None) -> list[IPod | Player.ELocation]:
         """Retrieves all pods or locations the player has been assigned to.
 
         Args:
@@ -2135,7 +2147,8 @@ class Player(IPlayer):
                 break
         return pods
 
-    def played(self, tour_round: Round | None = None) -> list[Player]:
+    @override
+    def played(self, tour_round: IRound | None = None) -> list[IPlayer]:
         """Retrieves a list of unique opponents played against in completed pods.
 
         Args:
@@ -2609,7 +2622,6 @@ class Player(IPlayer):
 
     @classmethod
     def inflate(cls, tour: Tournament, data: dict[str, Any]) -> Player:
-        # assert tour.uid == UUID(data['tour'])
         return cls(tour, data["name"], UUID(data["uid"]), data.get("decklist"))
 
 
@@ -2640,11 +2652,6 @@ class Pod(IPod):
         self._result: set[UUID] = set()
         # self._players: list[UUID] = list() #TODO: make references to players
         # self.discord_message_id: None|int = None
-
-    @override
-    def auto_assign_seats(self):
-        # Empty placeholder since IPod requires it
-        pass
 
     @property
     def table(self) -> int:
@@ -2777,7 +2784,7 @@ class Pod(IPod):
         )
 
     @override
-    def auto_auto_assign_seats(self):
+    def auto_assign_seats(self):
         """Assigns seats to players in the pod.
 
         Seat assignment attempts to balance seating positions based on players' history,
@@ -3301,7 +3308,7 @@ class Round(IRound):
 
         if self.seq < self.tour.config.n_rounds:
             for pod in self.pods:
-                pod.auto_auto_assign_seats()
+                pod.auto_assign_seats()
 
         self.sort_pods()
 

@@ -1,17 +1,17 @@
 from __future__ import annotations
-import time
-from typing import Sequence, Callable
+from abc import ABC
+from typing import Callable, final
+from collections.abc import Sequence
 
-from ..interface import IPlayer, IPod, ITournament, IRound, IPairingLogic
+from ..interface import IPlayer, IPod, IRound, IPairingLogic
 
 from typing_extensions import override
 import random
 import sys
-import numpy as np
-from ..core import timeit
 
 
-class CommonPairing(IPairingLogic):
+class CommonPairing(IPairingLogic, ABC):
+
     def __init__(self, name: str):
         self.name = name
 
@@ -23,25 +23,16 @@ class CommonPairing(IPairingLogic):
             score -= player.played(tour_round).count(p) ** 2
         if pod.cap < player.tour.config.max_pod_size:
             for prev_pod in player.pods(tour_round):
-                if isinstance(prev_pod, IPod):
-                    score -= sum(
-                        [
-                            10
-                            for _ in prev_pod.players
-                            if prev_pod.cap < player.tour.config.max_pod_size
-                        ]
-                    )
+                if prev_pod in IPlayer.ELocation:
+                    continue
+                score -= sum(
+                    [
+                        10
+                        for _ in prev_pod.players
+                        if prev_pod.cap < player.tour.config.max_pod_size
+                    ]
+                )
         return score
-
-    def make_pairings(self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]) -> set[IPlayer]:
-        raise NotImplementedError(
-            "PairingLogic.make_pairings not implemented - use subclass"
-        )
-
-    def advance_topcut(self, tour_round: IRound, standings: list[IPlayer]) -> None:
-        raise NotImplementedError(
-            "PairingLogic.advance_topcut not implemented - use subclass"
-        )
 
     def bye_matching(self, player: IPlayer, tour_round: IRound) -> tuple:
         return (
@@ -75,13 +66,20 @@ class CommonPairing(IPairingLogic):
 
         return byes
 
+    @override
+    def advance_topcut(self, tour_round: IRound, standings: list[IPlayer]) -> None:
+        """
+        This should only be implemented in topcut pairing logic
+        """
+        raise ValueError("Not implemented")
+
 
 class PairingRandom(CommonPairing):
-    IS_COMPLETE = True
+    IS_COMPLETE: bool = True
 
     @override
     def make_pairings(
-        self, tour_round: IRound, players: set[IPlayer], pods: list[IPod]
+        self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]
     ) -> set[IPlayer]:
         byes = self.assign_byes(tour_round, players, pods)
         active_players = list(players - byes)
@@ -97,7 +95,7 @@ class PairingRandom(CommonPairing):
 
 
 class PairingSnake(CommonPairing):
-    IS_COMPLETE = True
+    IS_COMPLETE: bool = True
 
     # Snake pods logic for 2nd tour_round
     # First bucket is players with most points and least unique opponents
@@ -353,9 +351,9 @@ class PairingTop4(CommonPairing):
 class PairingSemiCommon(CommonPairing):
     N_BYES = -1
 
-    @classmethod
-    def advance_topcut(cls, tour_round: IRound, standings: list[IPlayer]) -> None:
-        byes = [standings[i] for i in range(cls.N_BYES)]
+    @override
+    def advance_topcut(self, tour_round: IRound, standings: list[IPlayer]) -> None:
+        byes = [standings[i] for i in range(self.N_BYES)]
 
         for p in byes:
             p.set_result(tour_round, IPlayer.EResult.BYE)

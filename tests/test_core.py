@@ -22,7 +22,7 @@ TournamentAction.LOGF = False  # type: ignore
 
 class TestPlayer(unittest.TestCase):
     def setUp(self) -> None:
-        self.t = Tournament()
+        self.t: Tournament = Tournament()
 
     def test_illegal_names(self):
         with open("tests/blns.txt", "r") as f:

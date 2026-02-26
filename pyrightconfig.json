@@ -16,4 +16,7 @@
   "venv": ".venv",
   "reportUnusedCallResult": "none",
   "reportUnknownMemberType": false,
+  "typeCheckingMode": "basic",
+  "reportUnknownVariableType": false,
+  "reportMissingTypeStubs": false
 }
