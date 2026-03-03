@@ -1142,10 +1142,18 @@ class TournamentConfigDialog(QDialog):
                 config=self.config,
             )
             self.parent().core = t
-            t.initialize_round()
+            t.new_round()
             TournamentAction.store(t)
         else:
-            self.parent().core.config = self.config
+            try:
+                self.parent().core.config = self.config
+            except Exception as e:
+                QMessageBox.critical(
+                    self,
+                    "Error",
+                    str(e),
+                )
+                return
 
         self.close()
 
@@ -1318,7 +1326,7 @@ if __name__ == "__main__":
         core = TournamentAction.load(args.open)
     elif not (core := TournamentAction.load()):
         core = Tournament()
-        core.initialize_round()
+        core.new_round()
 
     if args.pod_sizes:
         core.config.pod_sizes = args.pod_sizes
