@@ -782,3 +782,178 @@ class TestTablePreferences(unittest.TestCase):
         # Re-inflate and check that it's empty
         p_inflated = Player.inflate(self.t, serialized)
         self.assertEqual(p_inflated.table_preference, [])
+
+
+class TestSerialization(unittest.TestCase):
+    def setUp(self) -> None:
+        self.config = TournamentConfiguration(
+            pod_sizes=[4, 3],
+            allow_bye=True,
+            auto_export=False,
+        )
+        self.t = Tournament(self.config)
+        self.n_players = 64
+        self.t.add_player([f"P{i}" for i in range(self.n_players)])
+
+    def test_tournament_serialization(self):
+        # Add some players
+        self.t.create_pairings()
+
+        # Simulate some results so state is not empty
+        assert self.t.tour_round is not None
+        for pod in self.t.tour_round.pods:
+            self.t.report_win(pod.players[0])
+
+        # Serialize
+        serialized = self.t.serialize()
+
+        # We need to clear cache to avoid just pulling from memory
+        old_uid = self.t.uid
+        Tournament.CACHE.clear()
+
+        # Deserialize
+        t_inflated = Tournament.inflate(serialized)
+
+        # Check basic properties
+        self.assertEqual(t_inflated.uid, old_uid)
+        self.assertEqual(len(t_inflated.players), self.n_players)
+        self.assertEqual(len(t_inflated.rounds), 1)
+
+        # Check standings and points to ensure state was preserved
+        orig_standings = self.t.get_standings()
+        inflated_standings = t_inflated.get_standings()
+
+        self.assertEqual(len(orig_standings), len(inflated_standings))
+        for p1, p2 in zip(orig_standings, inflated_standings):
+            self.assertEqual(p1.uid, p2.uid)
+            self.assertEqual(
+                p1.rating(self.t.tour_round), p2.rating(t_inflated.tour_round)
+            )
+
+    def test_tournament_action_store_load(self):
+        import tempfile
+        import os
+
+        # Add some players
+        self.t.initialize_round()
+        self.t.add_player([f"P{i}" for i in range(10)])
+        self.t.create_pairings()
+
+        assert self.t.tour_round is not None
+        for pod in self.t.tour_round.pods:
+            self.t.report_win(pod.players[0])
+
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            log_path = os.path.join(tmpdirname, "test_log.json")
+            try:
+                TournamentAction.LOGF = log_path
+
+                # Store
+                TournamentAction.store(self.t)
+
+                # Clear memory
+                old_uid = self.t.uid
+                Tournament.CACHE.clear()
+
+                # Load
+                t_loaded = TournamentAction.load(log_path)
+
+                self.assertIsNotNone(t_loaded)
+                assert t_loaded is not None
+                self.assertEqual(t_loaded.uid, old_uid)
+                self.assertEqual(len(t_loaded.players), len(self.t.players))
+                self.assertEqual(len(t_loaded.rounds), 1)
+            finally:
+                TournamentAction.LOGF = False
+
+    def test_tournament_serialization_edge_cases(self):
+        # Adding edge cases like byes, dropped, game losses
+        self.config = TournamentConfiguration(
+            pod_sizes=[4],
+            allow_bye=True,
+            auto_export=False,
+        )
+        self.t = Tournament(self.config)
+        self.t.initialize_round()
+        players = self.t.add_player([f"P{i}" for i in range(14)])
+        self.t.create_pairings()
+
+        # Round 1
+        assert self.t.tour_round is not None
+        for pod in self.t.tour_round.pods:
+            self.t.report_win(pod.players[0])
+            self.t.report_draw([pod.players[1], pod.players[2]])
+            # player 3 gets a loss implicitly
+
+        # Drop a player
+        self.t.drop_player(players[13])
+
+        # Game loss for player 12
+        self.t.toggle_game_loss(players[12])
+
+        # Serialize
+        serialized = self.t.serialize()
+
+        # Clear cache
+        Tournament.CACHE.clear()
+
+        # Deserialize
+        t_inflated = Tournament.inflate(serialized)
+
+        # Assertions
+        assert t_inflated is not None
+        self.assertEqual(len(t_inflated.players), 14)
+
+        inflated_p13 = [p for p in t_inflated.players if p.uid == players[13].uid][0]
+        self.assertIn(inflated_p13, t_inflated.tour_round.dropped_players)
+
+        inflated_p12 = [p for p in t_inflated.players if p.uid == players[12].uid][0]
+        self.assertEqual(
+            inflated_p12.result(t_inflated.tour_round), Player.EResult.LOSS
+        )
+
+    def test_load_real_tournament_file(self):
+        """Test loading a real tournament file that was crashing the GUI"""
+        log_path = "logs/tournament-state-699863dcebe4eb89e31bc50b-2026-02-25.json"
+        if not os.path.exists(log_path):
+            self.skipTest("Real tournament file not available")
+
+        Tournament.CACHE.clear()
+        t_loaded = TournamentAction.load(log_path)
+
+        self.assertIsNotNone(t_loaded)
+        assert t_loaded is not None
+        self.assertGreater(len(t_loaded.players), 0)
+        self.assertGreater(len(t_loaded.rounds), 0)
+        # This was the exact crash: accessing tour_round when _round was None
+        self.assertIsNotNone(t_loaded.tour_round)
+
+    def test_tour_round_none_safe(self):
+        """Regression: tour_round should return None when no round initialized, not crash"""
+        t = Tournament(TournamentConfiguration(auto_export=False))
+        # Don't call initialize_round — _round stays None
+        self.assertIsNone(t.tour_round)
+
+    def test_double_load_no_collision(self):
+        """Regression: loading the same tournament twice should not crash with UUID collision"""
+        config = TournamentConfiguration(pod_sizes=[4], auto_export=False)
+        t = Tournament(config)
+        t.initialize_round()
+        t.add_player([f"DL{i}" for i in range(8)])
+        t.create_pairings()
+        assert t.tour_round is not None
+        for pod in t.tour_round.pods:
+            t.report_win(pod.players[0])
+
+        serialized = t.serialize()
+
+        # First inflate (reuses cached tournament since same UID)
+        t1 = Tournament.inflate(serialized)
+        assert t1 is not None
+        self.assertEqual(len(t1.players), 8)
+
+        # Second inflate — same data, should NOT raise ValueError
+        t2 = Tournament.inflate(serialized)
+        assert t2 is not None
+        self.assertEqual(len(t2.players), 8)
+        self.assertEqual(t1.uid, t2.uid)

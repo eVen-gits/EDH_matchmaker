@@ -855,8 +855,10 @@ class Tournament(ITournament):
         return {Player.get(self, x) for x in self._players}
 
     @property
-    def tour_round(self) -> Round:
-        return Round.get(self, self._round)  # type: ignore
+    def tour_round(self) -> Round | None:
+        if self._round is None:
+            return None
+        return Round.get(self, self._round)
 
     @tour_round.setter
     def tour_round(self, tour_round: Round):
@@ -2505,7 +2507,13 @@ class Player(IPlayer):
     @classmethod
     def inflate(cls, tour: Tournament, data: dict[str, Any]) -> Player:
         # assert tour.uid == UUID(data['tour'])
-        return cls(tour, data["name"], UUID(data["uid"]), data.get("decklist"))
+        uid = UUID(data["uid"])
+        if uid in tour.PLAYER_CACHE:
+            player = tour.PLAYER_CACHE[uid]
+            player.name = data["name"]
+            player.decklist = data.get("decklist")
+            return player
+        return cls(tour, data["name"], uid, data.get("decklist"))
 
 
 class Pod(IPod):
@@ -2772,7 +2780,11 @@ class Pod(IPod):
     @classmethod
     def inflate(cls, tour_round: Round, data: dict[str, Any]) -> Pod:
         assert tour_round.uid == UUID(data["tour_round"])
-        pod = cls(tour_round, data["table"], data["cap"], UUID(data["uid"]))
+        uid = UUID(data["uid"])
+        if uid in tour_round.tour.POD_CACHE:
+            pod = tour_round.tour.POD_CACHE[uid]
+        else:
+            pod = cls(tour_round, data["table"], data["cap"], uid)
         pod._players = [UUID(x) for x in data["players"]]
         pod._result = {UUID(x) for x in data["result"]}
         return pod
@@ -3335,18 +3347,29 @@ class Round(IRound):
         tour.discover_pairing_logic()
         stage = Round.Stage(data["stage"])
         logic = tour.get_pairing_logic(data["logic"])
+        uid = UUID(data["uid"])
 
-        new_round: Round = cls(
-            tour,
-            data["seq"],
-            stage=stage,
-            pairing_logic=logic,
-            uid=UUID(data["uid"]),
-            dropped={UUID(x) for x in data["dropped"]},
-            disabled={UUID(x) for x in data["disabled"]},
-            byes={UUID(x) for x in data["byes"]},
-            game_loss={UUID(x) for x in data["game_loss"]},
-        )
+        if uid in tour.ROUND_CACHE:
+            new_round = tour.ROUND_CACHE[uid]
+            new_round.seq = data["seq"]
+            new_round._stage = stage
+            new_round._logic = logic.name
+            new_round._dropped = {UUID(x) for x in data["dropped"]}
+            new_round._disabled = {UUID(x) for x in data["disabled"]}
+            new_round._byes = {UUID(x) for x in data["byes"]}
+            new_round._game_loss = {UUID(x) for x in data["game_loss"]}
+        else:
+            new_round = cls(
+                tour,
+                data["seq"],
+                stage=stage,
+                pairing_logic=logic,
+                uid=uid,
+                dropped={UUID(x) for x in data["dropped"]},
+                disabled={UUID(x) for x in data["disabled"]},
+                byes={UUID(x) for x in data["byes"]},
+                game_loss={UUID(x) for x in data["game_loss"]},
+            )
         pods = [Pod.inflate(new_round, pod) for pod in data["pods"]]
         new_round._pods = [pod.uid for pod in pods]
         new_round.refresh_player_location_map()
