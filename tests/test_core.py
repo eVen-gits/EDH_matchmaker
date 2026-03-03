@@ -931,10 +931,12 @@ class TestSerialization(unittest.TestCase):
             # player 3 gets a loss implicitly
 
         # Drop a player
-        self.t.drop_player(players[13])
+        player_to_drop = self.t.tour_round.pods[0].players[3]
+        self.t.drop_player(player_to_drop)
 
-        # Game loss for player 12
-        self.t.toggle_game_loss(players[12])
+        # Game loss for player
+        player_for_gameloss = self.t.tour_round.pods[1].players[3]
+        self.t.toggle_game_loss(player_for_gameloss)
 
         # Serialize
         serialized = self.t.serialize()
@@ -949,12 +951,12 @@ class TestSerialization(unittest.TestCase):
         assert t_inflated is not None
         self.assertEqual(len(t_inflated.players), 14)
 
-        inflated_p13 = [p for p in t_inflated.players if p.uid == players[13].uid][0]
-        self.assertIn(inflated_p13, t_inflated.tour_round.dropped_players)
+        inflated_drop = [p for p in t_inflated.players if p.uid == player_to_drop.uid][0]
+        self.assertIn(inflated_drop, t_inflated.tour_round.dropped_players)
 
-        inflated_p12 = [p for p in t_inflated.players if p.uid == players[12].uid][0]
+        inflated_gl = [p for p in t_inflated.players if p.uid == player_for_gameloss.uid][0]
         self.assertEqual(
-            inflated_p12.result(t_inflated.tour_round), Player.EResult.LOSS
+            inflated_gl.result(t_inflated.tour_round), Player.EResult.LOSS
         )
 
     def test_load_real_tournament_file(self):

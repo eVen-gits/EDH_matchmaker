@@ -47,7 +47,7 @@ if __name__ == "__main__":
 
     if xmlrunner:
         print("Running tests with XML generating runner...")
-        runner = xmlrunner.XMLTestRunner(output="test-reports", outsuffix="")
+        runner = xmlrunner.XMLTestRunner(output="test-reports", outsuffix="", verbosity=2)
     else:
         print("xmlrunner not found, running with standard TextTestRunner...")
         runner = unittest.TextTestRunner()
