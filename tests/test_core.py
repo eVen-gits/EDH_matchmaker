@@ -1,9 +1,9 @@
 import unittest
-from run_ui import generate_player_names
 from src.core import Tournament, Player, TournamentAction, TournamentConfiguration
 from uuid import uuid4
 import random
 import os
+from src.misc import generate_player_names
 
 # Disable tqdm in CI environment to avoid log noise
 if os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS"):
