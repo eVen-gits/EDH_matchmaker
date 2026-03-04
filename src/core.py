@@ -20,11 +20,9 @@ from uuid import UUID
 
 import numpy as np
 import requests
-from dotenv import load_dotenv
 from tqdm import tqdm
 from typing_extensions import override
 
-from .discord_engine import DiscordPoster
 from .interface import (
     IHashable,
     IPairingLogic,
@@ -38,9 +36,6 @@ from .interface import (
 
 _F = TypeVar("_F", bound=Callable[..., Any])
 
-# Load configuration from .env file
-load_dotenv()
-
 # import sys
 # sys.setrecursionlimit(5000)  # Increase recursion limit
 
@@ -52,7 +47,6 @@ class DataExport:
         """Enum for export formats."""
 
         PLAIN = 0
-        DISCORD = 1
         CSV = 2
         JSON = 3
 
@@ -62,7 +56,6 @@ class DataExport:
         CONSOLE = 0
         FILE = 1
         WEB = 2
-        DISCORD = 3
 
 
 class PodsExport(DataExport):
@@ -361,7 +354,6 @@ class StandingsExport(DataExport, IStandingsExport):
     }
 
     ext = {
-        DataExport.Format.DISCORD: ".txt",
         DataExport.Format.PLAIN: ".txt",
         DataExport.Format.CSV: ".csv",
     }
@@ -1825,7 +1817,7 @@ class Tournament(ITournament):
 
         Args:
             fields: A list of StandingsExport.Field to include in the standings.
-            style: The desired output format (e.g., PLAIN, CSV, DISCORD, JSON).
+            style: The desired output format (e.g., PLAIN, CSV, JSON).
             tour_round: The round for which to generate standings. Defaults to the current round.
             standings: Pre-calculated standings. If None, standings will be calculated.
 
@@ -1882,11 +1874,6 @@ class Tournament(ITournament):
                 "Log not saved - CSV not implemented.",
                 level=Log.Level.WARNING,
             )
-        elif style == StandingsExport.Format.DISCORD:
-            Log.log(
-                "Log not saved - DISCORD not implemented.",
-                level=Log.Level.WARNING,
-            )
         elif style == StandingsExport.Format.JSON:
             Log.log(
                 "Log not saved - JSON not implemented.",
@@ -1919,12 +1906,12 @@ class Tournament(ITournament):
         var_export_param: Any,  # pyright: ignore[reportExplicitAny, reportAny]
         target_type: StandingsExport.Target,
     ) -> None:
-        """Exports a string of data to a specified target (file, web, discord, console).
+        """Exports a string of data to a specified target (file, web, console).
 
         Args:
             data: The string data to export.
             var_export_param: Parameter specific to the target type (e.g., file path, log level).
-            target_type: The target for the export (FILE, WEB, DISCORD, CONSOLE).
+            target_type: The target for the export (FILE, WEB, CONSOLE).
         """
         if StandingsExport.Target.FILE == target_type:
             if not os.path.exists(os.path.dirname(var_export_param)):
@@ -1956,10 +1943,6 @@ class Tournament(ITournament):
                 target=self.send_request, args=(url, request_data, headers)
             )
             thread.start()
-
-        if StandingsExport.Target.DISCORD == target_type:
-            instance = DiscordPoster.instance()
-            instance.post_message(data)
 
         if StandingsExport.Target.CONSOLE == target_type:
             if not isinstance(var_export_param, Log.Level):
@@ -2246,7 +2229,7 @@ class Player(IPlayer):
             [
                 p
                 for p in self.games(tour_round)
-                if p.result_type == Pod.EResult.LOSS and self.uid in p._result
+                if p.result_type != Pod.EResult.PENDING and self.uid not in p._result
             ]
         )
 
@@ -2658,7 +2641,6 @@ class Pod(IPod):
         self._players: list[UUID] = list()
         self._result: set[UUID] = set()
         # self._players: list[UUID] = list() #TODO: make references to players
-        # self.discord_message_id: None|int = None
 
     @property
     def table(self) -> int:
