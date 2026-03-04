@@ -1,23 +1,24 @@
+import os
 import unittest
-from src.core import *
-import names
-import random
-from tqdm import tqdm
-from faker import Faker
 import time
-from itertools import product
+
+import pytest
+from faker import Faker
+
+if os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS"):
+    def tqdm(iterable, *args, **kwargs):
+        return iterable
+else:
+    from tqdm import tqdm
+
+from src.core import Tournament, TournamentAction, TournamentConfiguration
 
 fkr = Faker()
-
 TournamentAction.LOGF = False  # type: ignore
 
 
+@pytest.mark.performance
 class TestPerformance(unittest.TestCase):
-    def setUp(self):
-        # Reset the Faker generator to ensure consistent names if needed,
-        # though not strictly necessary for performance tests.
-        pass
-
     def test_new_round_speed(self):
         t = Tournament(
             TournamentConfiguration(
@@ -89,50 +90,7 @@ class TestPerformance(unittest.TestCase):
                 self.assertLess(total_time / t.config.n_rounds, n * player_time_ratio)
 
 
-class TestLarge(unittest.TestCase):
-    def test_many_players(self):
-        tour_sizes = [2**i for i in range(5, 13)]
-        n_rounds = 5
-
-        for n in tqdm(tour_sizes, desc="Many players"):
-            with self.subTest(n=str(n).zfill(2)):
-                t = Tournament(
-                    TournamentConfiguration(
-                        pod_sizes=[4, 3],
-                        allow_bye=False,
-                        snake_pods=True,
-                        auto_export=False,
-                    )
-                )
-                t.new_round()
-
-                t.add_player([f"{i}:{fkr.name()}" for i in range(n)])
-                for _ in range(n_rounds):
-                    ok = t.create_pairings()
-                    self.assertTrue(ok)
-                    t.random_results()
-
-    def test_many_rounds(self):
-        tour_size = 256
-        n_rounds = 10
-
-        t = Tournament(
-            TournamentConfiguration(
-                pod_sizes=[4, 3],
-                allow_bye=False,
-                snake_pods=True,
-                auto_export=False,
-            )
-        )
-        t.new_round()
-
-        t.add_player([f"{i}:{fkr.name()}" for i in range(tour_size)])
-        for i in tqdm(range(n_rounds), desc="Many rounds"):
-            with self.subTest(n=str(i + 1).zfill(2)):
-                t.create_pairings()
-                t.random_results()
-
-
+@pytest.mark.performance
 class TestLarge(unittest.TestCase):
     def test_many_players(self):
         tour_sizes = [2**i for i in range(5, 13)]

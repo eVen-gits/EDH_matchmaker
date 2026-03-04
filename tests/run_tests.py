@@ -11,29 +11,23 @@ try:
 except ImportError:
     xmlrunner = None
 
+EXCLUDED_CLASSES = {"TestPerformance", "TestLarge"}
+
 
 def load_tests():
-    # Discover tests in tests.test_core
-    # We explicitly only want to run tests from test_core as requested
     loader = unittest.TestLoader()
-    suite = loader.loadTestsFromName("tests.test_core")
+    suite = loader.discover(start_dir="tests", pattern="test_*.py")
 
     filtered_suite = unittest.TestSuite()
-
-    # Filter out TestPerformance
-    for test in suite:
-        # test_core.py creates a suite where each item might be a TestSuite for a TestCase class
-        # or individual tests. We need to handle nested suites.
-        if isinstance(test, unittest.TestSuite):
-            for t in test:
-                # Check if the test belongs to TestPerformance class
-                if t.__class__.__name__ == "TestPerformance":
-                    continue
-                filtered_suite.addTest(t)
-        else:
-            if test.__class__.__name__ == "TestPerformance":
-                continue
-            filtered_suite.addTest(test)
+    for test_group in suite:
+        for test_case in test_group:
+            if isinstance(test_case, unittest.TestSuite):
+                for t in test_case:
+                    if t.__class__.__name__ not in EXCLUDED_CLASSES:
+                        filtered_suite.addTest(t)
+            else:
+                if test_case.__class__.__name__ not in EXCLUDED_CLASSES:
+                    filtered_suite.addTest(test_case)
 
     return filtered_suite
 
@@ -50,7 +44,7 @@ if __name__ == "__main__":
         runner = xmlrunner.XMLTestRunner(output="test-reports", outsuffix="", verbosity=2)
     else:
         print("xmlrunner not found, running with standard TextTestRunner...")
-        runner = unittest.TextTestRunner()
+        runner = unittest.TextTestRunner(verbosity=2)
 
     result = runner.run(suite)
 

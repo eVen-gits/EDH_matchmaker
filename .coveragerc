@@ -1,0 +1,9 @@
+[run]
+source = src
+omit =
+    run_ui.py
+
+[report]
+show_missing = true
+skip_covered = false
+precision = 1
