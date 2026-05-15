@@ -1015,7 +1015,7 @@ class Tournament(ITournament):
                 - True if the configuration is valid.
                 - False if the configuration is invalid.
         """
-        if len(self.rounds) >= config.n_rounds:
+        if len(self.swiss_rounds) > config.n_rounds:
             raise ValueError(
                 "Tournament has already reached the maximum number of rounds."
             )
