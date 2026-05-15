@@ -139,45 +139,93 @@ class TestPlayer(unittest.TestCase):
         self.assertEqual(p2.uid, u1)
         self.assertEqual(p2.decklist, decklist_url)
 
-    def test_wins_losses_draws_byes(self):
-        cfg = TournamentConfiguration(
-            pod_sizes=[4], allow_bye=True, max_byes=2, auto_export=False, win_points=5
-        )
+    def test_wins_count(self):
+        cfg = TournamentConfiguration(pod_sizes=[4], allow_bye=False, auto_export=False)
+        t = Tournament(cfg)
+        t.new_round()
+        t.add_player([f"P{i}" for i in range(4)])
+        t.create_pairings()
+        r1_winner = t.tour_round.pods[0].players[0]
+        r2_winner = t.tour_round.pods[0].players[1]
+
+        t.report_win(r1_winner)
+
+        t.new_round()
+        t.create_pairings()
+        t.report_win(r2_winner)
+
+        t.new_round()
+        t.create_pairings()
+        t.report_draw(t.tour_round.pods[0].players)
+
+        # One win awarded per round → 2 total across all players
+        self.assertEqual(sum(p.wins(t.tour_round) for p in t.players), 2)
+        self.assertEqual(r1_winner.wins(t.tour_round), 1)
+        self.assertEqual(r2_winner.wins(t.tour_round), 1)
+        self.assertEqual(r2_winner.wins(t.rounds[0]), 0)
+
+    def test_losses_count(self):
+        cfg = TournamentConfiguration(pod_sizes=[4], allow_bye=False, auto_export=False)
+        t = Tournament(cfg)
+        t.new_round()
+        t.add_player([f"P{i}" for i in range(4)])
+        t.create_pairings()
+
+        r1_winner = t.tour_round.pods[0].players[0]
+        r2_winner = t.tour_round.pods[0].players[1]
+        r1_losers = list(t.tour_round.pods[0].players[1:])
+        r2_losers = list([r1_winner] + t.tour_round.pods[0].players[2:])
+        t.report_win(r1_winner)
+
+        t.new_round()
+        t.create_pairings()
+        t.report_win(r2_winner)
+
+        # 3 losers per round × 2 rounds = 6 total losses
+        self.assertEqual(sum(p.losses(t.tour_round) for p in t.players), 6)
+        for p in r1_losers:
+            self.assertGreaterEqual(p.losses(t.tour_round), 1)
+        for p in r2_losers:
+            self.assertGreaterEqual(p.losses(t.tour_round), 1)
+
+    def test_draws_count(self):
+        cfg = TournamentConfiguration(pod_sizes=[4], allow_bye=False, auto_export=False)
+        t = Tournament(cfg)
+        t.new_round()
+        t.add_player([f"P{i}" for i in range(4)])
+        t.create_pairings()
+        t.report_draw(t.tour_round.pods[0].players)
+
+        t.new_round()
+        t.create_pairings()
+        t.report_draw(t.tour_round.pods[0].players)
+
+        # Every player drew both rounds
+        for p in t.players:
+            self.assertEqual(p.draws(t.tour_round), 2)
+            self.assertEqual(p.wins(t.tour_round), 0)
+            self.assertEqual(p.losses(t.tour_round), 0)
+
+    def test_byes_count(self):
+        cfg = TournamentConfiguration(pod_sizes=[4], allow_bye=True, max_byes=2, auto_export=False)
         t = Tournament(cfg)
         t.new_round()
         t.add_player([f"P{i}" for i in range(9)])
         t.create_pairings()
-
-        # 9 players = 2 pods of 4 + 1 bye
-        bye_player = next(iter(t.tour_round.byes))
-
-        # Report all results so both pods are "done"
+        r1_bye = next(iter(t.tour_round.byes))
         for pod in t.tour_round.pods:
             t.report_win(pod.players[0])
 
-        # Wins: each pod[0] player won once
-        for pod in t.tour_round.pods:
-            self.assertEqual(pod.players[0].wins(t.tour_round), 1)
-            self.assertEqual(pod.players[1].losses(t.tour_round), 1)
-
-        # Bye player got a bye
-        self.assertEqual(bye_player.byes(t.tour_round), 1)
-
-    def test_draws_counted(self):
-        cfg = TournamentConfiguration(
-            pod_sizes=[4], allow_bye=False, auto_export=False
-        )
-        t = Tournament(cfg)
         t.new_round()
-        t.add_player([f"P{i}" for i in range(8)])
         t.create_pairings()
+        r2_bye = next(iter(t.tour_round.byes))
+        for pod in t.tour_round.pods:
+            t.report_win(pod.players[0])
 
-        pod = t.tour_round.pods[0]
-        # All 4 players draw
-        t.report_draw(pod.players)
-
-        for p in pod.players:
-            self.assertEqual(p.draws(t.tour_round), 1)
+        # One bye awarded per round → 2 total across all players
+        self.assertEqual(sum(p.byes(t.tour_round) for p in t.players), 2)
+        self.assertGreaterEqual(r1_bye.byes(t.tour_round), 1)
+        self.assertGreaterEqual(r2_bye.byes(t.tour_round), 1)
 
     def test_rating_after_round(self):
         cfg = TournamentConfiguration(
