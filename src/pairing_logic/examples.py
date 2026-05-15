@@ -320,30 +320,14 @@ class PairingTop4(CommonPairing):
     def make_pairings(
         self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]
     ) -> set[IPlayer]:
-        standings = tour_round.tour.get_standings(tour_round)
+        prev_round = tour_round.tour.previous_round(tour_round)
+        standings = tour_round.tour.get_standings(prev_round)
         assignable_players = sorted(
             tour_round.active_players, key=lambda x: standings.index(x)
         )
 
-        # Distribute players across pods in snake order
-        pod_index = 0
-        forward = True
-
         for p in assignable_players:
-            # Add player to current pod
-            pods[pod_index].add_player(p)
-
-            # Move to next pod
-            if forward:
-                pod_index += 1
-                if pod_index >= len(pods):
-                    pod_index = len(pods) - 1
-                    forward = False
-            else:
-                pod_index -= 1
-                if pod_index < 0:
-                    pod_index = 0
-                    forward = True
+            pods[0].add_player(p)
 
         return players
 
