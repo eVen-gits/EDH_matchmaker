@@ -354,8 +354,12 @@ class PairingSemiCommon(CommonPairing):
         )
 
         n_pods = len(pods)
+        pod_size = len(assignable_players) // n_pods
         for i, p in enumerate(assignable_players):
-            pods[i % n_pods].add_player(p)
+            pass_num = i // n_pods
+            pos = i % n_pods
+            pod_idx = pos if pass_num % 2 == 0 else (n_pods - 1 - pos)
+            pods[pod_idx].add_player(p)
         return players
 
 
@@ -381,19 +385,6 @@ class PairingTop10(PairingSemiCommon):
     def make_pairings(
         self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]
     ) -> set[IPlayer]:
-        """standings = tour_round.tour.get_standings(tour_round)
-
-        p1 = standings[0]
-        p2 = standings[1]
-        p1.set_result(tour_round, IPlayer.EResult.BYE)
-        p2.set_result(tour_round, IPlayer.EResult.BYE)
-
-        assignable_players = sorted((tour_round.active_players - tour_round.byes), key=lambda x: standings.index(x))
-
-        for i,p in enumerate(assignable_players):
-            pods[i%2].add_player(p)
-
-        return players"""
         players = PairingSemiCommon.make_pairings(
             self.N_BYES, tour_round=tour_round, players=players, pods=pods
         )
