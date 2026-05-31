@@ -5,7 +5,7 @@ from itertools import product
 
 from faker import Faker
 
-from src.core import Player, Tournament, TournamentAction, TournamentConfiguration
+from src.core import Player, Round, Tournament, TournamentAction, TournamentConfiguration
 
 fkr = Faker()
 TournamentAction.LOGF = False  # type: ignore
@@ -266,3 +266,66 @@ class TestTablePreferences(unittest.TestCase):
 
         p_inflated = Player.inflate(self.t, serialized)
         self.assertEqual(p_inflated.table_preference, [])
+
+
+class TestResetPodsConfigChange(unittest.TestCase):
+    """create_pairings() must pick up config changes regardless of when they happen."""
+
+    def _run_swiss(self, t: Tournament, n_rounds: int) -> None:
+        for _ in range(n_rounds):
+            t.create_pairings()
+            t.random_results()
+            t.new_round()
+
+    def _make_config(self, top_cut=TournamentConfiguration.TopCut.TOP_4) -> TournamentConfiguration:
+        return TournamentConfiguration(
+            pod_sizes=[4, 3],
+            n_rounds=5,
+            top_cut=top_cut,
+            auto_export=False,
+        )
+
+    def test_config_change_before_reset(self) -> None:
+        """Scenario 1: edit config → reset pods → create pairings picks up new config."""
+        t = Tournament(self._make_config(TournamentConfiguration.TopCut.TOP_4))
+        t.add_player([f"P{i}" for i in range(16)])
+        self._run_swiss(t, 5)
+
+        t.create_pairings()
+        self.assertEqual(t.tour_round.stage, Round.Stage.TOP_4)
+
+        t.config = self._make_config(TournamentConfiguration.TopCut.TOP_7)
+        t.reset_pods()
+
+        ok = t.create_pairings()
+        self.assertTrue(ok)
+        self.assertEqual(t.tour_round.stage, Round.Stage.TOP_7)
+
+    def test_config_change_after_reset(self) -> None:
+        """Scenario 2: reset pods → edit config → create pairings picks up new config."""
+        t = Tournament(self._make_config(TournamentConfiguration.TopCut.TOP_4))
+        t.add_player([f"P{i}" for i in range(16)])
+        self._run_swiss(t, 5)
+
+        t.create_pairings()
+        self.assertEqual(t.tour_round.stage, Round.Stage.TOP_4)
+
+        t.reset_pods()
+        t.config = self._make_config(TournamentConfiguration.TopCut.TOP_7)
+
+        ok = t.create_pairings()
+        self.assertTrue(ok)
+        self.assertEqual(t.tour_round.stage, Round.Stage.TOP_7)
+
+    def test_swiss_stage_unchanged_after_reset(self) -> None:
+        """reset_pods() on a Swiss round without config change keeps SWISS stage."""
+        t = Tournament(self._make_config(TournamentConfiguration.TopCut.NONE))
+        t.add_player([f"P{i}" for i in range(16)])
+        t.create_pairings()
+        self.assertEqual(t.tour_round.stage, Round.Stage.SWISS)
+
+        t.reset_pods()
+
+        ok = t.create_pairings()
+        self.assertTrue(ok)
+        self.assertEqual(t.tour_round.stage, Round.Stage.SWISS)

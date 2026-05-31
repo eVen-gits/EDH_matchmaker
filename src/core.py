@@ -1290,85 +1290,84 @@ class Tournament(ITournament):
 
         return None
 
-    def __initialize_round(self) -> bool:
-        """Initializes a new round in the tournament.
+    def __compute_stage_and_logic(
+        self, seq: int, prev_stage: Round.Stage | None
+    ) -> tuple[Round.Stage, IPairingLogic] | None:
+        """Computes the stage and pairing logic for a round at the given sequence position.
 
-        This method determines the appropriate stage (Swiss, Top Cut) and pairing logic based on the
-        tournament configuration and current progress. It does not create pairings, only sets up the round structure.
+        Args:
+            seq: The 0-indexed sequence number of the round.
+            prev_stage: The stage of the immediately preceding round, or None if this is the first round.
 
         Returns:
-            bool: True if a new ro  und was successfully initialized. False if a round is already in progress,
-                  the maximum number of rounds has been reached, or the tournament is completed.
+            A (stage, logic) tuple, or None if no more rounds should be created/configured.
         """
-        if self._round is not None and not self.tour_round.done:
-            return False
-        seq = len(self.rounds)
         stage = Round.Stage.SWISS
-        logic = None
-        if seq >= self.config.n_rounds and self.last_round:
+        logic: IPairingLogic | None = None
+        if seq >= self.config.n_rounds and prev_stage is not None:
             if self.config.top_cut == TournamentConfiguration.TopCut.NONE:
                 Log.log("Maximum number of rounds reached.", level=Log.Level.WARNING)
-                return False
+                return None
             if self.config.top_cut == TournamentConfiguration.TopCut.TOP_4:
-                if self.last_round.stage == Round.Stage.SWISS:
+                if prev_stage == Round.Stage.SWISS:
                     logic = self.get_pairing_logic("PairingTop4")
                     stage = Round.Stage.TOP_4
                 else:
                     Log.log("Tournament completed.")
-                    return False
+                    return None
             elif self.config.top_cut == TournamentConfiguration.TopCut.TOP_7:
-                if self.last_round.stage == Round.Stage.SWISS:
+                if prev_stage == Round.Stage.SWISS:
                     stage = Round.Stage.TOP_7
                     logic = self.get_pairing_logic("PairingTop7")
-                elif self.last_round.stage == Round.Stage.TOP_7:
+                elif prev_stage == Round.Stage.TOP_7:
                     stage = Round.Stage.TOP_4
                     logic = self.get_pairing_logic("PairingTop4")
                 else:
                     Log.log("Tournament completed.")
-                    return False
+                    return None
             elif self.config.top_cut == TournamentConfiguration.TopCut.TOP_10:
-                if self.last_round.stage == Round.Stage.SWISS:
+                if prev_stage == Round.Stage.SWISS:
                     stage = Round.Stage.TOP_10
                     logic = self.get_pairing_logic("PairingTop10")
-                elif self.last_round.stage == Round.Stage.TOP_10:
+                elif prev_stage == Round.Stage.TOP_10:
                     stage = Round.Stage.TOP_4
                     logic = self.get_pairing_logic("PairingTop4")
                 else:
                     Log.log("Tournament completed.")
-                    return False
+                    return None
             elif self.config.top_cut == TournamentConfiguration.TopCut.TOP_13:
-                if self.last_round.stage == Round.Stage.SWISS:
+                if prev_stage == Round.Stage.SWISS:
                     stage = Round.Stage.TOP_13
                     logic = self.get_pairing_logic("PairingTop13")
-                elif self.last_round.stage == Round.Stage.TOP_13:
+                elif prev_stage == Round.Stage.TOP_13:
                     stage = Round.Stage.TOP_4
                     logic = self.get_pairing_logic("PairingTop4")
                 else:
                     Log.log("Tournament completed.")
-                    return False
+                    return None
             elif self.config.top_cut == TournamentConfiguration.TopCut.TOP_16:
-                if self.last_round.stage == Round.Stage.SWISS:
+                if prev_stage == Round.Stage.SWISS:
                     stage = Round.Stage.TOP_16
                     logic = self.get_pairing_logic("PairingTop16")
-                elif self.last_round.stage == Round.Stage.TOP_16:
+                elif prev_stage == Round.Stage.TOP_16:
                     stage = Round.Stage.TOP_4
                     logic = self.get_pairing_logic("PairingTop4")
                 else:
                     Log.log("Tournament completed.")
-                    return False
+                    return None
             elif self.config.top_cut == TournamentConfiguration.TopCut.TOP_40:
-                if self.last_round.stage == Round.Stage.SWISS:
+                if prev_stage == Round.Stage.SWISS:
                     stage = Round.Stage.TOP_40
                     logic = self.get_pairing_logic("PairingTop40")
-                elif self.last_round.stage == Round.Stage.TOP_40:
+                elif prev_stage == Round.Stage.TOP_40:
                     stage = Round.Stage.TOP_16
                     logic = self.get_pairing_logic("PairingTop16")
-                elif self.last_round.stage == Round.Stage.TOP_16:
+                elif prev_stage == Round.Stage.TOP_16:
                     stage = Round.Stage.TOP_4
                     logic = self.get_pairing_logic("PairingTop4")
                 else:
                     Log.log("Tournament completed.")
-                    return False
+                    return None
             else:
                 raise ValueError(f"Unknown top cut: {self.config.top_cut}")
         else:
@@ -1381,10 +1380,27 @@ class Tournament(ITournament):
 
         if not logic:
             Log.log("No pairing logic found.", level=Log.Level.ERROR)
+            return None
+        return (stage, logic)
+
+    def __initialize_round(self) -> bool:
+        """Initializes a new round in the tournament.
+
+        This method determines the appropriate stage (Swiss, Top Cut) and pairing logic based on the
+        tournament configuration and current progress. It does not create pairings, only sets up the round structure.
+
+        Returns:
+            bool: True if a new round was successfully initialized. False if a round is already in progress,
+                  the maximum number of rounds has been reached, or the tournament is completed.
+        """
+        if self._round is not None and not self.tour_round.done:
             return False
-        elif not stage:
-            Log.log("No stage found.", level=Log.Level.ERROR)
+        seq = len(self.rounds)
+        prev_stage = self.last_round.stage if self.last_round else None
+        result = self.__compute_stage_and_logic(seq, prev_stage)
+        if result is None:
             return False
+        stage, logic = result
         new_round = Round(
             self,
             len(self.rounds),
@@ -1412,7 +1428,16 @@ class Tournament(ITournament):
             ok = self.__initialize_round()
             if not ok:
                 return False
-        # self.last_round._byes.clear()
+        else:
+            # Round exists but is not done — refresh stage/logic so any config changes
+            # made since the round was initialized (or since the last reset) are applied.
+            tour_round = self.last_round
+            seq = tour_round.seq
+            prev_round = self.rounds[seq - 1] if seq > 0 else None
+            prev_stage = prev_round.stage if prev_round else None
+            result = self.__compute_stage_and_logic(seq, prev_stage)
+            if result:
+                tour_round.stage, tour_round.logic = result
         assert self.last_round is not None
         if not self.last_round.all_players_assigned:
             self.last_round.create_pairings()
@@ -3283,7 +3308,12 @@ class Round(IRound):
         players to the pods created by `create_pods`.
         """
         if self.stage != Round.Stage.SWISS:
-            standings = self.tour.get_standings(self.tour.previous_round(self))
+            # Reset disabled set to the previous round's baseline so that re-pairing
+            # after reset_pods() + config change doesn't keep stale topcut entries.
+            prev_round = self.tour.previous_round(self)
+            if prev_round:
+                self._disabled = set(prev_round._disabled)
+            standings = self.tour.get_standings(prev_round)
             self.disable_topcut(standings)
             if self.stage in [
                 Round.Stage.TOP_7,
