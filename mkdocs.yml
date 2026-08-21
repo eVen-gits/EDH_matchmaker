@@ -29,6 +29,7 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - Tournament Log Format Spec: tournament-log-spec.md
   - API Reference:
       - src.core: src/core.md
       - src.interface: src/interface.md

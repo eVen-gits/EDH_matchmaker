@@ -13,7 +13,7 @@ import pkgutil
 import random
 import threading
 from collections.abc import Iterable
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum, IntEnum
 from pathlib import Path
 from uuid import UUID
@@ -29,6 +29,7 @@ from .interface import (
     IPlayer,
     IPod,
     IRound,
+    IScoringLogic,
     IStandingsExport,
     ITournament,
     ITournamentConfiguration,
@@ -528,6 +529,12 @@ class Log:
             cls.log(str(e), level=cls.Level.ERROR)
 
 
+# Version of the tournament-log JSON format written by TournamentAction.store.
+# Bump this, and add a matching format_version branch in Tournament.inflate,
+# whenever a change to serialize()/inflate() is not backward compatible.
+TOURNAMENT_LOG_FORMAT_VERSION = "1.0"
+
+
 class TournamentAction:
     """Serializable action that will be stored in tournament log and can be restored"""
 
@@ -569,8 +576,12 @@ class TournamentAction:
             assert isinstance(cls.LOGF, str)
             if not os.path.exists(os.path.dirname(cls.LOGF)):
                 os.makedirs(os.path.dirname(cls.LOGF))
-            with open(cls.LOGF, "w") as f:
+            # Write to a temp file and rename over the target so a crash or
+            # kill mid-write never leaves a truncated, unparseable log file.
+            tmp_path = f"{cls.LOGF}.tmp"
+            with open(tmp_path, "w") as f:
                 json.dump(tournament.serialize(), f, indent=4)
+            os.replace(tmp_path, cls.LOGF)
 
     @classmethod
     def load(cls, logdir="logs/default.json") -> Tournament | None:
@@ -658,6 +669,21 @@ class TournamentConfiguration(ITournamentConfiguration):
                 0.1458,
             ],
         )
+        # Scoring logic selection - see src/scoring_logic/examples.py.
+        # "ScoringDefault" reproduces the fixed win/draw/bye behavior
+        # above unchanged; the remaining four fields only take effect
+        # under "ScoringHareruya".
+        self.scoring_logic: str = kwargs.get("scoring_logic", "ScoringDefault")
+        self.wager_percent: float = kwargs.get("wager_percent", 0.07)
+        self.wagering_starting_points: float = kwargs.get(
+            "wagering_starting_points", 1000
+        )
+        self.draw_redistribution_fraction: float = kwargs.get(
+            "draw_redistribution_fraction", 1.0
+        )
+        self.draw_distribution_shape: float = kwargs.get(
+            "draw_distribution_shape", 1.0
+        )
 
     @property
     @override
@@ -720,6 +746,11 @@ class TournamentConfiguration(ITournamentConfiguration):
             "standings_export": self.standings_export.serialize(),
             "global_wr_seats": self.global_wr_seats,
             "top_cut": self.top_cut.value,
+            "scoring_logic": self.scoring_logic,
+            "wager_percent": self.wager_percent,
+            "wagering_starting_points": self.wagering_starting_points,
+            "draw_redistribution_fraction": self.draw_redistribution_fraction,
+            "draw_distribution_shape": self.draw_distribution_shape,
         }
 
     @classmethod
@@ -737,6 +768,15 @@ class TournamentConfiguration(ITournamentConfiguration):
             standings_export=StandingsExport.inflate(data["standings_export"]),
             global_wr_seats=data["global_wr_seats"],
             top_cut=TournamentConfiguration.TopCut(data["top_cut"]),
+            # Additive fields - absent in files written before this
+            # version, so read with defaults for backward compatibility.
+            scoring_logic=data.get("scoring_logic", "ScoringDefault"),
+            wager_percent=data.get("wager_percent", 0.07),
+            wagering_starting_points=data.get("wagering_starting_points", 1000),
+            draw_redistribution_fraction=data.get(
+                "draw_redistribution_fraction", 1.0
+            ),
+            draw_distribution_shape=data.get("draw_distribution_shape", 1.0),
         )
 
 
@@ -757,6 +797,7 @@ class Tournament(ITournament):
     CACHE: dict[UUID, IHashable] = {}
 
     _pairing_logic_cache: dict[str, type[IPairingLogic]] = {}
+    _scoring_logic_cache: dict[str, type[IScoringLogic]] = {}
 
     @classmethod
     def discover_pairing_logic(cls) -> None:
@@ -814,6 +855,58 @@ class Tournament(ITournament):
 
         return cls._pairing_logic_cache[logic_name]
 
+    @classmethod
+    def discover_scoring_logic(cls) -> None:
+        """Discover and cache all scoring logic implementations from src/scoring_logic."""
+        if cls._scoring_logic_cache:
+            return
+
+        base_dir = Path(__file__).parent.parent
+        scoring_logic_dir = base_dir / "src" / "scoring_logic"
+
+        for module_info in pkgutil.iter_modules([str(scoring_logic_dir)]):
+            try:
+                module = importlib.import_module(
+                    f"src.scoring_logic.{module_info.name}"
+                )
+
+                for name, obj in module.__dict__.items():
+                    if (
+                        isinstance(obj, type)
+                        and issubclass(obj, IScoringLogic)
+                        and obj != IScoringLogic
+                        and obj.IS_COMPLETE
+                    ):
+                        if obj.__name__ in cls._scoring_logic_cache:
+                            raise ValueError(
+                                f"Scoring logic {obj.__name__} already exists"
+                            )
+                        cls._scoring_logic_cache[obj.__name__] = obj(
+                            name=f"{obj.__name__}"
+                        )
+            except Exception as e:
+                Log.log(
+                    f"Failed to import scoring logic module {module_info.name}: {e}",
+                    level=Log.Level.WARNING,
+                )
+
+    @classmethod
+    def get_scoring_logic(cls, logic_name: str) -> IScoringLogic:
+        """Get a scoring logic instance by name.
+
+        Args:
+            logic_name: The name of the scoring logic.
+
+        Returns:
+            The scoring logic instance.
+        """
+        cls.discover_scoring_logic()
+
+        if logic_name not in cls._scoring_logic_cache:
+            raise ValueError(f"Unknown scoring logic: {logic_name}")
+
+        return cls._scoring_logic_cache[logic_name]
+
     def __init__(
         self,
         config: TournamentConfiguration | None = None,
@@ -840,6 +933,7 @@ class Tournament(ITournament):
         # self._dropped: list[UUID] = list()
         # self._disabled: list[UUID] = list()  # Players disabled from top cut (but still in tournament)
         self._round: UUID | None = None
+        self.created_at: datetime = datetime.now(timezone.utc)
 
         # Direct setting - don't want to overwrite old log file
         # self.new_round()
@@ -1709,6 +1803,10 @@ class Tournament(ITournament):
         The rating is the sum of the points for the player in the Swiss rounds up to and including the given round.
         If the round is not a Swiss round, the rating is the sum of the points for the player in the last Swiss round.
 
+        Delegates to the tournament's configured scoring logic
+        (config.scoring_logic, default "ScoringDefault") - see
+        src/scoring_logic/examples.py.
+
         Args:
             player: The player for whom to calculate the rating.
             tour_round: The round up to which to calculate the rating.
@@ -1716,20 +1814,17 @@ class Tournament(ITournament):
         Returns:
             The player's rating as a float.
         """
-        points = 0
-        for i, i_tour_round in enumerate(self.rounds):
-            if i_tour_round.stage != Round.Stage.SWISS:
-                break
-            round_result = player.result(i_tour_round)
-            if round_result == Player.EResult.WIN:
-                points += self.config.win_points
-            elif round_result == Player.EResult.DRAW:
-                points += self.config.draw_points
-            elif round_result == Player.EResult.BYE:
-                points += self.config.bye_points
-            if i_tour_round == tour_round:
-                break
-        return points
+        # ponytail: get_standings() calls this once per player, and
+        # ScoringHareruya.rating() replays every player's stack to
+        # answer one player's query (payouts are interdependent), so
+        # standings under wagering cost O(players^2 * rounds) instead
+        # of O(players * rounds). Fine at real tournament sizes; if a
+        # very large wagering tournament's standings become slow,
+        # cache compute_ratings() per tour_round on the Tournament
+        # instance, invalidated on the next mutating action.
+        return self.get_scoring_logic(self.config.scoring_logic).rating(
+            player, tour_round
+        )
 
     # MISC ACTIONS
 
@@ -1990,6 +2085,10 @@ class Tournament(ITournament):
         """
 
         data: dict[str, Any] = {}
+        data["format_version"] = TOURNAMENT_LOG_FORMAT_VERSION
+        data["generator"] = {"name": "EDH_matchmaker"}
+        data["created_at"] = self.created_at.isoformat()
+        data["updated_at"] = datetime.now(timezone.utc).isoformat()
         data["uid"] = str(self.uid)
         data["config"] = self.config.serialize()
         data["players"] = list(p.serialize() for p in self.players)
@@ -2011,12 +2110,25 @@ class Tournament(ITournament):
         Returns:
             Tournament: The reconstructed Tournament instance.
         """
+        format_version = data.get("format_version", TOURNAMENT_LOG_FORMAT_VERSION)
+        if format_version != TOURNAMENT_LOG_FORMAT_VERSION:
+            Log.log(
+                f"Loading tournament log with unknown format_version "
+                f"{format_version!r} (expected {TOURNAMENT_LOG_FORMAT_VERSION!r}).",
+                level=Log.Level.WARNING,
+            )
+
         config = TournamentConfiguration.inflate(data["config"])
         tour_uid = UUID(data["uid"])
         if tour_uid in Tournament.CACHE:
             tour = Tournament.CACHE[tour_uid]
         else:
             tour = cls(config, tour_uid)
+        # Older log files (before format_version existed) have no created_at;
+        # __init__ already stamped tour.created_at with the load time, which
+        # is the best available fallback.
+        if "created_at" in data:
+            tour.created_at = datetime.fromisoformat(data["created_at"])
         tour._players = {UUID(d_player["uid"]) for d_player in data["players"]}
         # tour._dropped = [UUID(d_player['uid']) for d_player in data['dropped']]
         # tour._disabled = [UUID(d_player['uid']) for d_player in data['disabled']]
@@ -2334,8 +2446,9 @@ class Player(IPlayer):
             return 0
         if tour_round is None:
             tour_round = self.tour.tour_round
-        return self.rating(tour_round) / (
-            self.tour.config.win_points * (tour_round.seq + 1)
+        scoring_logic = self.tour.get_scoring_logic(self.tour.config.scoring_logic)
+        return self.rating(tour_round) / scoring_logic.pointrate_denominator(
+            tour_round
         )
 
     def location(self, tour_round: Round | None = None) -> Player.ELocation:

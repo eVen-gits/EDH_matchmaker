@@ -116,6 +116,35 @@ class TestSerialization(unittest.TestCase):
             inflated_gl.result(t_inflated.tour_round), Player.EResult.LOSS
         )
 
+    def test_serialize_includes_format_metadata(self):
+        import datetime as dt
+
+        serialized = self.t.serialize()
+
+        self.assertEqual(serialized["format_version"], "1.0")
+        self.assertEqual(serialized["generator"], {"name": "EDH_matchmaker"})
+        # Must round-trip through fromisoformat without raising.
+        dt.datetime.fromisoformat(serialized["created_at"])
+        dt.datetime.fromisoformat(serialized["updated_at"])
+
+    def test_created_at_stable_across_serializes(self):
+        first = self.t.serialize()["created_at"]
+        second = self.t.serialize()["created_at"]
+        self.assertEqual(first, second)
+
+    def test_store_leaves_no_tmp_file(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            log_path = os.path.join(tmpdirname, "test_log.json")
+            try:
+                TournamentAction.LOGF = log_path
+                TournamentAction.store(self.t)
+                self.assertTrue(os.path.exists(log_path))
+                self.assertFalse(os.path.exists(log_path + ".tmp"))
+            finally:
+                TournamentAction.LOGF = False
+
     def test_load_real_tournament_file(self):
         log_path = "logs/tournament-state-699863dcebe4eb89e31bc50b-2026-02-25.json"
         if not os.path.exists(log_path):
