@@ -163,6 +163,8 @@ draw, or a pending game).
 | `wagering_starting_points` | float | optional, default `1000`. Only used by `"ScoringHareruya"`. |
 | `draw_redistribution_fraction` | float, 0-1 | optional, default `1.0`. Only used by `"ScoringHareruya"`. |
 | `draw_distribution_shape` | float, 0-1 | optional, default `1.0`. Only used by `"ScoringHareruya"`. |
+| `redistribute_discarded_draw_points` | bool | optional, default `false`. Only used by `"ScoringHareruya"`. If `true`, the pot left over after `draw_redistribution_fraction` is applied is reclaimed instead of discarded. See [Scoring logic](#scoring-logic). |
+| `draw_discard_pod_fraction` | float, 0-1 | optional, default `1.0`. Only used by `"ScoringHareruya"`, and only when `redistribute_discarded_draw_points` is `true`. |
 
 `standings_export` fields:
 
@@ -394,10 +396,37 @@ player is seated in, once that pod has a result:
    the pot splits evenly regardless of individual wager size. At
    `R = 1, S = 0` each drawer gets exactly their own wager back, with
    no net change. At `R = 0` every drawer's wager is lost regardless
-   of `S`. Nothing is paid to anyone, and the lost amount leaves the
-   economy entirely: it is not returned to the original wagerers.
-4. **Bye** (player listed in `rounds[].byes`): the player's stack does
-   not change. No wager, and no `bye_points`, is involved.
+   of `S`.
+
+   By default, `(1 − R) × pot` — whatever `payout_i` above never
+   pays out — leaves the economy entirely: it is not returned to the
+   original wagerers. If `config.redistribute_discarded_draw_points`
+   is `true`, that amount is reclaimed instead of discarded, split by
+   `config.draw_discard_pod_fraction` (`P`, `0`-`1`):
+   ```
+   discarded    = (1 − R) × pot
+   pod_share    = P × discarded
+   global_share = discarded − pod_share
+   ```
+   `pod_share` is paid to the same *N* drawers only (not the pod's
+   other seated losers), as a bonus on top of `payout_i`, split by the
+   same `S` shape but normalized to each drawer's share of the total
+   drawer wager `w_i / Σw_j` rather than the raw wager `w_i`:
+   ```
+   bonus_i = pod_share × ( S × (1 / N) + (1 − S) × (w_i / Σw_j) )
+   ```
+   `global_share` is paid out as an equal per-capita dividend to every
+   player in the tournament — including this pod's own drawers, and
+   including players not seated in this round at all (a bye recipient
+   this round included, per step 4). At `P = 1` all of `discarded`
+   goes to `bonus_i`; at `P = 0` all of it goes to the dividend.
+   Either way, `bonus_i` and the dividend sum back to exactly
+   `discarded`, so the total ever paid out on a draw
+   (`Σ payout_i + discarded`) never exceeds `pot`.
+4. **Bye** (player listed in `rounds[].byes`): receiving the bye
+   itself is a no-op — no wager, no `bye_points`. It does not exempt
+   the player from step 3's per-capita dividend, if any other pod in
+   the round has a redistributed draw this round.
 5. **Pending** (`pods[].result` is empty): no wager is assessed for
    that pod this round.
 

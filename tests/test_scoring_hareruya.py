@@ -95,6 +95,111 @@ class TestScoringHareruya(unittest.TestCase):
         total = sum(p.rating(t.tour_round) for p in players)
         self.assertAlmostEqual(total, 400)
 
+    def test_redistribute_discard_off_matches_legacy_behavior(self):
+        # New fields default off/no-op - identical to
+        # test_draw_full_loss_at_redistribution_zero without them.
+        t = _make_wagering_tournament(draw_redistribution_fraction=0.0)
+        players = t.add_player([f"P{i}" for i in range(4)])
+        t.manual_pod(players)
+        t.report_draw(players)
+
+        for player in players:
+            self.assertAlmostEqual(player.rating(t.tour_round), 90)
+
+    def test_redistribute_discard_pod_fraction_one_goes_to_drawers_only(self):
+        t = _make_wagering_tournament(
+            draw_redistribution_fraction=0.0,
+            redistribute_discarded_draw_points=True,
+            draw_discard_pod_fraction=1.0,
+        )
+        players = t.add_player([f"P{i}" for i in range(4)])
+        t.manual_pod(players)
+        t.report_draw(players)
+
+        # wagers = 10 each, pot = 40. R=0 -> base payout 0. discarded=40,
+        # pod_share=40, global_share=0. S=1 default -> each drawer's bonus
+        # = 40/4 = 10. Full stack restored despite R=0.
+        for player in players:
+            self.assertAlmostEqual(player.rating(t.tour_round), 100)
+
+    def test_redistribute_discard_pod_fraction_zero_goes_to_everyone(self):
+        t = _make_wagering_tournament(
+            draw_redistribution_fraction=0.0,
+            redistribute_discarded_draw_points=True,
+            draw_discard_pod_fraction=0.0,
+        )
+        players = t.add_player([f"P{i}" for i in range(5)])
+        drawers = players[:4]
+        bystander = players[4]
+        t.manual_pod(drawers)
+        t.report_draw(drawers)
+
+        # pot=40, discarded=40, pod_share=0, global_share=40, split over
+        # all 5 players (including the unseated bystander) = 8 each.
+        for player in drawers:
+            self.assertAlmostEqual(player.rating(t.tour_round), 90 + 8)
+        self.assertAlmostEqual(bystander.rating(t.tour_round), 100 + 8)
+
+    def test_redistribute_discard_mixed_fraction(self):
+        t = _make_wagering_tournament(
+            draw_redistribution_fraction=0.0,
+            redistribute_discarded_draw_points=True,
+            draw_discard_pod_fraction=0.5,
+        )
+        players = t.add_player([f"P{i}" for i in range(5)])
+        drawers = players[:4]
+        bystander = players[4]
+        t.manual_pod(drawers)
+        t.report_draw(drawers)
+
+        # pot=40, discarded=40, pod_share=20, global_share=20.
+        # per-drawer bonus (S=1) = 20/4 = 5; per-capita dividend = 20/5 = 4.
+        for player in drawers:
+            self.assertAlmostEqual(player.rating(t.tour_round), 90 + 5 + 4)
+        self.assertAlmostEqual(bystander.rating(t.tour_round), 100 + 4)
+
+    def test_redistribute_discard_reaches_bye_recipient(self):
+        # A bye is a no-op for the player receiving it (no wager, no
+        # bye_points), but that does not exempt them from the global
+        # per-capita dividend when another pod's draw pot is
+        # redistributed this round - they're still a tournament player.
+        t = _make_wagering_tournament(
+            draw_redistribution_fraction=0.0,
+            redistribute_discarded_draw_points=True,
+            draw_discard_pod_fraction=0.5,
+        )
+        players = t.add_player([f"P{i}" for i in range(5)])
+        t.create_pairings()
+        assert t.tour_round is not None
+        bye = next(iter(t.tour_round.byes))
+        pod_players = [p for p in players if p.uid != bye.uid]
+        t.report_draw(pod_players)
+
+        # pot=40, discarded=40, pod_share=20, global_share=20 split
+        # over all 5 players = 4 each; pod bonus (S=1) = 20/4 = 5 each.
+        self.assertAlmostEqual(bye.rating(t.tour_round), 100 + 4)
+        for player in pod_players:
+            self.assertAlmostEqual(player.rating(t.tour_round), 90 + 5 + 4)
+
+    def test_redistribute_discard_never_exceeds_starting_total(self):
+        # Feature-on total must be >= feature-off total (it reclaims,
+        # never invents, points), and never exceed the original stake.
+        def _total(**overrides):
+            t = _make_wagering_tournament(
+                draw_redistribution_fraction=0.0, **overrides
+            )
+            players = t.add_player([f"P{i}" for i in range(5)])
+            t.manual_pod(players[:4])
+            t.report_draw(players[:4])
+            return sum(p.rating(t.tour_round) for p in players)
+
+        total_off = _total()
+        total_on = _total(
+            redistribute_discarded_draw_points=True, draw_discard_pod_fraction=0.5
+        )
+        self.assertGreater(total_on, total_off)
+        self.assertLessEqual(total_on, 5 * 100)
+
     def test_get_standings_and_pointrate_do_not_crash(self):
         # get_standings() -> ranking() -> opponent_pointrate() ->
         # pointrate() -> pointrate_denominator() is a real call chain
@@ -154,6 +259,8 @@ class TestScoringHareruya(unittest.TestCase):
             wagering_starting_points=250,
             draw_redistribution_fraction=0.5,
             draw_distribution_shape=0.25,
+            redistribute_discarded_draw_points=True,
+            draw_discard_pod_fraction=0.75,
             auto_export=False,
         )
         data = cfg.serialize()
@@ -164,6 +271,8 @@ class TestScoringHareruya(unittest.TestCase):
         self.assertEqual(restored.wagering_starting_points, 250)
         self.assertEqual(restored.draw_redistribution_fraction, 0.5)
         self.assertEqual(restored.draw_distribution_shape, 0.25)
+        self.assertEqual(restored.redistribute_discarded_draw_points, True)
+        self.assertEqual(restored.draw_discard_pod_fraction, 0.75)
 
     def test_old_format_data_defaults_new_fields(self):
         cfg = TournamentConfiguration(auto_export=False)
@@ -174,6 +283,8 @@ class TestScoringHareruya(unittest.TestCase):
             "wagering_starting_points",
             "draw_redistribution_fraction",
             "draw_distribution_shape",
+            "redistribute_discarded_draw_points",
+            "draw_discard_pod_fraction",
         ):
             del data[key]
 
@@ -183,6 +294,8 @@ class TestScoringHareruya(unittest.TestCase):
         self.assertEqual(restored.wagering_starting_points, 1000)
         self.assertEqual(restored.draw_redistribution_fraction, 1.0)
         self.assertEqual(restored.draw_distribution_shape, 1.0)
+        self.assertEqual(restored.redistribute_discarded_draw_points, False)
+        self.assertEqual(restored.draw_discard_pod_fraction, 1.0)
 
 
 class TestScoringDefaultUnchanged(unittest.TestCase):

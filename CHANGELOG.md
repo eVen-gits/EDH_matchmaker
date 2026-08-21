@@ -10,6 +10,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Standardized project documentation (README, CONTRIBUTING, CODE_OF_CONDUCT, LICENSE).
 - Added GPLv3 License.
+- `ScoringHareruya`: draw pot points left over after `draw_redistribution_fraction`
+  can now be reclaimed instead of discarded, via a new "Reclaim discarded draw
+  points" checkbox and pod/tournament split slider
+  (`redistribute_discarded_draw_points`, `draw_discard_pod_fraction`). Off by
+  default; existing tournament files load unaffected. See
+  `docs/tournament-log-spec.md` for the exact formula.
 
 ### Changed
 - Updated README to reflect current project state.
