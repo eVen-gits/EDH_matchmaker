@@ -2,6 +2,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from enum import IntEnum
 from collections.abc import Mapping, Sequence
+from typing import Any
 from uuid import UUID, uuid4
 
 
@@ -95,6 +96,9 @@ class IPlayer(IHashable, ABC):
     ) -> IPlayer.EResult: ...
 
     @abstractmethod
+    def result(self, tour_round: IRound) -> IPlayer.EResult: ...
+
+    @abstractmethod
     def pods(
         self, tour_round: IRound | None = None
     ) -> list[IPod | IPlayer.ELocation]: ...
@@ -182,6 +186,7 @@ class IRound(IHashable, ABC):
     """Interface for a round."""
 
     seq: int
+    stage: Any
     logic: IPairingLogic
     _tour: UUID
     _pods: list[UUID]
@@ -237,6 +242,53 @@ class IPairingLogic(ABC):
         ...
 
 
+class IScoringLogic(ABC):
+    """Interface for scoring logic (how player points are computed)."""
+
+    IS_COMPLETE: bool = False
+    name: str
+
+    @abstractmethod
+    def compute_ratings(
+        self, tour: ITournament, tour_round: IRound
+    ) -> Mapping[UUID, float]:
+        """Computes every player's point total as of a given round.
+
+        Args:
+            tour: The tournament.
+            tour_round: The round up to which to compute points.
+
+        Returns:
+            A mapping of player UID to point total.
+        """
+        ...
+
+    @abstractmethod
+    def rating(self, player: IPlayer, tour_round: IRound) -> float:
+        """Computes one player's point total as of a given round.
+
+        Args:
+            player: The player to compute the rating for.
+            tour_round: The round up to which to compute points.
+
+        Returns:
+            The player's point total.
+        """
+        ...
+
+    @abstractmethod
+    def pointrate_denominator(self, tour_round: IRound) -> float:
+        """The value a player's rating is divided by to get a 0-1 pointrate.
+
+        Args:
+            tour_round: The round the pointrate is being computed for.
+
+        Returns:
+            The denominator to divide a rating by.
+        """
+        ...
+
+
 class IStandingsExport(ABC):
     """Interface for standings export configuration."""
 
@@ -269,6 +321,11 @@ class ITournamentConfiguration(ABC):
         0.1458,
     )
     top_cut: int = 0
+    scoring_logic: str = "ScoringDefault"
+    wager_percent: float = 0.07
+    wagering_starting_points: float = 1000
+    draw_redistribution_fraction: float = 1.0
+    draw_distribution_shape: float = 1.0
 
     @property
     @abstractmethod
