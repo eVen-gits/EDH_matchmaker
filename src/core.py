@@ -675,7 +675,7 @@ class TournamentConfiguration(ITournamentConfiguration):
         )
         # Scoring logic selection - see src/scoring_logic/examples.py.
         # "ScoringDefault" reproduces the fixed win/draw/bye behavior
-        # above unchanged; the remaining four fields only take effect
+        # above unchanged; the remaining six fields only take effect
         # under "ScoringHareruya".
         self.scoring_logic: str = kwargs.get("scoring_logic", "ScoringDefault")
         self.wager_percent: float = kwargs.get("wager_percent", 0.07)
@@ -687,6 +687,19 @@ class TournamentConfiguration(ITournamentConfiguration):
         )
         self.draw_distribution_shape: float = kwargs.get(
             "draw_distribution_shape", 1.0
+        )
+        # Whether the draw pot left over after draw_redistribution_fraction
+        # is applied gets reclaimed (True) or simply discarded (False, the
+        # pre-existing behavior - kept as default for backward compatibility).
+        self.redistribute_discarded_draw_points: bool = kwargs.get(
+            "redistribute_discarded_draw_points", False
+        )
+        # Of the reclaimed amount, the fraction returned to the drawing
+        # pod's players; the remainder is split evenly across every
+        # player in the tournament. Only takes effect when
+        # redistribute_discarded_draw_points is True.
+        self.draw_discard_pod_fraction: float = kwargs.get(
+            "draw_discard_pod_fraction", 1.0
         )
 
     @property
@@ -755,6 +768,8 @@ class TournamentConfiguration(ITournamentConfiguration):
             "wagering_starting_points": self.wagering_starting_points,
             "draw_redistribution_fraction": self.draw_redistribution_fraction,
             "draw_distribution_shape": self.draw_distribution_shape,
+            "redistribute_discarded_draw_points": self.redistribute_discarded_draw_points,
+            "draw_discard_pod_fraction": self.draw_discard_pod_fraction,
         }
 
     @classmethod
@@ -781,6 +796,10 @@ class TournamentConfiguration(ITournamentConfiguration):
                 "draw_redistribution_fraction", 1.0
             ),
             draw_distribution_shape=data.get("draw_distribution_shape", 1.0),
+            redistribute_discarded_draw_points=data.get(
+                "redistribute_discarded_draw_points", False
+            ),
+            draw_discard_pod_fraction=data.get("draw_discard_pod_fraction", 1.0),
         )
 
 
