@@ -92,12 +92,15 @@ class ScoringHareruya(CommonScoring):
         wager_percent = config.wager_percent
         R = config.draw_redistribution_fraction
         S = config.draw_distribution_shape
+        redistribute_discard = config.redistribute_discarded_draw_points
+        pod_fraction = config.draw_discard_pod_fraction
 
         points = {p.uid: float(config.wagering_starting_points) for p in tour.players}
 
         for i_tour_round in self._swiss_rounds_up_to(tour, tour_round):
-            # A bye leaves the player's stack unchanged under Hareruya -
-            # no wager, no bye_points. Nothing to do here.
+            # A bye itself is a no-op under Hareruya - no wager, no
+            # bye_points. It does not exempt the player from sharing in
+            # another pod's redistributed draw pot this round, though.
 
             for pod in i_tour_round.pods:
                 seated = pod.players
@@ -129,6 +132,34 @@ class ScoringHareruya(CommonScoring):
                     for uid in drawers:
                         payout = R * (S * (pot / n) + (1 - S) * wagers[uid])
                         points[uid] += payout
+
+                    if redistribute_discard:
+                        # (1-R)*pot is exactly what the loop above never
+                        # pays out. Split it: pod_fraction of it back to
+                        # this pod's drawers (a bonus on top of the
+                        # payout above), the rest as an equal per-capita
+                        # dividend to every player in the tournament.
+                        discarded = (1 - R) * pot
+                        pod_share = pod_fraction * discarded
+                        # discarded - pod_share, not a second multiply,
+                        # so the two halves sum back to `discarded` exactly.
+                        global_share = discarded - pod_share
+
+                        drawer_wager_total = sum(wagers[uid] for uid in drawers)
+                        for uid in drawers:
+                            wager_share = (
+                                wagers[uid] / drawer_wager_total
+                                if drawer_wager_total > 0
+                                else 1.0 / n
+                            )
+                            points[uid] += pod_share * (
+                                S * (1.0 / n) + (1 - S) * wager_share
+                            )
+
+                        if global_share:
+                            per_capita = global_share / len(points)
+                            for uid in points:
+                                points[uid] += per_capita
                 # Any remaining seated players are plain losers: their
                 # wager was already deducted above and they receive
                 # nothing further, whether or not the pod had a winner.

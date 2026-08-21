@@ -280,6 +280,9 @@
         </item>
         <item>
          <widget class="QDoubleSpinBox" name="dsb_drawRedistribution">
+          <property name="toolTip">
+           <string>Fraction of the draw pot paid out to the drawers. Below 1.0, the rest is discarded - unless &quot;Redistribute discarded draw points&quot; is checked, below.</string>
+          </property>
           <property name="decimals">
            <number>2</number>
           </property>
@@ -310,6 +313,55 @@
         </item>
         <item>
          <widget class="QDoubleSpinBox" name="dsb_drawShape">
+          <property name="toolTip">
+           <string>How drawers split their share of the pot. 0.0 = in proportion to each drawer's own wager. 1.0 = split evenly, regardless of wager size.</string>
+          </property>
+          <property name="decimals">
+           <number>2</number>
+          </property>
+          <property name="minimum">
+           <double>0.000000000000000</double>
+          </property>
+          <property name="maximum">
+           <double>1.000000000000000</double>
+          </property>
+          <property name="singleStep">
+           <double>0.050000000000000</double>
+          </property>
+          <property name="value">
+           <double>1.000000000000000</double>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <layout class="QVBoxLayout" name="verticalLayout_14">
+        <item>
+         <widget class="QCheckBox" name="cb_redistributeDiscardedDraw">
+          <property name="toolTip">
+           <string>When Draw redistribution is below 100%, the leftover draw pot normally vanishes. Check this to reclaim it instead: it is split, per the slider below, between this pod's drawers and every player in the tournament - including anyone on a bye this round.</string>
+          </property>
+          <property name="text">
+           <string>Reclaim discarded draw points</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="label_17">
+          <property name="toolTip">
+           <string>0.0 = reclaimed points are split evenly across every player in the tournament (including byes). 1.0 = reclaimed points go back to this pod's drawers only. In between blends the two.</string>
+          </property>
+          <property name="text">
+           <string>Reclaimed points: pod share vs. tournament share</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QDoubleSpinBox" name="dsb_discardPodFraction">
+          <property name="toolTip">
+           <string>0.0 = reclaimed points are split evenly across every player in the tournament (including byes). 1.0 = reclaimed points go back to this pod's drawers only. In between blends the two.</string>
+          </property>
           <property name="decimals">
            <number>2</number>
           </property>
