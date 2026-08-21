@@ -75,10 +75,10 @@ Alternatively, you can also set everything up through GUI once the program is ru
 
 ## Testing
 
-The project uses `unittest` for testing. You can run tests locally using:
+The project uses `pytest`. You can run tests locally using:
 
 ```bash
-PYTHONPATH=. python tests/run_tests.py
+PYTHONPATH=. pytest
 ```
 
 Automated test results are generated on every push via GitHub Actions. You can view the latest test status via the badge at the top of this README or in the **Actions** tab.
