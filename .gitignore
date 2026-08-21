@@ -14,3 +14,4 @@ logs/
 .coverage
 site/
 test-results.xml
+test-reports/
