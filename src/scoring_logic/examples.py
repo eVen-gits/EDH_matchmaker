@@ -96,8 +96,8 @@ class ScoringHareruya(CommonScoring):
         points = {p.uid: float(config.wagering_starting_points) for p in tour.players}
 
         for i_tour_round in self._swiss_rounds_up_to(tour, tour_round):
-            for bye_player in i_tour_round.byes:
-                points[bye_player.uid] += config.bye_points
+            # A bye leaves the player's stack unchanged under Hareruya -
+            # no wager, no bye_points. Nothing to do here.
 
             for pod in i_tour_round.pods:
                 seated = pod.players

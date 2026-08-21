@@ -117,7 +117,7 @@ class TestScoringHareruya(unittest.TestCase):
             rate = p.pointrate(t.tour_round)
             self.assertIsInstance(rate, (int, float))
 
-    def test_bye_is_flat_and_untouched_by_wager_economy(self):
+    def test_bye_leaves_stack_unchanged(self):
         t = _make_wagering_tournament()
         players = t.add_player([f"P{i}" for i in range(5)])
         t.create_pairings()
@@ -127,7 +127,9 @@ class TestScoringHareruya(unittest.TestCase):
         for pod in t.tour_round.pods:
             t.report_win(pod.players[0])
 
-        self.assertAlmostEqual(bye.rating(t.tour_round), 100 + 4)
+        # A bye is not a wager and not a flat bonus under Hareruya -
+        # the player's stack is exactly what it started at.
+        self.assertAlmostEqual(bye.rating(t.tour_round), 100)
 
     def test_serialization_roundtrip_new_config_fields(self):
         cfg = TournamentConfiguration(
