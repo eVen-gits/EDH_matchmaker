@@ -12,8 +12,10 @@ python run_ui.py --help  # see all runtime options
 
 **Run tests:**
 ```bash
-PYTHONPATH=. python tests/run_tests.py
+PYTHONPATH=. pytest
 ```
+`pytest.ini` skips slow and performance tests by default. Run those
+explicitly with `pytest -m slow` or `pytest tests/test_performance.py -m performance`.
 
 **Type checking:**
 ```bash

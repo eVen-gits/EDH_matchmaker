@@ -14,7 +14,7 @@ First off, thanks for taking the time to contribute!
 
 1. Install Python 3.10+
 2. Install dependencies: `pip install -r requirements.txt`
-3. Run tests before submitting: `python run_tests.py`
+3. Run tests before submitting: `PYTHONPATH=. pytest`
 
 ## Code Style
 
