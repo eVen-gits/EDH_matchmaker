@@ -1069,6 +1069,10 @@ class TournamentConfigDialog(QDialog):
         self.ui.sb_win.setVisible(not is_hareruya)
         self.ui.label_4.setVisible(not is_hareruya)
         self.ui.sb_draw.setVisible(not is_hareruya)
+        # A bye leaves a player's stack unchanged under Hareruya - no
+        # bye_points involved, so the field is meaningless there.
+        self.ui.label_6.setVisible(not is_hareruya)
+        self.ui.sb_bye.setVisible(not is_hareruya)
 
     def check_pod_sizes(self):
         items = [self.lw_pod_sizes.item(i) for i in range(self.lw_pod_sizes.count())]
