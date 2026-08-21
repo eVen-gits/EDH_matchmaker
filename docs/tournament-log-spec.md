@@ -148,9 +148,9 @@ draw, or a pending game).
 |---|---|---|
 | `pod_sizes` | array of int | Allowed pod sizes, largest first, for example `[4, 3]`. The pairing logic fills pods at the first size before falling back to the next. |
 | `allow_bye` | bool | If `true`, a leftover player can receive a bye instead of a pod. |
-| `win_points` | int | Points awarded for a pod win. |
-| `bye_points` | int | Points awarded for a bye. |
-| `draw_points` | int | Points awarded to each player in a draw. |
+| `win_points` | int | Points awarded for a pod win. Only used by `"ScoringDefault"`. |
+| `bye_points` | int | Points awarded for a bye. Only used by `"ScoringDefault"` - a bye leaves a player's points unchanged under `"ScoringHareruya"`. |
+| `draw_points` | int | Points awarded to each player in a draw. Only used by `"ScoringDefault"`. |
 | `snake_pods` | bool | If `true`, round 2 seeding uses a Swiss snake order. |
 | `n_rounds` | int | Number of Swiss rounds. |
 | `max_byes` | int | Maximum number of byes one player can receive across the tournament. |
@@ -396,8 +396,8 @@ player is seated in, once that pod has a result:
    no net change. At `R = 0` every drawer's wager is lost regardless
    of `S`. Nothing is paid to anyone, and the lost amount leaves the
    economy entirely: it is not returned to the original wagerers.
-4. **Bye** (player listed in `rounds[].byes`): the player receives a
-   flat `config.bye_points`. No wager is involved.
+4. **Bye** (player listed in `rounds[].byes`): the player's stack does
+   not change. No wager, and no `bye_points`, is involved.
 5. **Pending** (`pods[].result` is empty): no wager is assessed for
    that pod this round.
 
