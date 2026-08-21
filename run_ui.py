@@ -1002,6 +1002,9 @@ class TournamentConfigDialog(QDialog):
 
         self.ui.cb_allow_bye.stateChanged.connect(self.ui.sb_bye.setEnabled)
         self.ui.cb_allow_bye.stateChanged.connect(self.ui.sb_max_byes.setEnabled)
+        self.ui.cb_scoringLogic.currentIndexChanged.connect(
+            self.on_scoring_logic_changed
+        )
         self.ui.pb_browse.clicked.connect(self.select_log_location)
         self.ui.pb_add_psize.clicked.connect(self.add_psize)
         self.ui.pb_remove_psize.clicked.connect(self.remove_psize)
@@ -1036,6 +1039,21 @@ class TournamentConfigDialog(QDialog):
         self.ui.cb_topCut.setCurrentIndex(
             self.ui.cb_topCut.findData(self.core.config.top_cut)
         )
+        # Populate cb_scoringLogic
+        self.ui.cb_scoringLogic.addItem("Default", "ScoringDefault")
+        self.ui.cb_scoringLogic.addItem("Hareruya", "ScoringHareruya")
+        self.ui.cb_scoringLogic.setCurrentIndex(
+            self.ui.cb_scoringLogic.findData(self.core.config.scoring_logic)
+        )
+        self.ui.dsb_wagerPercent.setValue(self.core.config.wager_percent * 100)
+        self.ui.sb_wageringStart.setValue(
+            int(self.core.config.wagering_starting_points)
+        )
+        self.ui.dsb_drawRedistribution.setValue(
+            self.core.config.draw_redistribution_fraction
+        )
+        self.ui.dsb_drawShape.setValue(self.core.config.draw_distribution_shape)
+        self.on_scoring_logic_changed()
 
         if TournamentAction.LOGF:
             self.ui.le_log_location.setText(TournamentAction.LOGF)
@@ -1043,6 +1061,14 @@ class TournamentConfigDialog(QDialog):
             self.ui.le_log_location.setText(
                 os.path.abspath(TournamentAction.DEFAULT_LOGF)
             )
+
+    def on_scoring_logic_changed(self):
+        is_hareruya = self.ui.cb_scoringLogic.currentData() == "ScoringHareruya"
+        self.ui.w_wagering_fields.setVisible(is_hareruya)
+        self.ui.label_11.setVisible(not is_hareruya)
+        self.ui.sb_win.setVisible(not is_hareruya)
+        self.ui.label_4.setVisible(not is_hareruya)
+        self.ui.sb_draw.setVisible(not is_hareruya)
 
     def check_pod_sizes(self):
         items = [self.lw_pod_sizes.item(i) for i in range(self.lw_pod_sizes.count())]
@@ -1111,6 +1137,11 @@ class TournamentConfigDialog(QDialog):
             max_byes=self.sb_max_byes.value(),
             auto_export=self.cb_auto_export.isChecked(),
             top_cut=self.ui.cb_topCut.currentData(),
+            scoring_logic=self.ui.cb_scoringLogic.currentData(),
+            wager_percent=self.ui.dsb_wagerPercent.value() / 100,
+            wagering_starting_points=self.ui.sb_wageringStart.value(),
+            draw_redistribution_fraction=self.ui.dsb_drawRedistribution.value(),
+            draw_distribution_shape=self.ui.dsb_drawShape.value(),
         )
         if self.reset:
             t = Tournament(

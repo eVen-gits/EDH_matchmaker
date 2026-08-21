@@ -12,3 +12,4 @@ typing_extensions
 requests
 pytest
 pytest-cov
+jsonschema
