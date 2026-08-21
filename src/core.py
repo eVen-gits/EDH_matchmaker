@@ -291,7 +291,11 @@ class StandingsExport(DataExport, IStandingsExport):
         ),
         Field.RATING: Formatting(
             label="pts",
-            format="{:d}",
+            # "{:g}" not "{:d}": rating is an int under ScoringDefault
+            # but a float under ScoringHareruya (wager math), and "{:d}"
+            # raises ValueError on a float. "{:g}" formats both cleanly,
+            # with no trailing ".0" on whole numbers.
+            format="{:g}",
             denom=None,
             description="Player rating",
             getter=_get_rating,

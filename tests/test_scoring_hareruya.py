@@ -117,6 +117,22 @@ class TestScoringHareruya(unittest.TestCase):
             rate = p.pointrate(t.tour_round)
             self.assertIsInstance(rate, (int, float))
 
+    def test_standings_export_does_not_crash_on_float_rating(self):
+        # Regression: StandingsExport.info[Field.RATING].format was
+        # "{:d}", which raises ValueError on a float rating. Under
+        # Hareruya, rating() returns a float, and this is exactly the
+        # path run_ui.py's export button calls.
+        t = _make_wagering_tournament()
+        t.add_player([f"P{i}" for i in range(9)])
+        t.create_pairings()
+        assert t.tour_round is not None
+        for pod in t.tour_round.pods:
+            t.report_win(pod.players[0])
+
+        output = t.get_standings_str()
+        self.assertIsInstance(output, str)
+        self.assertGreater(len(output), 0)
+
     def test_bye_leaves_stack_unchanged(self):
         t = _make_wagering_tournament()
         players = t.add_player([f"P{i}" for i in range(5)])
