@@ -1,7 +1,7 @@
 from __future__ import annotations
 from abc import ABC
-from typing import Callable, final
-from collections.abc import Sequence
+from typing import Any, Callable, final
+from collections.abc import Mapping, Sequence
 
 from ..interface import IPlayer, IPod, IRound, IPairingLogic
 
@@ -14,6 +14,16 @@ class CommonPairing(IPairingLogic, ABC):
 
     def __init__(self, name: str):
         self.name = name
+
+    def field_ratings(self, tour_round: IRound) -> Mapping[Any, float]:
+        """Computes the whole field's ratings once, to pass down sort keys.
+
+        Pairing sort keys (matching, bye_matching, snake_ranking) read player
+        ratings. Without this, each key call recomputes the entire field
+        (once per player, plus once per opponent) - costly under wagering
+        scoring. make_pairings computes this once and threads it through.
+        """
+        return tour_round.tour.field_ratings(tour_round)
 
     def evaluate_pod(self, player: IPlayer, pod: IPod, tour_round: IRound) -> int:
         score = 0
@@ -34,21 +44,32 @@ class CommonPairing(IPairingLogic, ABC):
                 )
         return score
 
-    def bye_matching(self, player: IPlayer, tour_round: IRound) -> tuple:
+    def bye_matching(
+        self,
+        player: IPlayer,
+        tour_round: IRound,
+        ratings: Mapping[Any, float] | None = None,
+    ) -> tuple:
         return (
             -len(player.games(tour_round)),
-            player.rating(tour_round),
+            player.rating(tour_round, ratings),
             -len(player.played(tour_round)),
         )
 
     def assign_byes(
-        self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]
+        self,
+        tour_round: IRound,
+        players: set[IPlayer],
+        pods: Sequence[IPod],
+        ratings: Mapping[Any, float] | None = None,
     ) -> set[IPlayer]:
+        if ratings is None:
+            ratings = self.field_ratings(tour_round)
         capacity = sum([pod.cap - len(pod.players) for pod in pods])
         n_byes = len(players) - capacity
 
         matching: Callable[[IPlayer], tuple] = lambda x: self.bye_matching(
-            x, tour_round
+            x, tour_round, ratings
         )
         player_matches = {p: matching(p) for p in players}
         keys: list[tuple] = sorted(set(player_matches.values()), reverse=True)
@@ -84,6 +105,8 @@ class PairingRandom(CommonPairing):
         byes = self.assign_byes(tour_round, players, pods)
         active_players = list(players - byes)
         random.shuffle(active_players)
+        # PairingRandom ignores ratings for placement; assign_byes computes
+        # the field ratings once internally when not passed one.
 
         player_index = 0
         for pod in pods:
@@ -102,20 +125,26 @@ class PairingSnake(CommonPairing):
     # Players are then distributed in buckets based on points and unique opponents
     # Players are then distributed in pods based on bucket order
 
-    def snake_ranking(self, player: IPlayer, tour_round: IRound) -> tuple[float, int]:
+    def snake_ranking(
+        self,
+        player: IPlayer,
+        tour_round: IRound,
+        ratings: Mapping[Any, float] | None = None,
+    ) -> tuple[float, int]:
         """Helper method to get snake ranking for a player."""
-        return (player.rating(tour_round), -len(player.played(tour_round)))
+        return (player.rating(tour_round, ratings), -len(player.played(tour_round)))
 
     @override
     def make_pairings(
         self, tour_round: IRound, players: set[IPlayer], pods: list[IPod]
     ) -> set[IPlayer]:
         prev_round: IRound = tour_round.tour.rounds[tour_round.seq - 1]
-        byes = self.assign_byes(tour_round, players, pods)
+        ratings = self.field_ratings(tour_round)
+        byes = self.assign_byes(tour_round, players, pods, ratings)
         active_players = tour_round.active_players - byes
 
         snake_ranking: Callable[[IPlayer], tuple[float, int]] = (
-            lambda x: self.snake_ranking(x, tour_round)
+            lambda x: self.snake_ranking(x, tour_round, ratings)
         )
 
         # 1. Determine Buckets
@@ -280,28 +309,29 @@ class PairingSnake(CommonPairing):
 class PairingDefault(CommonPairing):
     IS_COMPLETE = True
 
-    def matching(self, player: IPlayer, tour_round: IRound) -> tuple:
+    def matching(
+        self,
+        player: IPlayer,
+        tour_round: IRound,
+        ratings: Mapping[Any, float] | None = None,
+    ) -> tuple:
         return (
             -len(player.games(tour_round)),
             -len(player.played(tour_round)),
-            player.rating(tour_round),
-            player.opponent_pointrate(tour_round),
+            player.rating(tour_round, ratings),
+            player.opponent_pointrate(tour_round, ratings),
         )
 
     @override
     def make_pairings(
         self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]
     ) -> set[IPlayer]:
-        # matching = lambda x: (
-        #    -len(x.games(tour_round)),
-        #    -len(x.played(tour_round)),
-        #    x.rating(tour_round),
-        #    x.opponent_pointrate(tour_round)
-        # )
-        # standings = tour_round.tour.get_standings(tour_round)
-        matching = lambda x: self.matching(x, tour_round)
+        # Compute the field ratings once and thread them through both sort
+        # keys, so pairing does not recompute the whole field per player.
+        ratings = self.field_ratings(tour_round)
+        matching = lambda x: self.matching(x, tour_round, ratings)
 
-        byes = self.assign_byes(tour_round, players, pods)
+        byes = self.assign_byes(tour_round, players, pods, ratings)
 
         active_players = players - byes
 

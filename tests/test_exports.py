@@ -80,7 +80,7 @@ class TestStandingsExportFormatting(unittest.TestCase):
     every scoring logic, not just the one that broke.
     """
 
-    SCORING_LOGICS = ["ScoringDefault", "ScoringHareruya"]
+    SCORING_LOGICS = ["ScoringDefault", "ScoringHareruya", "ScoringModifiedHareruya"]
 
     def _tournament(self, scoring_logic):
         cfg = TournamentConfiguration(

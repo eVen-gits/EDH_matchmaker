@@ -12,7 +12,7 @@ import os
 import pkgutil
 import random
 import threading
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from datetime import datetime, timezone
 from enum import Enum, IntEnum
 from pathlib import Path
@@ -711,20 +711,27 @@ class TournamentConfiguration(ITournamentConfiguration):
 
     @staticmethod
     @override
-    def ranking(x: IPlayer, tour_round: IRound) -> tuple[int | float | str, ...]:
+    def ranking(
+        x: IPlayer,
+        tour_round: IRound,
+        ratings: Mapping[Any, float] | None = None,
+    ) -> tuple[int | float | str, ...]:
         """Calculates the ranking score for a player.
 
         Args:
             x: The player.
             tour_round: The current round.
+            ratings: Optional precomputed full-field rating map. get_standings
+                computes it once and passes it so the sort does not recompute
+                the whole field once per player.
 
         Returns:
             A tuple of ranking criteria.
         """
         return (
-            x.rating(tour_round),
+            x.rating(tour_round, ratings),
             len(x.games(tour_round)),
-            np.round(x.opponent_pointrate(tour_round), 10),
+            np.round(x.opponent_pointrate(tour_round, ratings), 10),
             len(x.players_beaten(tour_round)),
             -x.average_seat([r for r in x.tour.rounds if r.seq <= tour_round.seq]),
             -x.uid if isinstance(x.uid, int) else -int(x.uid.int),
@@ -1801,6 +1808,18 @@ class Tournament(ITournament):
             # Log.log('Removed player {} from {}.'.format(
             #    player.name, pod.name), level=Log.Level.INFO)
 
+    def field_ratings(self, tour_round: Round) -> Mapping[Any, float]:
+        """Computes every player's rating for a round in one call.
+
+        Callers that need many players' ratings for the same round (standings
+        sort, pairing sort keys, pod power sort) must compute this once and
+        pass it down as the `ratings` argument, instead of calling rating()
+        per player - each such call otherwise replays the whole field.
+        """
+        return self.get_scoring_logic(self.config.scoring_logic).compute_ratings(
+            self, tour_round
+        )
+
     def rating(self, player: Player, tour_round: Round) -> float:
         """
         Calculate the rating of a player for a given round.
@@ -1818,14 +1837,11 @@ class Tournament(ITournament):
         Returns:
             The player's rating as a float.
         """
-        # ponytail: get_standings() calls this once per player, and
-        # ScoringHareruya.rating() replays every player's stack to
-        # answer one player's query (payouts are interdependent), so
-        # standings under wagering cost O(players^2 * rounds) instead
-        # of O(players * rounds). Fine at real tournament sizes; if a
-        # very large wagering tournament's standings become slow,
-        # cache compute_ratings() per tour_round on the Tournament
-        # instance, invalidated on the next mutating action.
+        # This answers one player's query and replays the whole field
+        # under wagering scoring. get_standings() avoids calling it per
+        # player: it computes the field map once via compute_ratings()
+        # and passes it down the ranking chain (see get_standings). This
+        # path is the fallback for single, off-standings rating lookups.
         return self.get_scoring_logic(self.config.scoring_logic).rating(
             player, tour_round
         )
@@ -1879,9 +1895,13 @@ class Tournament(ITournament):
         if tour_round is None:
             tour_round = self.tour_round
         if tour_round.stage == Round.Stage.SWISS:
+            # Compute the whole field's ratings once and pass the map down the
+            # ranking chain, so the sort does not recompute it once per player
+            # (~players x opponents times) - costly under wagering scoring.
+            ratings = self.field_ratings(tour_round)
             standings = sorted(
                 self.players,
-                key=lambda x: self.config.ranking(x, tour_round),
+                key=lambda x: self.config.ranking(x, tour_round, ratings),
                 reverse=True,
             )
         else:
@@ -2233,17 +2253,26 @@ class Player(IPlayer):
 
         return Player.EResult.PENDING
 
-    def rating(self, tour_round: Round | None) -> float:
+    def rating(
+        self,
+        tour_round: Round | None,
+        ratings: Mapping[Any, float] | None = None,
+    ) -> float:
         """Calculates the player's rating (win percentage) up to a specific round.
 
         Args:
             tour_round: The round up to which to calculate rating. If None, uses current round.
+            ratings: Optional precomputed full-field rating map (uid -> rating).
+                get_standings computes it once and passes it down so the whole
+                sort does not recompute the field once per player.
 
         Returns:
             float: The rating as a decimal (0.0 to 1.0).
         """
         if tour_round is None:
             return 0
+        if ratings is not None:
+            return ratings.get(self.uid, 0)
         return self.tour.rating(self, tour_round)
 
     @override
@@ -2437,11 +2466,17 @@ class Player(IPlayer):
         )
         return ret_str
 
-    def pointrate(self, tour_round: Round | None = None) -> float:
+    def pointrate(
+        self,
+        tour_round: Round | None = None,
+        ratings: Mapping[Any, float] | None = None,
+    ) -> float:
         """Calculates the point rate (actual points / maximum possible points).
 
         Args:
             tour_round: The round up to which to calculate.
+            ratings: Optional precomputed full-field rating map, forwarded to
+                rating() (see Player.rating).
 
         Returns:
             float: The point rate.
@@ -2451,7 +2486,7 @@ class Player(IPlayer):
         if tour_round is None:
             tour_round = self.tour.tour_round
         scoring_logic = self.tour.get_scoring_logic(self.tour.config.scoring_logic)
-        return self.rating(tour_round) / scoring_logic.pointrate_denominator(
+        return self.rating(tour_round, ratings) / scoring_logic.pointrate_denominator(
             tour_round
         )
 
@@ -2535,10 +2570,14 @@ class Player(IPlayer):
             set(self.tour.tour_round.active_players) - set(self.played(tour_round))
         )
 
-    def opponent_pointrate(self, tour_round: Round | None = None):
+    def opponent_pointrate(
+        self,
+        tour_round: Round | None = None,
+        ratings: Mapping[Any, float] | None = None,
+    ):
         if not self.played(tour_round):
             return 0
-        oppwr = [opp.pointrate(tour_round) for opp in self.played(tour_round)]
+        oppwr = [opp.pointrate(tour_round, ratings) for opp in self.played(tour_round)]
         return sum(oppwr) / len(oppwr)
 
     # PROPERTIES
@@ -3454,11 +3493,12 @@ class Round(IRound):
 
     def sort_pods_by_power(self) -> None:
         """Sort pods by number of players and average rating to establish a power-level baseline."""
+        ratings = self.tour.field_ratings(self)
         pods_sorted = sorted(
             self.pods,
             key=lambda x: (
                 len(x.players),
-                np.average([p.rating(self) for p in x.players]),
+                np.average([p.rating(self, ratings) for p in x.players]),
             ),
             reverse=True,
         )

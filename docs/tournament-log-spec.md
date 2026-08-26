@@ -149,7 +149,7 @@ draw, or a pending game).
 | `pod_sizes` | array of int | Allowed pod sizes, largest first, for example `[4, 3]`. The pairing logic fills pods at the first size before falling back to the next. |
 | `allow_bye` | bool | If `true`, a leftover player can receive a bye instead of a pod. |
 | `win_points` | int | Points awarded for a pod win. Only used by `"ScoringDefault"`. |
-| `bye_points` | int | Points awarded for a bye. Only used by `"ScoringDefault"` - a bye leaves a player's points unchanged under `"ScoringHareruya"`. |
+| `bye_points` | int | Points awarded for a bye. Only used by `"ScoringDefault"` - a bye leaves a player's points unchanged under `"ScoringHareruya"` and `"ScoringModifiedHareruya"`. |
 | `draw_points` | int | Points awarded to each player in a draw. Only used by `"ScoringDefault"`. |
 | `snake_pods` | bool | If `true`, round 2 seeding uses a Swiss snake order. |
 | `n_rounds` | int | Number of Swiss rounds. |
@@ -159,10 +159,10 @@ draw, or a pending game).
 | `global_wr_seats` | array of float | Seat-position win-rate adjustment, one value per seat, most-advantaged seat first. |
 | `top_cut` | int | The playoff cut size. See [`top_cut` and `stage` values](#top_cut-and-stage-values). `0` means no playoff cut (Swiss only). |
 | `scoring_logic` | string | optional, default `"ScoringDefault"`. Which formula computes player points. See [Scoring logic](#scoring-logic). |
-| `wager_percent` | float | optional, default `0.07`. Only used by `"ScoringHareruya"`. |
-| `wagering_starting_points` | float | optional, default `1000`. Only used by `"ScoringHareruya"`. |
-| `draw_redistribution_fraction` | float, 0-1 | optional, default `1.0`. Only used by `"ScoringHareruya"`. |
-| `draw_distribution_shape` | float, 0-1 | optional, default `1.0`. Only used by `"ScoringHareruya"`. |
+| `wager_percent` | float | optional, default `0.07`. Used by `"ScoringHareruya"` and `"ScoringModifiedHareruya"`. |
+| `wagering_starting_points` | float | optional, default `1000`. Used by `"ScoringHareruya"` and `"ScoringModifiedHareruya"`. |
+| `draw_redistribution_fraction` | float, 0-1 | optional, default `1.0`. Used by `"ScoringHareruya"` and `"ScoringModifiedHareruya"`. |
+| `draw_distribution_shape` | float, 0-1 | optional, default `1.0`. Used by `"ScoringHareruya"` and `"ScoringModifiedHareruya"`. |
 
 `standings_export` fields:
 
@@ -349,7 +349,7 @@ build a fresh object graph on every load.
 A player's point total is never stored directly in the file (see
 [Player objects](#player-objects)). A reader recomputes it from
 `pods[].result`, `rounds[].byes`, and the `config` fields below, using
-one of two formulas selected by `config.scoring_logic`. Both formulas
+one of the formulas selected by `config.scoring_logic`. All formulas
 only accumulate points for Swiss-stage rounds
 (`stage` / `rounds[].stage` value `0`, see
 [`top_cut` and `stage` values](#top_cut-and-stage-values)); a
@@ -417,6 +417,30 @@ reference implementation approximates it as
 shaped like the default formula, but it is not a strict bound. Treat
 it as a rough ordering signal, not a percentage.
 
+### `ScoringModifiedHareruya`
+
+`ScoringHareruya` depends on the round order. Each wager is a
+percentage of the current stack, so the stack compounds. The record
+`WDD` gives a different total than `DDW`. The round order is arbitrary,
+so this dependency is unwanted.
+
+`ScoringModifiedHareruya` removes the dependency on round order. It runs
+the `ScoringHareruya` economy once for each permutation of the Swiss
+round order. Then it averages each player's final stack across all
+permutations. For 3 rounds, it averages the 6 orders.
+
+A pod result does not change with the round order. Only the stack
+values change. So a reader extracts each pod result one time, then
+replays the wager math for each order.
+
+The permutation count is the factorial of the round count. For more
+than 7 rounds, the reference implementation does not use every order. It
+averages a fixed sample of random orders instead. This is an
+implementation choice, not a requirement of this format.
+
+This variant uses the same `config` fields as `ScoringHareruya`. It
+shares the same `pointrate` approximation.
+
 ## Adjacent outputs (not part of this format)
 
 EDH_matchmaker writes several other files alongside the JSON log. None
@@ -483,8 +507,8 @@ wants working code to compare against:
 | `StandingsExport` | writes `standings_export` | reads `standings_export` | `src/core.py` |
 | `TournamentAction` | `store()` writes the file | `load()` reads the file | `src/core.py` |
 
-`ScoringDefault` and `ScoringHareruya` (both in
-`src/scoring_logic/examples.py`) implement the two formulas from
+`ScoringDefault`, `ScoringHareruya`, and `ScoringModifiedHareruya` (all
+in `src/scoring_logic/examples.py`) implement the formulas from
 [Scoring logic](#scoring-logic); they are not part of the JSON schema
 themselves, only the `config.scoring_logic` string that names one of
 them.
