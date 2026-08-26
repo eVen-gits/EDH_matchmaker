@@ -1,4 +1,6 @@
 from __future__ import annotations
+import itertools
+import random
 from abc import ABC
 from collections.abc import Iterator
 from typing import Any
@@ -88,51 +90,97 @@ class ScoringHareruya(CommonScoring):
     def compute_ratings(
         self, tour: ITournament, tour_round: IRound
     ) -> dict[Any, float]:
+        return self._replay(tour, list(self._swiss_rounds_up_to(tour, tour_round)))
+
+    def _replay(
+        self, tour: ITournament, ordered_rounds: list[IRound]
+    ) -> dict[Any, float]:
+        """Runs the wagering economy over ordered_rounds and returns final stacks.
+
+        The round order matters: each wager is a percentage of the current
+        (compounding) stack, so replaying the same rounds in a different
+        order gives different totals. This is the hook ScoringModifiedHareruya
+        uses to average over every round-order permutation.
+        """
         config = tour.config  # type: ignore[attr-defined]
-        wager_percent = config.wager_percent
-        R = config.draw_redistribution_fraction
-        S = config.draw_distribution_shape
+        index, round_ops = self._extract(tour, ordered_rounds)
+        points = self._replay_indexed(
+            round_ops,
+            len(index),
+            float(config.wagering_starting_points),
+            config.wager_percent,
+            config.draw_redistribution_fraction,
+            config.draw_distribution_shape,
+        )
+        return {uid: points[i] for uid, i in index.items()}
 
-        points = {p.uid: float(config.wagering_starting_points) for p in tour.players}
+    def _extract(
+        self, tour: ITournament, ordered_rounds: list[IRound]
+    ) -> tuple[dict[Any, int], list[list[tuple[list[int], int | None, list[int]]]]]:
+        """Reduces rounds to permutation-invariant, integer-indexed pod results.
 
-        for i_tour_round in self._swiss_rounds_up_to(tour, tour_round):
-            # A bye leaves the player's stack unchanged under Hareruya -
-            # no wager, no bye_points. Nothing to do here.
+        Round order changes only the wager compounding, never who won a pod, so
+        the pod results are extracted once here (the only place p.result() is
+        called) and reused across every permutation. Player UUIDs are mapped to
+        list indices so the replay loop needs no dict keys or UUID hashing.
 
+        Returns (index, round_ops) where round_ops[k] aligns to
+        ordered_rounds[k]. Each pod is (seated_idxs, winner_idx_or_None,
+        drawer_idxs). Empty and any-PENDING pods are dropped, exactly as the
+        wager loop skipped them before.
+        """
+        index: dict[Any, int] = {p.uid: i for i, p in enumerate(tour.players)}
+        round_ops: list[list[tuple[list[int], int | None, list[int]]]] = []
+        for i_tour_round in ordered_rounds:
+            pods_ops: list[tuple[list[int], int | None, list[int]]] = []
             for pod in i_tour_round.pods:
                 seated = pod.players
                 if not seated:
                     continue
-                results = {p.uid: p.result(i_tour_round) for p in seated}
-                if any(r == IPlayer.EResult.PENDING for r in results.values()):
+                results = [(index[p.uid], p.result(i_tour_round)) for p in seated]
+                if any(r == IPlayer.EResult.PENDING for _, r in results):
                     # Pod not fully resolved yet - no wager is assessed.
                     continue
+                idxs = [i for i, _ in results]
+                winner = next(
+                    (i for i, r in results if r == IPlayer.EResult.WIN), None
+                )
+                drawers = [i for i, r in results if r == IPlayer.EResult.DRAW]
+                pods_ops.append((idxs, winner, drawers))
+            round_ops.append(pods_ops)
+        return index, round_ops
 
-                wagers = {uid: points[uid] * wager_percent for uid in results}
-                for uid in wagers:
-                    points[uid] -= wagers[uid]
-                pot = sum(wagers.values())
+    @staticmethod
+    def _replay_indexed(
+        round_ops: list[list[tuple[list[int], int | None, list[int]]]],
+        n: int,
+        start: float,
+        wager_percent: float,
+        R: float,
+        S: float,
+    ) -> list[float]:
+        """Replays the wager economy on an integer-indexed stack list.
 
-                winners = [
-                    uid for uid, r in results.items() if r == IPlayer.EResult.WIN
-                ]
-                drawers = [
-                    uid for uid, r in results.items() if r == IPlayer.EResult.DRAW
-                ]
+        Pure arithmetic - no p.result(), no dict keys, no UUID hashing - so it
+        is cheap to call once per permutation.
+        """
+        points = [start] * n
+        for pod_list in round_ops:
+            for idxs, winner, drawers in pod_list:
+                wagers = [points[i] * wager_percent for i in idxs]
+                for k, i in enumerate(idxs):
+                    points[i] -= wagers[k]
+                pot = sum(wagers)
 
-                if winners:
-                    # A pod's result set has at most one member when it is
-                    # a win, so there is exactly one winner here.
-                    points[winners[0]] += pot
+                if winner is not None:
+                    points[winner] += pot
                 elif drawers:
-                    n = len(drawers)
-                    for uid in drawers:
-                        payout = R * (S * (pot / n) + (1 - S) * wagers[uid])
-                        points[uid] += payout
-                # Any remaining seated players are plain losers: their
-                # wager was already deducted above and they receive
-                # nothing further, whether or not the pod had a winner.
-
+                    nd = len(drawers)
+                    wager_of = {i: wagers[k] for k, i in enumerate(idxs)}
+                    for i in drawers:
+                        points[i] += R * (S * (pot / nd) + (1 - S) * wager_of[i])
+                # Any remaining seated players are plain losers: their wager
+                # was already deducted above and they receive nothing further.
         return points
 
     def pointrate_denominator(self, tour_round: IRound) -> float:
@@ -142,3 +190,70 @@ class ScoringHareruya(CommonScoring):
         # not a strict [0, 1] bound.
         config = tour_round.tour.config  # type: ignore[attr-defined]
         return config.wagering_starting_points * (tour_round.seq + 1)
+
+
+# Thresholds for ScoringModifiedHareruya. Algorithm internals, not per-
+# tournament settings, so kept as module constants (tests monkeypatch them)
+# rather than plumbed through TournamentConfiguration.
+_EXACT_MAX_ROUNDS = 7  # 7! = 5040 replays; above this, sample instead
+_SAMPLE_COUNT = 5000
+_SAMPLE_SEED = 0  # fixed -> deterministic average -> stable standings
+
+
+class ScoringModifiedHareruya(ScoringHareruya):
+    """Order-independent Hareruya: averages the wagering economy over every
+    permutation of the round order.
+
+    Plain Hareruya is order-sensitive - the record WDD scores differently
+    from DDW because each wager compounds the current stack. This variant
+    replays the economy for every round-order permutation and averages each
+    player's final stack, so record order no longer affects the result.
+
+    For more than _EXACT_MAX_ROUNDS rounds, exact enumeration (n!) is
+    replaced by a fixed-seed random sample of _SAMPLE_COUNT orders.
+    """
+
+    IS_COMPLETE: bool = True
+
+    def compute_ratings(
+        self, tour: ITournament, tour_round: IRound
+    ) -> dict[Any, float]:
+        rounds = list(self._swiss_rounds_up_to(tour, tour_round))
+        n = len(rounds)
+        if n <= 1:
+            # Zero or one round: only one order exists, so averaging is moot.
+            return self._replay(tour, rounds)
+
+        # Extract pod results ONCE. Results are permutation-invariant, so every
+        # permutation replays the same round_ops in a different order.
+        config = tour.config  # type: ignore[attr-defined]
+        start = float(config.wagering_starting_points)
+        wager_percent = config.wager_percent
+        R = config.draw_redistribution_fraction
+        S = config.draw_distribution_shape
+        index, round_ops = self._extract(tour, rounds)
+        n_players = len(index)
+
+        if n <= _EXACT_MAX_ROUNDS:
+            position_orders: Iterator[Any] = itertools.permutations(range(n))
+        else:
+            # ponytail: n! blows up past _EXACT_MAX_ROUNDS rounds; sample
+            #           fixed-seed random orders instead of enumerating.
+            rng = random.Random(_SAMPLE_SEED)
+            position_orders = (rng.sample(range(n), n) for _ in range(_SAMPLE_COUNT))
+
+        totals = [0.0] * n_players
+        count = 0
+        for perm in position_orders:
+            points = self._replay_indexed(
+                [round_ops[k] for k in perm],
+                n_players,
+                start,
+                wager_percent,
+                R,
+                S,
+            )
+            for i in range(n_players):
+                totals[i] += points[i]
+            count += 1
+        return {uid: totals[i] / count for uid, i in index.items()}
