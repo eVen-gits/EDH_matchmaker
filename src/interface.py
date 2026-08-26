@@ -337,4 +337,8 @@ class ITournamentConfiguration(ABC):
 
     @staticmethod
     @abstractmethod
-    def ranking(x: IPlayer, tour_round: IRound) -> tuple[int | float | str, ...]: ...
+    def ranking(
+        x: IPlayer,
+        tour_round: IRound,
+        ratings: Mapping[Any, float] | None = None,
+    ) -> tuple[int | float | str, ...]: ...

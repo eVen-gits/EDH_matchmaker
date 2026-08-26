@@ -1042,6 +1042,7 @@ class TournamentConfigDialog(QDialog):
         # Populate cb_scoringLogic
         self.ui.cb_scoringLogic.addItem("Default", "ScoringDefault")
         self.ui.cb_scoringLogic.addItem("Hareruya", "ScoringHareruya")
+        self.ui.cb_scoringLogic.addItem("Modified Hareruya", "ScoringModifiedHareruya")
         self.ui.cb_scoringLogic.setCurrentIndex(
             self.ui.cb_scoringLogic.findData(self.core.config.scoring_logic)
         )
@@ -1063,7 +1064,10 @@ class TournamentConfigDialog(QDialog):
             )
 
     def on_scoring_logic_changed(self):
-        is_hareruya = self.ui.cb_scoringLogic.currentData() == "ScoringHareruya"
+        is_hareruya = self.ui.cb_scoringLogic.currentData() in (
+            "ScoringHareruya",
+            "ScoringModifiedHareruya",
+        )
         self.ui.w_wagering_fields.setVisible(is_hareruya)
         self.ui.label_11.setVisible(not is_hareruya)
         self.ui.sb_win.setVisible(not is_hareruya)
