@@ -1023,10 +1023,13 @@ class TournamentConfigDialog(QDialog):
         # Load and set bye option
         self.cb_allow_bye.setChecked(self.core.config.allow_bye)
         self.check_pod_sizes()
-        # Load and set scoring
-        self.sb_win.setValue(self.core.config.win_points)
-        self.sb_draw.setValue(self.core.config.draw_points)
-        self.sb_bye.setValue(self.core.config.bye_points)
+        # Load and set scoring - both widget groups are populated
+        # regardless of which scoring_logic is active; on_scoring_logic_changed()
+        # below only toggles which group is visible.
+        default_sp = Tournament.get_scoring_logic("ScoringDefault").params(self.core)
+        self.sb_win.setValue(default_sp["win_points"])
+        self.sb_draw.setValue(default_sp["draw_points"])
+        self.sb_bye.setValue(default_sp["bye_points"])
         self.sb_nRounds.setValue(self.core.config.n_rounds)
         self.cb_snakePods.setChecked(self.core.config.snake_pods)
         self.sb_max_byes.setValue(self.core.config.max_byes)
@@ -1049,19 +1052,18 @@ class TournamentConfigDialog(QDialog):
         self.ui.cb_scoringLogic.setCurrentIndex(
             self.ui.cb_scoringLogic.findData(self.core.config.scoring_logic)
         )
-        self.ui.dsb_wagerPercent.setValue(self.core.config.wager_percent * 100)
-        self.ui.sb_wageringStart.setValue(
-            int(self.core.config.wagering_starting_points)
-        )
+        hareruya_sp = Tournament.get_scoring_logic("ScoringHareruya").params(self.core)
+        self.ui.dsb_wagerPercent.setValue(hareruya_sp["wager_percent"] * 100)
+        self.ui.sb_wageringStart.setValue(int(hareruya_sp["wagering_starting_points"]))
         self.ui.dsb_drawRedistribution.setValue(
-            self.core.config.draw_redistribution_fraction
+            hareruya_sp["draw_redistribution_fraction"]
         )
-        self.ui.dsb_drawShape.setValue(self.core.config.draw_distribution_shape)
+        self.ui.dsb_drawShape.setValue(hareruya_sp["draw_distribution_shape"])
         self.ui.cb_redistributeDiscardedDraw.setChecked(
-            self.core.config.redistribute_discarded_draw_points
+            hareruya_sp["redistribute_discarded_draw_points"]
         )
         self.ui.dsb_discardPodFraction.setValue(
-            self.core.config.draw_discard_pod_fraction
+            hareruya_sp["draw_discard_pod_fraction"]
         )
         self._update_discard_pod_fraction_visibility()
         self.on_scoring_logic_changed()
@@ -1151,9 +1153,6 @@ class TournamentConfigDialog(QDialog):
         TournamentAction.LOGF = self.ui.le_log_location.text()
         self.config = TournamentConfiguration(
             allow_bye=self.cb_allow_bye.isChecked(),
-            win_points=self.sb_win.value(),
-            draw_points=self.sb_draw.value(),
-            bye_points=self.sb_bye.value(),
             pod_sizes=self.get_psizes(),
             n_rounds=self.sb_nRounds.value(),
             snake_pods=self.cb_snakePods.isChecked(),
@@ -1161,12 +1160,19 @@ class TournamentConfigDialog(QDialog):
             auto_export=self.cb_auto_export.isChecked(),
             top_cut=self.ui.cb_topCut.currentData(),
             scoring_logic=self.ui.cb_scoringLogic.currentData(),
-            wager_percent=self.ui.dsb_wagerPercent.value() / 100,
-            wagering_starting_points=self.ui.sb_wageringStart.value(),
-            draw_redistribution_fraction=self.ui.dsb_drawRedistribution.value(),
-            draw_distribution_shape=self.ui.dsb_drawShape.value(),
-            redistribute_discarded_draw_points=self.ui.cb_redistributeDiscardedDraw.isChecked(),
-            draw_discard_pod_fraction=self.ui.dsb_discardPodFraction.value(),
+            # Both widget groups are always populated, whichever
+            # scoring_logic is active - see the populate block above.
+            scoring_params={
+                "win_points": self.sb_win.value(),
+                "draw_points": self.sb_draw.value(),
+                "bye_points": self.sb_bye.value(),
+                "wager_percent": self.ui.dsb_wagerPercent.value() / 100,
+                "wagering_starting_points": self.ui.sb_wageringStart.value(),
+                "draw_redistribution_fraction": self.ui.dsb_drawRedistribution.value(),
+                "draw_distribution_shape": self.ui.dsb_drawShape.value(),
+                "redistribute_discarded_draw_points": self.ui.cb_redistributeDiscardedDraw.isChecked(),
+                "draw_discard_pod_fraction": self.ui.dsb_discardPodFraction.value(),
+            },
         )
         if self.reset:
             t = Tournament(

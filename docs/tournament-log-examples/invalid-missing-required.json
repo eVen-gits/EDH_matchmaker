@@ -1,5 +1,5 @@
 {
-  "format_version": "1.0",
+  "format_version": "1.1",
   "generator": {
     "name": "EDH_matchmaker"
   },
@@ -10,9 +10,6 @@
       2
     ],
     "allow_bye": true,
-    "win_points": 3,
-    "bye_points": 3,
-    "draw_points": 1,
     "snake_pods": true,
     "n_rounds": 1,
     "max_byes": 1,
@@ -32,7 +29,13 @@
       0.1672,
       0.1458
     ],
-    "top_cut": 0
+    "top_cut": 0,
+    "scoring_logic": "ScoringDefault",
+    "scoring_params": {
+      "win_points": 3,
+      "bye_points": 3,
+      "draw_points": 1
+    }
   },
   "players": [
     {

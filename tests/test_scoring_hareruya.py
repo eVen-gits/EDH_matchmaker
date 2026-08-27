@@ -5,17 +5,36 @@ from src.core import Player, Tournament, TournamentAction, TournamentConfigurati
 TournamentAction.LOGF = False  # type: ignore
 
 
+# Every field scoring_params can hold, across ScoringDefault and the
+# Hareruya family - used to route _make_wagering_tournament's **overrides
+# to config vs. config.scoring_params without touching every call site.
+_SCORING_PARAM_KEYS = {
+    "win_points",
+    "bye_points",
+    "draw_points",
+    "wager_percent",
+    "wagering_starting_points",
+    "draw_redistribution_fraction",
+    "draw_distribution_shape",
+    "redistribute_discarded_draw_points",
+    "draw_discard_pod_fraction",
+}
+
+
 def _make_wagering_tournament(**overrides) -> Tournament:
     kwargs = dict(
         pod_sizes=[4],
         allow_bye=True,
         auto_export=False,
         scoring_logic="ScoringHareruya",
-        wager_percent=0.1,
-        wagering_starting_points=100,
-        bye_points=4,
     )
-    kwargs.update(overrides)
+    scoring_params = dict(wager_percent=0.1, wagering_starting_points=100, bye_points=4)
+    for key, value in overrides.items():
+        if key in _SCORING_PARAM_KEYS:
+            scoring_params[key] = value
+        else:
+            kwargs[key] = value
+    kwargs["scoring_params"] = scoring_params
     t = Tournament(TournamentConfiguration(**kwargs))
     t.new_round()
     return t
@@ -255,47 +274,67 @@ class TestScoringHareruya(unittest.TestCase):
     def test_serialization_roundtrip_new_config_fields(self):
         cfg = TournamentConfiguration(
             scoring_logic="ScoringHareruya",
+            scoring_params={
+                "wager_percent": 0.05,
+                "wagering_starting_points": 250,
+                "draw_redistribution_fraction": 0.5,
+                "draw_distribution_shape": 0.25,
+                "redistribute_discarded_draw_points": True,
+                "draw_discard_pod_fraction": 0.75,
+            },
+            auto_export=False,
+        )
+        data = cfg.serialize()
+        self.assertEqual(data["scoring_params"], cfg.scoring_params)
+        restored = TournamentConfiguration.inflate(data)
+
+        self.assertEqual(restored.scoring_logic, "ScoringHareruya")
+        self.assertEqual(restored.scoring_params, cfg.scoring_params)
+
+    def test_old_format_data_defaults_new_fields(self):
+        # Pre-1.1 logs stored these fields flat on config, not nested under
+        # scoring_params. inflate() must still recover them into
+        # config.scoring_params - this is the backward-compat contract for
+        # 1.0 files (see docs/tournament-log-spec.md, "1.0 -> 1.1").
+        data = TournamentConfiguration(auto_export=False).serialize()
+        del data["scoring_params"]
+        data.update(
+            scoring_logic="ScoringHareruya",
             wager_percent=0.05,
             wagering_starting_points=250,
             draw_redistribution_fraction=0.5,
             draw_distribution_shape=0.25,
             redistribute_discarded_draw_points=True,
             draw_discard_pod_fraction=0.75,
-            auto_export=False,
         )
-        data = cfg.serialize()
-        restored = TournamentConfiguration.inflate(data)
 
+        restored = TournamentConfiguration.inflate(data)
         self.assertEqual(restored.scoring_logic, "ScoringHareruya")
-        self.assertEqual(restored.wager_percent, 0.05)
-        self.assertEqual(restored.wagering_starting_points, 250)
-        self.assertEqual(restored.draw_redistribution_fraction, 0.5)
-        self.assertEqual(restored.draw_distribution_shape, 0.25)
-        self.assertEqual(restored.redistribute_discarded_draw_points, True)
-        self.assertEqual(restored.draw_discard_pod_fraction, 0.75)
+        self.assertEqual(
+            restored.scoring_params,
+            {
+                "wager_percent": 0.05,
+                "wagering_starting_points": 250,
+                "draw_redistribution_fraction": 0.5,
+                "draw_distribution_shape": 0.25,
+                "redistribute_discarded_draw_points": True,
+                "draw_discard_pod_fraction": 0.75,
+            },
+        )
 
-    def test_old_format_data_defaults_new_fields(self):
-        cfg = TournamentConfiguration(auto_export=False)
-        data = cfg.serialize()
-        for key in (
-            "scoring_logic",
-            "wager_percent",
-            "wagering_starting_points",
-            "draw_redistribution_fraction",
-            "draw_distribution_shape",
-            "redistribute_discarded_draw_points",
-            "draw_discard_pod_fraction",
-        ):
-            del data[key]
-
-        restored = TournamentConfiguration.inflate(data)
-        self.assertEqual(restored.scoring_logic, "ScoringDefault")
-        self.assertEqual(restored.wager_percent, 0.07)
-        self.assertEqual(restored.wagering_starting_points, 1000)
-        self.assertEqual(restored.draw_redistribution_fraction, 1.0)
-        self.assertEqual(restored.draw_distribution_shape, 1.0)
-        self.assertEqual(restored.redistribute_discarded_draw_points, False)
-        self.assertEqual(restored.draw_discard_pod_fraction, 1.0)
+    def test_missing_scoring_params_default_per_algorithm(self):
+        # A config with no scoring_params at all (e.g. a hand-written file,
+        # or one predating this field) must fall back to whichever
+        # algorithm's own DEFAULT_PARAMS, not raise or read as 0.
+        cfg = TournamentConfiguration(scoring_logic="ScoringHareruya", auto_export=False)
+        self.assertEqual(cfg.scoring_params, {})
+        t = Tournament(cfg)
+        t.new_round()
+        players = t.add_player([f"P{i}" for i in range(4)])
+        t.manual_pod(players)
+        t.report_win(players[0])
+        # Default wager_percent=0.07, wagering_starting_points=1000.
+        self.assertAlmostEqual(players[0].rating(t.tour_round), 1000 - 70 + 280)
 
 
 class TestScoringModifiedHareruya(unittest.TestCase):
@@ -435,13 +474,13 @@ class TestScoringModifiedHareruya(unittest.TestCase):
         t.report_draw(p)
 
         logic = t.get_scoring_logic("ScoringModifiedHareruya")
-        original = examples._EXACT_MAX_ROUNDS
+        original = examples.ScoringModifiedHareruya._EXACT_MAX_ROUNDS
         try:
-            examples._EXACT_MAX_ROUNDS = 1  # 2 rounds -> sampled branch
+            examples.ScoringModifiedHareruya._EXACT_MAX_ROUNDS = 1  # 2 rounds -> sampled branch
             first = logic.compute_ratings(t, t.tour_round)
             second = logic.compute_ratings(t, t.tour_round)
         finally:
-            examples._EXACT_MAX_ROUNDS = original
+            examples.ScoringModifiedHareruya._EXACT_MAX_ROUNDS = original
         self.assertEqual(first, second)
 
     def test_standings_export_does_not_crash(self):
@@ -565,9 +604,7 @@ class TestScoringDefaultUnchanged(unittest.TestCase):
             TournamentConfiguration(
                 pod_sizes=[4],
                 allow_bye=True,
-                win_points=4,
-                bye_points=4,
-                draw_points=1,
+                scoring_params={"win_points": 4, "bye_points": 4, "draw_points": 1},
                 auto_export=False,
             )
         )
