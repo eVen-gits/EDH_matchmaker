@@ -218,10 +218,17 @@ class TestRoundCreation(unittest.TestCase):
             t.config = new_config
 
     def test_default_scoring_values(self):
+        # win/bye/draw_points are ScoringDefault's own defaults now (not
+        # eagerly baked into a fresh config) - an unconfigured config
+        # defers to them via scoring_params being empty.
+        from src.scoring_logic.examples import ScoringDefault
+
         cfg = TournamentConfiguration()
-        self.assertEqual(cfg.win_points, 5)
-        self.assertEqual(cfg.bye_points, 4)
-        self.assertEqual(cfg.draw_points, 1)
+        self.assertEqual(cfg.scoring_params, {})
+        self.assertEqual(
+            ScoringDefault.DEFAULT_PARAMS,
+            {"win_points": 5, "bye_points": 4, "draw_points": 1},
+        )
 
 
 class TestManualPodOps(unittest.TestCase):

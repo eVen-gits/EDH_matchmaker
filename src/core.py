@@ -533,12 +533,6 @@ class Log:
             cls.log(str(e), level=cls.Level.ERROR)
 
 
-# Version of the tournament-log JSON format written by TournamentAction.store.
-# Bump this, and add a matching format_version branch in Tournament.inflate,
-# whenever a change to serialize()/inflate() is not backward compatible.
-TOURNAMENT_LOG_FORMAT_VERSION = "1.0"
-
-
 class TournamentAction:
     """Serializable action that will be stored in tournament log and can be restored"""
 
@@ -637,9 +631,6 @@ class TournamentConfiguration(ITournamentConfiguration):
         """
         self.pod_sizes: Sequence[int] = kwargs.get("pod_sizes", [4, 3])
         self.allow_bye: bool = kwargs.get("allow_bye", True)
-        self.win_points: int = kwargs.get("win_points", 5)
-        self.bye_points: int = kwargs.get("bye_points", 4)
-        self.draw_points: int = kwargs.get("draw_points", 1)
         self.snake_pods: bool = kwargs.get("snake_pods", True)
         self.n_rounds: int = kwargs.get("n_rounds", 5)
         # Parse int or enum for TopCut
@@ -674,33 +665,12 @@ class TournamentConfiguration(ITournamentConfiguration):
             ],
         )
         # Scoring logic selection - see src/scoring_logic/examples.py.
-        # "ScoringDefault" reproduces the fixed win/draw/bye behavior
-        # above unchanged; the remaining six fields only take effect
-        # under "ScoringHareruya".
+        # scoring_params is opaque here: field names and defaults belong to
+        # whichever IScoringLogic class scoring_logic names (its
+        # DEFAULT_PARAMS), not to TournamentConfiguration - see
+        # IScoringLogic.params()/._param().
         self.scoring_logic: str = kwargs.get("scoring_logic", "ScoringDefault")
-        self.wager_percent: float = kwargs.get("wager_percent", 0.07)
-        self.wagering_starting_points: float = kwargs.get(
-            "wagering_starting_points", 1000
-        )
-        self.draw_redistribution_fraction: float = kwargs.get(
-            "draw_redistribution_fraction", 1.0
-        )
-        self.draw_distribution_shape: float = kwargs.get(
-            "draw_distribution_shape", 1.0
-        )
-        # Whether the draw pot left over after draw_redistribution_fraction
-        # is applied gets reclaimed (True) or simply discarded (False, the
-        # pre-existing behavior - kept as default for backward compatibility).
-        self.redistribute_discarded_draw_points: bool = kwargs.get(
-            "redistribute_discarded_draw_points", False
-        )
-        # Of the reclaimed amount, the fraction returned to the drawing
-        # pod's players; the remainder is split evenly across every
-        # player in the tournament. Only takes effect when
-        # redistribute_discarded_draw_points is True.
-        self.draw_discard_pod_fraction: float = kwargs.get(
-            "draw_discard_pod_fraction", 1.0
-        )
+        self.scoring_params: dict[str, Any] = dict(kwargs.get("scoring_params", {}))
 
     @property
     @override
@@ -760,9 +730,6 @@ class TournamentConfiguration(ITournamentConfiguration):
         return {
             "pod_sizes": self.pod_sizes,
             "allow_bye": self.allow_bye,
-            "win_points": self.win_points,
-            "bye_points": self.bye_points,
-            "draw_points": self.draw_points,
             "snake_pods": self.snake_pods,
             "n_rounds": self.n_rounds,
             "max_byes": self.max_byes,
@@ -771,22 +738,30 @@ class TournamentConfiguration(ITournamentConfiguration):
             "global_wr_seats": self.global_wr_seats,
             "top_cut": self.top_cut.value,
             "scoring_logic": self.scoring_logic,
-            "wager_percent": self.wager_percent,
-            "wagering_starting_points": self.wagering_starting_points,
-            "draw_redistribution_fraction": self.draw_redistribution_fraction,
-            "draw_distribution_shape": self.draw_distribution_shape,
-            "redistribute_discarded_draw_points": self.redistribute_discarded_draw_points,
-            "draw_discard_pod_fraction": self.draw_discard_pod_fraction,
+            "scoring_params": self.scoring_params,
         }
 
     @classmethod
     def inflate(cls, data: dict):
+        scoring_params = data.get("scoring_params")
+        if scoring_params is None:
+            # Pre-1.1 logs stored these fields flat on config instead of
+            # nested under scoring_params - recover whichever are present.
+            legacy_keys = (
+                "win_points",
+                "bye_points",
+                "draw_points",
+                "wager_percent",
+                "wagering_starting_points",
+                "draw_redistribution_fraction",
+                "draw_distribution_shape",
+                "redistribute_discarded_draw_points",
+                "draw_discard_pod_fraction",
+            )
+            scoring_params = {k: data[k] for k in legacy_keys if k in data}
         return cls(
             pod_sizes=data["pod_sizes"],
             allow_bye=data["allow_bye"],
-            win_points=data["win_points"],
-            bye_points=data["bye_points"],
-            draw_points=data["draw_points"],
             snake_pods=data["snake_pods"],
             n_rounds=data["n_rounds"],
             max_byes=data["max_byes"],
@@ -794,19 +769,10 @@ class TournamentConfiguration(ITournamentConfiguration):
             standings_export=StandingsExport.inflate(data["standings_export"]),
             global_wr_seats=data["global_wr_seats"],
             top_cut=TournamentConfiguration.TopCut(data["top_cut"]),
-            # Additive fields - absent in files written before this
-            # version, so read with defaults for backward compatibility.
+            # Additive field - absent in files written before this
+            # version, so read with a default for backward compatibility.
             scoring_logic=data.get("scoring_logic", "ScoringDefault"),
-            wager_percent=data.get("wager_percent", 0.07),
-            wagering_starting_points=data.get("wagering_starting_points", 1000),
-            draw_redistribution_fraction=data.get(
-                "draw_redistribution_fraction", 1.0
-            ),
-            draw_distribution_shape=data.get("draw_distribution_shape", 1.0),
-            redistribute_discarded_draw_points=data.get(
-                "redistribute_discarded_draw_points", False
-            ),
-            draw_discard_pod_fraction=data.get("draw_discard_pod_fraction", 1.0),
+            scoring_params=scoring_params,
         )
 
 
@@ -828,6 +794,11 @@ class Tournament(ITournament):
 
     _pairing_logic_cache: dict[str, type[IPairingLogic]] = {}
     _scoring_logic_cache: dict[str, type[IScoringLogic]] = {}
+
+    # Version of the tournament-log JSON format written by TournamentAction.store.
+    # Bump this, and add a matching format_version branch in inflate(),
+    # whenever a change to serialize()/inflate() is not backward compatible.
+    LOG_FORMAT_VERSION = "1.1"
 
     @classmethod
     def discover_pairing_logic(cls) -> None:
@@ -2128,7 +2099,7 @@ class Tournament(ITournament):
         """
 
         data: dict[str, Any] = {}
-        data["format_version"] = TOURNAMENT_LOG_FORMAT_VERSION
+        data["format_version"] = self.LOG_FORMAT_VERSION
         data["generator"] = {"name": "EDH_matchmaker"}
         data["created_at"] = self.created_at.isoformat()
         data["updated_at"] = datetime.now(timezone.utc).isoformat()
@@ -2153,11 +2124,11 @@ class Tournament(ITournament):
         Returns:
             Tournament: The reconstructed Tournament instance.
         """
-        format_version = data.get("format_version", TOURNAMENT_LOG_FORMAT_VERSION)
-        if format_version != TOURNAMENT_LOG_FORMAT_VERSION:
+        format_version = data.get("format_version", cls.LOG_FORMAT_VERSION)
+        if format_version != cls.LOG_FORMAT_VERSION:
             Log.log(
                 f"Loading tournament log with unknown format_version "
-                f"{format_version!r} (expected {TOURNAMENT_LOG_FORMAT_VERSION!r}).",
+                f"{format_version!r} (expected {cls.LOG_FORMAT_VERSION!r}).",
                 level=Log.Level.WARNING,
             )
 

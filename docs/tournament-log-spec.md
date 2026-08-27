@@ -6,7 +6,7 @@ compatible files, without reading the EDH_matchmaker source code.
 
 ## Status of this document
 
-This page describes format version `1.0`, the format that EDH_matchmaker
+This page describes format version `1.1`, the format that EDH_matchmaker
 writes today. [Known gaps](#known-gaps-and-open-decisions) lists the parts
 of the format that a stricter cross-software standard must still decide.
 
@@ -78,11 +78,25 @@ expected to stay additive (new optional fields) for the foreseeable
 future. A breaking change bumps `format_version` and documents the break
 on this page.
 
+#### `1.0` → `1.1`
+
+`config.win_points`, `bye_points`, `draw_points`, `wager_percent`,
+`wagering_starting_points`, `draw_redistribution_fraction`,
+`draw_distribution_shape`, `redistribute_discarded_draw_points`, and
+`draw_discard_pod_fraction` moved from flat `config` fields into
+`config.scoring_params`, nested by whichever scoring algorithm reads them.
+See [The `config` object](#the-config-object) and [Scoring
+logic](#scoring-logic). A `1.1` reader must also accept a `1.0` file with
+these nine fields still flat on `config` (see [Scoring
+logic](#scoring-logic) for exactly which fields belong to which
+algorithm) and treat them as the equivalent `scoring_params` entries. A
+`1.1` writer always writes the nested form.
+
 ### Minimal example
 
 ```json
 {
-  "format_version": "1.0",
+  "format_version": "1.1",
   "generator": {"name": "EDH_matchmaker"},
   "created_at": "2026-08-21T10:00:00+00:00",
   "updated_at": "2026-08-21T10:05:00+00:00",
@@ -90,9 +104,6 @@ on this page.
   "config": {
     "pod_sizes": [2],
     "allow_bye": true,
-    "win_points": 3,
-    "bye_points": 3,
-    "draw_points": 1,
     "snake_pods": true,
     "n_rounds": 1,
     "max_byes": 1,
@@ -103,7 +114,13 @@ on this page.
       "dir": "./logs/standings.txt"
     },
     "global_wr_seats": [0.2470, 0.1928, 0.1672, 0.1458],
-    "top_cut": 0
+    "top_cut": 0,
+    "scoring_logic": "ScoringDefault",
+    "scoring_params": {
+      "win_points": 3,
+      "bye_points": 3,
+      "draw_points": 1
+    }
   },
   "players": [
     {"uid": "aaaaaaaa-0000-0000-0000-000000000001", "name": "Alice", "decklist": null},
@@ -148,9 +165,6 @@ draw, or a pending game).
 |---|---|---|
 | `pod_sizes` | array of int | Allowed pod sizes, largest first, for example `[4, 3]`. The pairing logic fills pods at the first size before falling back to the next. |
 | `allow_bye` | bool | If `true`, a leftover player can receive a bye instead of a pod. |
-| `win_points` | int | Points awarded for a pod win. Only used by `"ScoringDefault"`. |
-| `bye_points` | int | Points awarded for a bye. Only used by `"ScoringDefault"` - a bye leaves a player's points unchanged under `"ScoringHareruya"` and `"ScoringModifiedHareruya"`. |
-| `draw_points` | int | Points awarded to each player in a draw. Only used by `"ScoringDefault"`. |
 | `snake_pods` | bool | If `true`, round 2 seeding uses a Swiss snake order. |
 | `n_rounds` | int | Number of Swiss rounds. |
 | `max_byes` | int | Maximum number of byes one player can receive across the tournament. |
@@ -159,12 +173,7 @@ draw, or a pending game).
 | `global_wr_seats` | array of float | Seat-position win-rate adjustment, one value per seat, most-advantaged seat first. |
 | `top_cut` | int | The playoff cut size. See [`top_cut` and `stage` values](#top_cut-and-stage-values). `0` means no playoff cut (Swiss only). |
 | `scoring_logic` | string | optional, default `"ScoringDefault"`. Which formula computes player points. See [Scoring logic](#scoring-logic). |
-| `wager_percent` | float | optional, default `0.07`. Used by `"ScoringHareruya"` and `"ScoringModifiedHareruya"`. |
-| `wagering_starting_points` | float | optional, default `1000`. Used by `"ScoringHareruya"` and `"ScoringModifiedHareruya"`. |
-| `draw_redistribution_fraction` | float, 0-1 | optional, default `1.0`. Used by `"ScoringHareruya"` and `"ScoringModifiedHareruya"`. |
-| `draw_distribution_shape` | float, 0-1 | optional, default `1.0`. Used by `"ScoringHareruya"` and `"ScoringModifiedHareruya"`. |
-| `redistribute_discarded_draw_points` | bool | optional, default `false`. Used by `"ScoringHareruya"` and `"ScoringModifiedHareruya"`. If `true`, the pot left over after `draw_redistribution_fraction` is applied is reclaimed instead of discarded. See [Scoring logic](#scoring-logic). |
-| `draw_discard_pod_fraction` | float, 0-1 | optional, default `1.0`. Used by `"ScoringHareruya"` and `"ScoringModifiedHareruya"`, and only when `redistribute_discarded_draw_points` is `true`. |
+| `scoring_params` | object | optional, default `{}`. Parameters for whichever algorithm `scoring_logic` names - field names, types, and defaults are owned by that algorithm, not by this format. See [Scoring logic](#scoring-logic) for the fields each shipped algorithm reads. |
 
 `standings_export` fields:
 
@@ -175,8 +184,10 @@ draw, or a pending game).
 | `dir` | string | File path for the plain-text standings export. Not part of this JSON format — see [Adjacent outputs](#adjacent-outputs-not-part-of-this-format). |
 
 These values are this implementation's defaults, given for reference.
-A conforming file must set every `config` field explicitly; a reader
-must not assume a default for a missing `config` field.
+A conforming file must set every `config` field explicitly, except
+`scoring_params` keys - each is optional and defaults per-algorithm
+(see [Scoring logic](#scoring-logic)); a reader must not assume a
+default for a missing `config` field otherwise.
 
 ## Player objects
 
@@ -359,12 +370,20 @@ non-Swiss round ends the accumulation for both.
 
 ### `ScoringDefault`
 
-The default. A player's rating is the sum, over every Swiss round up
-to and including the round in question, of:
+The default. `scoring_params` fields:
 
-- `config.win_points` for a round the player won.
-- `config.draw_points` for a round the player drew.
-- `config.bye_points` for a round the player received a bye.
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `win_points` | int | `5` | Points awarded for a pod win. |
+| `bye_points` | int | `4` | Points awarded for a bye. |
+| `draw_points` | int | `1` | Points awarded to each player in a draw. |
+
+A player's rating is the sum, over every Swiss round up to and
+including the round in question, of:
+
+- `scoring_params.win_points` for a round the player won.
+- `scoring_params.draw_points` for a round the player drew.
+- `scoring_params.bye_points` for a round the player received a bye.
 - `0` for a round the player lost or has pending.
 
 This is independent per player: no player's score affects any other
@@ -372,11 +391,22 @@ player's.
 
 ### `ScoringHareruya`
 
+`scoring_params` fields:
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `wager_percent` | float | `0.07` | Fraction of a player's current stack wagered per pod. |
+| `wagering_starting_points` | float | `1000` | Starting stack, before round 1. |
+| `draw_redistribution_fraction` | float, 0-1 | `1.0` | `R` below - fraction of a draw's pot actually paid out to the drawers. |
+| `draw_distribution_shape` | float, 0-1 | `1.0` | `S` below - even split (`1`) vs. wager-proportional split (`0`) of a draw payout. |
+| `redistribute_discarded_draw_points` | bool | `false` | If `true`, the pot left over after `draw_redistribution_fraction` is applied is reclaimed instead of discarded. |
+| `draw_discard_pod_fraction` | float, 0-1 | `1.0` | `P` below - only used when `redistribute_discarded_draw_points` is `true`. |
+
 Each player carries a running point stack, seeded at
-`config.wagering_starting_points` before round 1. For every pod a
+`scoring_params.wagering_starting_points` before round 1. For every pod a
 player is seated in, once that pod has a result:
 
-1. Every seated player wagers `config.wager_percent × their current
+1. Every seated player wagers `scoring_params.wager_percent × their current
    stack`, deducted immediately. The **pot** is the sum of every
    seated player's wager. The pot uses the real seated players only. A
    pod smaller than the largest `config.pod_sizes` value has fewer
@@ -394,8 +424,8 @@ player is seated in, once that pod has a result:
    ```
    payout_i = R × ( S × (pot / N) + (1 − S) × w_i )
    ```
-   where `R` = `config.draw_redistribution_fraction` and `S` =
-   `config.draw_distribution_shape`, each `0`-`1`. At `R = 1, S = 1`
+   where `R` = `scoring_params.draw_redistribution_fraction` and `S` =
+   `scoring_params.draw_distribution_shape`, each `0`-`1`. At `R = 1, S = 1`
    the pot splits evenly regardless of individual wager size. At
    `R = 1, S = 0` each drawer gets exactly their own wager back, with
    no net change. At `R = 0` every drawer's wager is lost regardless
@@ -403,9 +433,9 @@ player is seated in, once that pod has a result:
 
    By default, `(1 − R) × pot` — whatever `payout_i` above never
    pays out — leaves the economy entirely: it is not returned to the
-   original wagerers. If `config.redistribute_discarded_draw_points`
+   original wagerers. If `scoring_params.redistribute_discarded_draw_points`
    is `true`, that amount is reclaimed instead of discarded, split by
-   `config.draw_discard_pod_fraction` (`P`, `0`-`1`):
+   `scoring_params.draw_discard_pod_fraction` (`P`, `0`-`1`):
    ```
    discarded    = (1 − R) × pot
    pod_share    = P × discarded
@@ -470,7 +500,7 @@ than 7 rounds, the reference implementation does not use every order. It
 averages a fixed sample of random orders instead. This is an
 implementation choice, not a requirement of this format.
 
-This variant uses the same `config` fields as `ScoringHareruya`. It
+This variant uses the same `scoring_params` fields as `ScoringHareruya`. It
 shares the same `pointrate` approximation.
 
 ## Adjacent outputs (not part of this format)

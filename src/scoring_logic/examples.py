@@ -7,10 +7,9 @@ from typing import Any
 
 from ..interface import IPlayer, IRound, IScoringLogic, ITournament
 
-_SWISS = 0  # Round.Stage.SWISS / TournamentConfiguration.TopCut.NONE value
-
-
 class CommonScoring(IScoringLogic, ABC):
+    _SWISS = 0  # Round.Stage.SWISS / TournamentConfiguration.TopCut.NONE value
+
     def __init__(self, name: str):
         self.name = name
 
@@ -25,7 +24,7 @@ class CommonScoring(IScoringLogic, ABC):
         Tournament.rating() behavior this replaces.
         """
         for i_tour_round in tour.rounds:
-            if i_tour_round.stage.value != _SWISS:
+            if i_tour_round.stage.value != self._SWISS:
                 break
             yield i_tour_round
             if i_tour_round == tour_round:
@@ -38,11 +37,27 @@ class CommonScoring(IScoringLogic, ABC):
         # ScoringDefault overrides this with a cheap, independent path.
         return self.compute_ratings(player.tour, tour_round).get(player.uid, 0)
 
+    def params(self, tour: ITournament) -> dict[str, Any]:
+        """This algorithm's params, tournament overrides on top of its own defaults.
+
+        Cold path only (call once, not per player/opponent) - it allocates
+        a merged dict. On a hot path, use _param() instead.
+        """
+        config = tour.config  # type: ignore[attr-defined]
+        return {**self.DEFAULT_PARAMS, **config.scoring_params}
+
+    def _param(self, tour: ITournament, key: str) -> Any:
+        """Single-param lookup with no allocation - for the rating/pointrate hot path."""
+        config = tour.config  # type: ignore[attr-defined]
+        return config.scoring_params.get(key, self.DEFAULT_PARAMS[key])
+
 
 class ScoringDefault(CommonScoring):
     """Fixed win/draw/bye point constants - the original, pre-plugin behavior."""
 
     IS_COMPLETE: bool = True
+
+    DEFAULT_PARAMS: dict[str, Any] = {"win_points": 5, "bye_points": 4, "draw_points": 1}
 
     def rating(self, player: IPlayer, tour_round: IRound) -> float:
         # Independent per player - O(rounds), not O(players * rounds).
@@ -51,19 +66,24 @@ class ScoringDefault(CommonScoring):
         # player's, so replaying the whole tournament just to answer
         # one player's query would be pure waste on the hottest path
         # in the app (get_standings() calls this once per player).
-        config = player.tour.config  # type: ignore[attr-defined]
+        # _param(), not params(): this runs per player, so it must not
+        # allocate a merged dict on every call.
+        tour = player.tour
+        win_points = self._param(tour, "win_points")
+        draw_points = self._param(tour, "draw_points")
+        bye_points = self._param(tour, "bye_points")
         # Kept as int, not 0.0: win/draw/bye_points are ints, and
         # StandingsExport's RATING column formats with "{:d}" - this
         # must stay byte-identical to the pre-plugin behavior.
         points: float = 0
-        for i_tour_round in self._swiss_rounds_up_to(player.tour, tour_round):
+        for i_tour_round in self._swiss_rounds_up_to(tour, tour_round):
             round_result = player.result(i_tour_round)
             if round_result == IPlayer.EResult.WIN:
-                points += config.win_points
+                points += win_points
             elif round_result == IPlayer.EResult.DRAW:
-                points += config.draw_points
+                points += draw_points
             elif round_result == IPlayer.EResult.BYE:
-                points += config.bye_points
+                points += bye_points
         return points
 
     def compute_ratings(
@@ -74,8 +94,7 @@ class ScoringDefault(CommonScoring):
     def pointrate_denominator(self, tour_round: IRound) -> float:
         # A win is assumed to be the maximum possible score for one
         # round, so the max total after N rounds is win_points * N.
-        config = tour_round.tour.config  # type: ignore[attr-defined]
-        return config.win_points * (tour_round.seq + 1)
+        return self._param(tour_round.tour, "win_points") * (tour_round.seq + 1)
 
 
 class ScoringHareruya(CommonScoring):
@@ -86,6 +105,15 @@ class ScoringHareruya(CommonScoring):
     """
 
     IS_COMPLETE: bool = True
+
+    DEFAULT_PARAMS: dict[str, Any] = {
+        "wager_percent": 0.07,
+        "wagering_starting_points": 1000,
+        "draw_redistribution_fraction": 1.0,
+        "draw_distribution_shape": 1.0,
+        "redistribute_discarded_draw_points": False,
+        "draw_discard_pod_fraction": 1.0,
+    }
 
     def compute_ratings(
         self, tour: ITournament, tour_round: IRound
@@ -102,17 +130,19 @@ class ScoringHareruya(CommonScoring):
         order gives different totals. This is the hook ScoringModifiedHareruya
         uses to average over every round-order permutation.
         """
-        config = tour.config  # type: ignore[attr-defined]
+        # params(), not _param() x6: this runs once per compute_ratings()
+        # call, not per player, so the merged-dict allocation is fine here.
+        p = self.params(tour)
         index, round_ops = self._extract(tour, ordered_rounds)
         points = self._replay_indexed(
             round_ops,
             len(index),
-            float(config.wagering_starting_points),
-            config.wager_percent,
-            config.draw_redistribution_fraction,
-            config.draw_distribution_shape,
-            config.redistribute_discarded_draw_points,
-            config.draw_discard_pod_fraction,
+            float(p["wagering_starting_points"]),
+            p["wager_percent"],
+            p["draw_redistribution_fraction"],
+            p["draw_distribution_shape"],
+            p["redistribute_discarded_draw_points"],
+            p["draw_discard_pod_fraction"],
         )
         return {uid: points[i] for uid, i in index.items()}
 
@@ -220,16 +250,10 @@ class ScoringHareruya(CommonScoring):
         # take an arbitrarily large pot), so this is an approximation
         # shaped like the default: starting stake x rounds played,
         # not a strict [0, 1] bound.
-        config = tour_round.tour.config  # type: ignore[attr-defined]
-        return config.wagering_starting_points * (tour_round.seq + 1)
-
-
-# Thresholds for ScoringModifiedHareruya. Algorithm internals, not per-
-# tournament settings, so kept as module constants (tests monkeypatch them)
-# rather than plumbed through TournamentConfiguration.
-_EXACT_MAX_ROUNDS = 7  # 7! = 5040 replays; above this, sample instead
-_SAMPLE_COUNT = 5000
-_SAMPLE_SEED = 0  # fixed -> deterministic average -> stable standings
+        # _param(): this runs per player/opponent, so it must not
+        # allocate a merged dict on every call.
+        starting_points = self._param(tour_round.tour, "wagering_starting_points")
+        return starting_points * (tour_round.seq + 1)
 
 
 class ScoringModifiedHareruya(ScoringHareruya):
@@ -247,6 +271,13 @@ class ScoringModifiedHareruya(ScoringHareruya):
 
     IS_COMPLETE: bool = True
 
+    # Thresholds below are algorithm internals, not per-tournament settings,
+    # so kept as class constants (tests monkeypatch them) rather than
+    # plumbed through TournamentConfiguration.
+    _EXACT_MAX_ROUNDS = 7  # 7! = 5040 replays; above this, sample instead
+    _SAMPLE_COUNT = 5000
+    _SAMPLE_SEED = 0  # fixed -> deterministic average -> stable standings
+
     def compute_ratings(
         self, tour: ITournament, tour_round: IRound
     ) -> dict[Any, float]:
@@ -258,23 +289,27 @@ class ScoringModifiedHareruya(ScoringHareruya):
 
         # Extract pod results ONCE. Results are permutation-invariant, so every
         # permutation replays the same round_ops in a different order.
-        config = tour.config  # type: ignore[attr-defined]
-        start = float(config.wagering_starting_points)
-        wager_percent = config.wager_percent
-        R = config.draw_redistribution_fraction
-        S = config.draw_distribution_shape
-        redistribute_discard = config.redistribute_discarded_draw_points
-        pod_fraction = config.draw_discard_pod_fraction
+        # params(): this runs once per compute_ratings() call, not once per
+        # permutation, so the merged-dict allocation is fine here.
+        p = self.params(tour)
+        start = float(p["wagering_starting_points"])
+        wager_percent = p["wager_percent"]
+        R = p["draw_redistribution_fraction"]
+        S = p["draw_distribution_shape"]
+        redistribute_discard = p["redistribute_discarded_draw_points"]
+        pod_fraction = p["draw_discard_pod_fraction"]
         index, round_ops = self._extract(tour, rounds)
         n_players = len(index)
 
-        if n <= _EXACT_MAX_ROUNDS:
+        if n <= self._EXACT_MAX_ROUNDS:
             position_orders: Iterator[Any] = itertools.permutations(range(n))
         else:
             # ponytail: n! blows up past _EXACT_MAX_ROUNDS rounds; sample
             #           fixed-seed random orders instead of enumerating.
-            rng = random.Random(_SAMPLE_SEED)
-            position_orders = (rng.sample(range(n), n) for _ in range(_SAMPLE_COUNT))
+            rng = random.Random(self._SAMPLE_SEED)
+            position_orders = (
+                rng.sample(range(n), n) for _ in range(self._SAMPLE_COUNT)
+            )
 
         totals = [0.0] * n_players
         count = 0

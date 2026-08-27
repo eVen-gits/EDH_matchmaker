@@ -121,7 +121,7 @@ class TestSerialization(unittest.TestCase):
 
         serialized = self.t.serialize()
 
-        self.assertEqual(serialized["format_version"], "1.0")
+        self.assertEqual(serialized["format_version"], Tournament.LOG_FORMAT_VERSION)
         self.assertEqual(serialized["generator"], {"name": "EDH_matchmaker"})
         # Must round-trip through fromisoformat without raising.
         dt.datetime.fromisoformat(serialized["created_at"])

@@ -51,8 +51,7 @@
       "type": "object",
       "additionalProperties": true,
       "required": [
-        "pod_sizes", "allow_bye", "win_points", "bye_points",
-        "draw_points", "snake_pods", "n_rounds", "max_byes",
+        "pod_sizes", "allow_bye", "snake_pods", "n_rounds", "max_byes",
         "auto_export", "standings_export", "global_wr_seats", "top_cut"
       ],
       "properties": {
@@ -62,9 +61,6 @@
           "minItems": 1
         },
         "allow_bye": { "type": "boolean" },
-        "win_points": { "type": "integer" },
-        "bye_points": { "type": "integer" },
-        "draw_points": { "type": "integer" },
         "snake_pods": { "type": "boolean" },
         "n_rounds": { "type": "integer", "minimum": 0 },
         "max_byes": { "type": "integer", "minimum": 0 },
@@ -76,13 +72,9 @@
         },
         "top_cut": { "$ref": "#/$defs/stageOrTopCut" },
         "scoring_logic": { "type": "string" },
-        "wager_percent": { "type": "number", "minimum": 0 },
-        "wagering_starting_points": { "type": "number", "minimum": 0 },
-        "draw_redistribution_fraction": {
-          "type": "number", "minimum": 0, "maximum": 1
-        },
-        "draw_distribution_shape": {
-          "type": "number", "minimum": 0, "maximum": 1
+        "scoring_params": {
+          "type": "object",
+          "description": "Field names and defaults are owned by whichever class scoring_logic names - see the Scoring logic section of tournament-log-spec.md. Deliberately schema-free: a new scoring algorithm's params don't require a schema change here."
         }
       }
     },

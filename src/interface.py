@@ -247,6 +247,9 @@ class IScoringLogic(ABC):
 
     IS_COMPLETE: bool = False
     name: str
+    # This algorithm's own parameter names and defaults - see
+    # TournamentConfiguration.scoring_params.
+    DEFAULT_PARAMS: dict[str, Any] = {}
 
     @abstractmethod
     def compute_ratings(
@@ -301,9 +304,6 @@ class IStandingsExport(ABC):
 class ITournamentConfiguration(ABC):
     pod_sizes: Sequence[int] = (4, 3)
     allow_bye: bool = True
-    win_points: int = 7
-    bye_points: int = 3
-    draw_points: int = 1
     snake_pods: bool = True
     n_rounds: int = 4
     max_byes: int = 2
@@ -322,10 +322,9 @@ class ITournamentConfiguration(ABC):
     )
     top_cut: int = 0
     scoring_logic: str = "ScoringDefault"
-    wager_percent: float = 0.07
-    wagering_starting_points: float = 1000
-    draw_redistribution_fraction: float = 1.0
-    draw_distribution_shape: float = 1.0
+    # Owned by whichever class scoring_logic names - see
+    # IScoringLogic.DEFAULT_PARAMS.
+    scoring_params: dict[str, Any] = {}
 
     @property
     @abstractmethod
