@@ -1005,6 +1005,9 @@ class TournamentConfigDialog(QDialog):
         self.ui.cb_scoringLogic.currentIndexChanged.connect(
             self.on_scoring_logic_changed
         )
+        self.ui.cb_redistributeDiscardedDraw.stateChanged.connect(
+            self._update_discard_pod_fraction_visibility
+        )
         self.ui.pb_browse.clicked.connect(self.select_log_location)
         self.ui.pb_add_psize.clicked.connect(self.add_psize)
         self.ui.pb_remove_psize.clicked.connect(self.remove_psize)
@@ -1054,6 +1057,13 @@ class TournamentConfigDialog(QDialog):
             self.core.config.draw_redistribution_fraction
         )
         self.ui.dsb_drawShape.setValue(self.core.config.draw_distribution_shape)
+        self.ui.cb_redistributeDiscardedDraw.setChecked(
+            self.core.config.redistribute_discarded_draw_points
+        )
+        self.ui.dsb_discardPodFraction.setValue(
+            self.core.config.draw_discard_pod_fraction
+        )
+        self._update_discard_pod_fraction_visibility()
         self.on_scoring_logic_changed()
 
         if TournamentAction.LOGF:
@@ -1077,6 +1087,11 @@ class TournamentConfigDialog(QDialog):
         # bye_points involved, so the field is meaningless there.
         self.ui.label_6.setVisible(not is_hareruya)
         self.ui.sb_bye.setVisible(not is_hareruya)
+
+    def _update_discard_pod_fraction_visibility(self):
+        show = self.ui.cb_redistributeDiscardedDraw.isChecked()
+        self.ui.label_17.setVisible(show)
+        self.ui.dsb_discardPodFraction.setVisible(show)
 
     def check_pod_sizes(self):
         items = [self.lw_pod_sizes.item(i) for i in range(self.lw_pod_sizes.count())]
@@ -1150,6 +1165,8 @@ class TournamentConfigDialog(QDialog):
             wagering_starting_points=self.ui.sb_wageringStart.value(),
             draw_redistribution_fraction=self.ui.dsb_drawRedistribution.value(),
             draw_distribution_shape=self.ui.dsb_drawShape.value(),
+            redistribute_discarded_draw_points=self.ui.cb_redistributeDiscardedDraw.isChecked(),
+            draw_discard_pod_fraction=self.ui.dsb_discardPodFraction.value(),
         )
         if self.reset:
             t = Tournament(
