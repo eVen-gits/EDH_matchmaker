@@ -376,7 +376,10 @@ player is seated in, once that pod has a result:
 
 1. Every seated player wagers `config.wager_percent × their current
    stack`, deducted immediately. The **pot** is the sum of every
-   seated player's wager.
+   seated player's wager. The pot uses the real seated players only. A
+   pod smaller than the largest `config.pod_sizes` value has fewer
+   wagers, so a smaller pot and a smaller reward. No phantom or
+   placeholder player is added to a short pod.
 2. **Win** (`pods[].result` holds one UID): that player receives the
    full pot. Every other seated player has already lost their wager
    and receives nothing further.

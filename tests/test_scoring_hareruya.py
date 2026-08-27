@@ -319,6 +319,44 @@ class TestScoringModifiedHareruya(unittest.TestCase):
         self.assertGreater(len(output), 0)
 
 
+class TestSmallPodPot(unittest.TestCase):
+    """A pod's pot is the sum of only its real seated wagers - no phantom fill."""
+
+    def test_three_man_pod_no_phantom(self):
+        t = _make_wagering_tournament(pod_sizes=[3])
+        players = t.add_player([f"P{i}" for i in range(3)])
+        t.manual_pod(players)
+        t.report_win(players[0])
+
+        # wager = 10% of 100 = 10 each; pot = 30 (three seats, no phantom 4th).
+        # A phantom 1000-point 4th would make the pot ~130 and the winner ~220.
+        self.assertAlmostEqual(players[0].rating(t.tour_round), 100 - 10 + 30)
+        for loser in players[1:]:
+            self.assertAlmostEqual(loser.rating(t.tour_round), 90)
+        # Points conserved within the pod: exactly 3 x start, not inflated.
+        total = sum(p.rating(t.tour_round) for p in players)
+        self.assertAlmostEqual(total, 300)
+
+    def test_smaller_pod_gives_smaller_reward(self):
+        # The winner's net gain scales with real pod size: a 3-man win nets
+        # two opponents' wagers (+20), a 4-man win nets three (+30).
+        t3 = _make_wagering_tournament(pod_sizes=[3])
+        p3 = t3.add_player([f"P{i}" for i in range(3)])
+        t3.manual_pod(p3)
+        t3.report_win(p3[0])
+        gain3 = p3[0].rating(t3.tour_round) - 100
+
+        t4 = _make_wagering_tournament(pod_sizes=[4])
+        p4 = t4.add_player([f"P{i}" for i in range(4)])
+        t4.manual_pod(p4)
+        t4.report_win(p4[0])
+        gain4 = p4[0].rating(t4.tour_round) - 100
+
+        self.assertAlmostEqual(gain3, 20)
+        self.assertAlmostEqual(gain4, 30)
+        self.assertLess(gain3, gain4)
+
+
 class TestStandingsRatingReuse(unittest.TestCase):
     """get_standings must compute the field's ratings once, not per player."""
 
