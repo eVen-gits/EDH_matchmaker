@@ -111,6 +111,8 @@ class ScoringHareruya(CommonScoring):
             config.wager_percent,
             config.draw_redistribution_fraction,
             config.draw_distribution_shape,
+            config.redistribute_discarded_draw_points,
+            config.draw_discard_pod_fraction,
         )
         return {uid: points[i] for uid, i in index.items()}
 
@@ -158,6 +160,8 @@ class ScoringHareruya(CommonScoring):
         wager_percent: float,
         R: float,
         S: float,
+        redistribute_discard: bool,
+        pod_fraction: float,
     ) -> list[float]:
         """Replays the wager economy on an integer-indexed stack list.
 
@@ -179,6 +183,34 @@ class ScoringHareruya(CommonScoring):
                     wager_of = {i: wagers[k] for k, i in enumerate(idxs)}
                     for i in drawers:
                         points[i] += R * (S * (pot / nd) + (1 - S) * wager_of[i])
+
+                    if redistribute_discard:
+                        # (1-R)*pot is exactly what the loop above never pays
+                        # out. Split it: pod_fraction back to this pod's
+                        # drawers (a bonus on top of the payout above), the
+                        # rest as an equal per-capita dividend to every player
+                        # in the tournament, including players on a bye.
+                        discarded = (1 - R) * pot
+                        pod_share = pod_fraction * discarded
+                        # discarded - pod_share, not a second multiply, so the
+                        # two halves sum back to `discarded` exactly.
+                        global_share = discarded - pod_share
+
+                        drawer_wager_total = sum(wager_of[i] for i in drawers)
+                        for i in drawers:
+                            wager_share = (
+                                wager_of[i] / drawer_wager_total
+                                if drawer_wager_total > 0
+                                else 1.0 / nd
+                            )
+                            points[i] += pod_share * (
+                                S * (1.0 / nd) + (1 - S) * wager_share
+                            )
+
+                        if global_share:
+                            per_capita = global_share / n
+                            for i in range(n):
+                                points[i] += per_capita
                 # Any remaining seated players are plain losers: their wager
                 # was already deducted above and they receive nothing further.
         return points
@@ -231,6 +263,8 @@ class ScoringModifiedHareruya(ScoringHareruya):
         wager_percent = config.wager_percent
         R = config.draw_redistribution_fraction
         S = config.draw_distribution_shape
+        redistribute_discard = config.redistribute_discarded_draw_points
+        pod_fraction = config.draw_discard_pod_fraction
         index, round_ops = self._extract(tour, rounds)
         n_players = len(index)
 
@@ -252,6 +286,8 @@ class ScoringModifiedHareruya(ScoringHareruya):
                 wager_percent,
                 R,
                 S,
+                redistribute_discard,
+                pod_fraction,
             )
             for i in range(n_players):
                 totals[i] += points[i]
