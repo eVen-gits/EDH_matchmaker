@@ -15,9 +15,7 @@ class TestScoring(unittest.TestCase):
             TournamentConfiguration(
                 pod_sizes=[4],
                 allow_bye=True,
-                win_points=4,
-                bye_points=4,
-                draw_points=1,
+                scoring_params={"win_points": 4, "bye_points": 4, "draw_points": 1},
                 auto_export=False,
             )
         )
@@ -38,10 +36,12 @@ class TestScoring(unittest.TestCase):
         leaders = [
             p
             for p in self.t.players
-            if p.rating(self.t.tour_round) == self.t.config.win_points
+            if p.rating(self.t.tour_round) == self.t.config.scoring_params["win_points"]
         ]
         self.assertEqual(len(leaders), 3)
-        self.assertEqual(bye.rating(self.t.tour_round), self.t.config.bye_points)
+        self.assertEqual(
+            bye.rating(self.t.tour_round), self.t.config.scoring_params["bye_points"]
+        )
         standings = self.t.get_standings(self.t.tour_round)
         self.assertEqual(standings[2], bye)
 

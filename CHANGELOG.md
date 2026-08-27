@@ -24,6 +24,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `docs/tournament-log-spec.md` for the exact formula.
 
 ### Changed
+- Tournament log format `1.1`: `config.win_points`, `bye_points`,
+  `draw_points`, `wager_percent`, `wagering_starting_points`,
+  `draw_redistribution_fraction`, `draw_distribution_shape`,
+  `redistribute_discarded_draw_points`, and `draw_discard_pod_fraction` moved
+  into a new `config.scoring_params` object, nested by whichever scoring
+  algorithm reads them, instead of sitting flat alongside universal
+  tournament settings regardless of which algorithm is active. `1.1` still
+  reads `1.0` files with these fields flat. See `docs/tournament-log-spec.md`
+  for the full field list per algorithm.
 - Optimized the rating computation on the standings, pairing, and pod-power
   sorts. Each now computes the full-field rating map once and passes it down,
   instead of recomputing it per player and per opponent. Modified Hareruya also
