@@ -329,3 +329,77 @@ class TestResetPodsConfigChange(unittest.TestCase):
         ok = t.create_pairings()
         self.assertTrue(ok)
         self.assertEqual(t.tour_round.stage, Round.Stage.SWISS)
+
+
+class TestPairingLogicsConfig(unittest.TestCase):
+    """config.pairing_logics picks each Swiss round's pairing logic."""
+
+    def _swiss_tournament(self, pairing_logics=None):
+        cfg = TournamentConfiguration(
+            pod_sizes=[4], n_rounds=5, top_cut=TournamentConfiguration.TopCut.TOP_4,
+            allow_bye=True, auto_export=False,
+            pairing_logics=pairing_logics or [],
+        )
+        t = Tournament(cfg)
+        t.add_player([f"P{i}" for i in range(16)])
+        return t
+
+    def _logics(self, t, n):
+        out = []
+        for _ in range(n):
+            t.create_pairings()
+            out.append(t.tour_round.logic.name)
+            t.random_results()
+            t.new_round()
+        return out
+
+    def test_configured_logic_per_round(self):
+        t = self._swiss_tournament(
+            ["PairingDefault", "PairingRandom", "PairingSnake"]
+        )
+        self.assertEqual(
+            self._logics(t, 3), ["PairingDefault", "PairingRandom", "PairingSnake"]
+        )
+
+    def test_empty_falls_back_to_adaptive(self):
+        t = self._swiss_tournament([])
+        self.assertEqual(
+            self._logics(t, 3), ["PairingRandom", "PairingSnake", "PairingDefault"]
+        )
+
+    def test_out_of_range_seq_uses_adaptive(self):
+        # Only round 0 configured; round 1 falls back to the adaptive Snake.
+        t = self._swiss_tournament(["PairingDefault"])
+        self.assertEqual(self._logics(t, 2), ["PairingDefault", "PairingSnake"])
+
+    def test_top_cut_ignores_pairing_logics(self):
+        t = self._swiss_tournament(["PairingRandom"] * 5)
+        for _ in range(5):
+            t.create_pairings()
+            t.random_results()
+            t.new_round()
+        t.create_pairings()  # next round is the TOP_4 cut
+        self.assertEqual(t.tour_round.stage, Round.Stage.TOP_4)
+        self.assertEqual(t.tour_round.logic.name, "PairingTop4")
+
+    def test_serialize_roundtrip_and_backward_compat(self):
+        import json
+
+        cfg = TournamentConfiguration(
+            pairing_logics=["PairingRandom", "PairingSnake"],
+            pairing_params={"k": 1},
+            auto_export=False,
+        )
+        restored = TournamentConfiguration.inflate(
+            json.loads(json.dumps(cfg.serialize()))
+        )
+        self.assertEqual(restored.pairing_logics, ["PairingRandom", "PairingSnake"])
+        self.assertEqual(restored.pairing_params, {"k": 1})
+
+        # An old file without the keys inflates to empty defaults (adaptive).
+        data = cfg.serialize()
+        del data["pairing_logics"]
+        del data["pairing_params"]
+        old = TournamentConfiguration.inflate(data)
+        self.assertEqual(old.pairing_logics, [])
+        self.assertEqual(old.pairing_params, {})

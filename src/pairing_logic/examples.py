@@ -3,7 +3,7 @@ from abc import ABC
 from typing import Any, Callable, final
 from collections.abc import Mapping, Sequence
 
-from ..interface import IPlayer, IPod, IRound, IPairingLogic
+from ..interface import IPlayer, IPod, IRound, IPairingLogic, ITournament
 
 from typing_extensions import override
 import random
@@ -14,6 +14,21 @@ class CommonPairing(IPairingLogic, ABC):
 
     def __init__(self, name: str):
         self.name = name
+
+    def params(self, tour: ITournament) -> dict[str, Any]:
+        """This algorithm's params: tournament overrides on top of its defaults.
+
+        Mirrors CommonScoring.params. No pairing algorithm ships params today,
+        so this returns an empty dict - the seam is here so a parameterized
+        pairing algorithm needs only a class plus a sidecar YAML.
+        """
+        config = tour.config  # type: ignore[attr-defined]
+        return {**self.DEFAULT_PARAMS, **config.pairing_params}
+
+    def _param(self, tour: ITournament, key: str) -> Any:
+        """Single-param lookup with no allocation - for a hot path."""
+        config = tour.config  # type: ignore[attr-defined]
+        return config.pairing_params.get(key, self.DEFAULT_PARAMS[key])
 
     def field_ratings(self, tour_round: IRound) -> Mapping[Any, float]:
         """Computes the whole field's ratings once, to pass down sort keys.
@@ -345,6 +360,7 @@ class PairingDefault(CommonPairing):
 
 class PairingTop4(CommonPairing):
     IS_COMPLETE = True
+    SELECTABLE = False  # top-cut pairing, chosen automatically by stage
 
     @override
     def make_pairings(
@@ -364,6 +380,7 @@ class PairingTop4(CommonPairing):
 
 class PairingSemiCommon(CommonPairing):
     N_BYES = -1
+    SELECTABLE = False  # top-cut pairing base, chosen automatically by stage
 
     @override
     def advance_topcut(self, tour_round: IRound, standings: list[IPlayer]) -> None:
