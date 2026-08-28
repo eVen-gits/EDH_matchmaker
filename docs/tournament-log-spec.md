@@ -175,6 +175,7 @@ draw, or a pending game).
 | `scoring_logic` | string | optional, default `"ScoringDefault"`. Which formula computes player points. See [Scoring logic](#scoring-logic). |
 | `scoring_params` | object | optional, default `{}`. Parameters for whichever algorithm `scoring_logic` names - field names, types, and defaults are owned by that algorithm, not by this format. See [Scoring logic](#scoring-logic) for the fields each shipped algorithm reads. |
 | `pairing_params` | object | optional, default `{}`. The pairing-logic mirror of `scoring_params`. No shipped pairing algorithm reads any parameter yet, so this is empty in practice. |
+| `pairing_logics` | array of string | optional, default `[]`. The pairing-logic name to use for each Swiss round, one entry per round. An empty or short list falls back to the adaptive default (round 1 Random, round 2 Snake when `snake_pods`, later rounds Default). Top-cut rounds ignore this. |
 
 `standings_export` fields:
 
@@ -519,7 +520,14 @@ To add a new scoring or pairing algorithm with tunable parameters:
 1. Write the algorithm class in `src/scoring_logic/` or `src/pairing_logic/`.
    Set `IS_COMPLETE = True`. Read a parameter with `self._param(tour, "name")`.
 2. Add `<ClassName>.params.yaml` next to it. Each entry needs a `default` and a
-   `description`. Optional keys: `type`, `min`, `max`, `step`, `label`.
+   `description`. Optional keys: `type`, `min`, `max`, `step`, `label`,
+   `widget`, `choices`, `scale`, `suffix`, `visible_when`.
+   The config GUI generates a widget per entry from these fields, so the field
+   appears with no GUI code. `widget` is inferred from `type` when omitted
+   (`bool`->checkbox, `int`->spinbox, `float`->doublespinbox, `str`->lineedit,
+   `choices`->combobox). `scale`/`suffix` set a display transform (a fraction
+   shown as a percentage). `visible_when: {other_param: value}` shows the field
+   only while another param holds that value.
 3. A subclass with no sidecar of its own inherits its parent's parameters (as
    `ScoringModifiedHareruya` inherits `ScoringHareruya`'s).
 

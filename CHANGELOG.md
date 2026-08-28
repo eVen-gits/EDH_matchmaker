@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Config GUI generates its parameter widgets from each algorithm's sidecar
+  spec. Selecting a scoring logic builds its fields dynamically (kind, range,
+  label, tooltip, and display transform all come from the YAML), so a new
+  algorithm's settings appear with no GUI code. The sidecar gains optional
+  `widget`, `choices`, `scale`/`suffix`, and `visible_when` fields.
+- Per-round pairing-logic selection in the tournament config. The config dialog
+  shows one pairing dropdown per Swiss round (the list resizes with the rounds
+  count); each round can use Random, Snake, or Default. The choice is stored in
+  `config.pairing_logics` and applied when the round is created. An empty or
+  short list falls back to the previous adaptive scheme (round 1 Random, round 2
+  Snake, later rounds Default). Top-cut pairing stays automatic.
 - Parameter specifications for scoring and pairing algorithms. Each algorithm
   declares its parameters (name, default, type, range, and a human description)
   in a sidecar file `<ClassName>.params.yaml` next to the class. The file is the
@@ -51,3 +62,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   player. A smaller pod has a smaller pot and a smaller reward.
 - Updated README to reflect current project state.
 - Removed deprecated Discord integration mentions from documentation.
+
+### Fixed
+- The `-x/--scoring` command-line flag now works again. It called a
+  `TournamentConfiguration.scoring()` method that no longer exists (an
+  `AttributeError` on launch); it now writes win/draw/bye into
+  `config.scoring_params`. The argument handling moved to a testable
+  `apply_cli_config` function.
