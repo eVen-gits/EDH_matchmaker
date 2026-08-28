@@ -1,0 +1,2399 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Matchmaking for EDH game">
+      
+      
+      
+        <link rel="canonical" href="https://even.github.io/EDH_matchmaker/tournament-log-spec/">
+      
+      
+        <link rel="prev" href="..">
+      
+      
+        <link rel="next" href="../src/core/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Tournament Log Format Spec - EDH Matchmaker</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#tournament-log-format-specification" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="EDH Matchmaker" class="md-header__button md-logo" aria-label="EDH Matchmaker" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            EDH Matchmaker
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Tournament Log Format Spec
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="EDH Matchmaker" class="md-nav__button md-logo" aria-label="EDH Matchmaker" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    EDH Matchmaker
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tournament Log Format Spec
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tournament Log Format Spec
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#status-of-this-document" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Status of this document
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Status of this document">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#requirement-words" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Requirement words
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#file-semantics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        File semantics
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="File semantics">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#write-procedure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Write procedure
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#top-level-object" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Top-level object
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Top-level object">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#format-versioning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Format versioning
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Format versioning">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#10-11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.0 → 1.1
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#minimal-example" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Minimal example
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-config-object" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The config object
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#player-objects" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Player objects
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#round-objects" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Round objects
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Round objects">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pod-objects" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pod objects
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#enum-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Enum reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Enum reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#top_cut-and-stage-values" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        top_cut and stage values
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#standingsexportfield-values" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        StandingsExport.Field values
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dataexportformat-values" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DataExport.Format values
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#derived-result-values" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Derived result values
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#logic-values" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        logic values
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#identifiers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Identifiers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scoring-logic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scoring logic
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Scoring logic">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#scoringdefault" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ScoringDefault
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scoringhareruya" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ScoringHareruya
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scoringmodifiedhareruya" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ScoringModifiedHareruya
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#where-parameter-definitions-live-implementation-note" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where parameter definitions live (implementation note)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adjacent-outputs-not-part-of-this-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adjacent outputs (not part of this format)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#machine-checkable-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Machine-checkable schema
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#governance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Governance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security-considerations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security considerations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reference-implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference implementation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#worked-example-load-change-save" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Worked example: load, change, save
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#known-gaps-and-open-decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Known gaps and open decisions
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../src/core/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    src.core
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../src/interface/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    src.interface
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../src/misc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    src.misc
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#status-of-this-document" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Status of this document
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Status of this document">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#requirement-words" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Requirement words
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#file-semantics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        File semantics
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="File semantics">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#write-procedure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Write procedure
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#top-level-object" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Top-level object
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Top-level object">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#format-versioning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Format versioning
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Format versioning">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#10-11" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.0 → 1.1
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#minimal-example" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Minimal example
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-config-object" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The config object
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#player-objects" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Player objects
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#round-objects" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Round objects
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Round objects">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pod-objects" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pod objects
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#enum-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Enum reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Enum reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#top_cut-and-stage-values" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        top_cut and stage values
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#standingsexportfield-values" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        StandingsExport.Field values
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dataexportformat-values" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DataExport.Format values
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#derived-result-values" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Derived result values
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#logic-values" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        logic values
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#identifiers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Identifiers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scoring-logic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scoring logic
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Scoring logic">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#scoringdefault" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ScoringDefault
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scoringhareruya" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ScoringHareruya
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scoringmodifiedhareruya" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ScoringModifiedHareruya
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#where-parameter-definitions-live-implementation-note" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where parameter definitions live (implementation note)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adjacent-outputs-not-part-of-this-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adjacent outputs (not part of this format)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#machine-checkable-schema" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Machine-checkable schema
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#governance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Governance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security-considerations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security considerations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reference-implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reference implementation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#worked-example-load-change-save" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Worked example: load, change, save
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#known-gaps-and-open-decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Known gaps and open decisions
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="tournament-log-format-specification">Tournament Log Format Specification</h1>
+<p>This page specifies the JSON file format that EDH_matchmaker uses to save
+and load tournament state. Any program can use this page to read or write
+compatible files, without reading the EDH_matchmaker source code.</p>
+<h2 id="status-of-this-document">Status of this document</h2>
+<p>This page describes format version <code>1.1</code>, the format that EDH_matchmaker
+writes today. <a href="#known-gaps-and-open-decisions">Known gaps</a> lists the parts
+of the format that a stricter cross-software standard must still decide.</p>
+<h3 id="requirement-words">Requirement words</h3>
+<p>This page uses two words for requirements:</p>
+<ul>
+<li><strong>must</strong> — a conforming file has to include the field or follow the
+  rule.</li>
+<li><strong>optional</strong> — a field can be absent. Each optional field states its
+  default when absent.</li>
+</ul>
+<h2 id="file-semantics">File semantics</h2>
+<p>A tournament log file is a full snapshot of one tournament. It is not an
+event log or a change history.</p>
+<p>Each save overwrites the complete file with the current state. The file
+holds no record of earlier states.</p>
+<h3 id="write-procedure">Write procedure</h3>
+<p>A writer must not write the target path directly. Direct writes leave a
+truncated, unreadable file if the process stops mid-write.</p>
+<p>A writer must use this procedure instead:</p>
+<ol>
+<li>Write the full JSON document to a temporary file in the same
+   directory as the target path.</li>
+<li>Rename the temporary file onto the target path with an atomic
+   rename operation (for example, POSIX <code>rename()</code>, or Python's
+   <code>os.replace()</code>).</li>
+</ol>
+<p>This format defines no file-locking or multi-writer protocol. If two
+processes write the same path at the same time, the last rename wins and
+the other writer's update is lost silently. Treat each file path as
+having a single writer.</p>
+<h2 id="top-level-object">Top-level object</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>format_version</code></td>
+<td>string</td>
+<td>optional (default <code>"1.0"</code>)</td>
+<td>The format version this file follows. See <a href="#format-versioning">Format versioning</a>.</td>
+</tr>
+<tr>
+<td><code>generator</code></td>
+<td>object</td>
+<td>optional</td>
+<td>Identifies the software that wrote the file. See below.</td>
+</tr>
+<tr>
+<td><code>created_at</code></td>
+<td>string (ISO 8601)</td>
+<td>optional</td>
+<td>When the tournament was first created. Absent in files written before format <code>1.0</code>.</td>
+</tr>
+<tr>
+<td><code>updated_at</code></td>
+<td>string (ISO 8601)</td>
+<td>optional</td>
+<td>When this file was last written.</td>
+</tr>
+<tr>
+<td><code>uid</code></td>
+<td>string (UUID)</td>
+<td>must</td>
+<td>The tournament's unique ID.</td>
+</tr>
+<tr>
+<td><code>config</code></td>
+<td>object</td>
+<td>must</td>
+<td>Tournament rules and settings. See <a href="#the-config-object">The config object</a>.</td>
+</tr>
+<tr>
+<td><code>players</code></td>
+<td>array of object</td>
+<td>must</td>
+<td>Every player in the tournament. See <a href="#player-objects">Player objects</a>.</td>
+</tr>
+<tr>
+<td><code>rounds</code></td>
+<td>array of object</td>
+<td>must</td>
+<td>Every round played, in order. See <a href="#round-objects">Round objects</a>.</td>
+</tr>
+</tbody>
+</table>
+<p><code>generator</code>, when present, is an object with one field:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Required</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>must (within <code>generator</code>)</td>
+<td>Name of the software that wrote the file, for example <code>"EDH_matchmaker"</code>.</td>
+</tr>
+</tbody>
+</table>
+<p>A future writer can add a <code>version</code> field to <code>generator</code>. This spec does
+not require one, since EDH_matchmaker itself has no version-numbering
+scheme yet.</p>
+<h3 id="format-versioning">Format versioning</h3>
+<p>A reader must accept a file with no <code>format_version</code> field as <code>"1.0"</code>.</p>
+<p>A reader must not reject a file whose <code>format_version</code> differs from
+<code>"1.0"</code>. Log a warning and attempt to read it, since format changes are
+expected to stay additive (new optional fields) for the foreseeable
+future. A breaking change bumps <code>format_version</code> and documents the break
+on this page.</p>
+<h4 id="10-11"><code>1.0</code> → <code>1.1</code></h4>
+<p><code>config.win_points</code>, <code>bye_points</code>, <code>draw_points</code>, <code>wager_percent</code>,
+<code>wagering_starting_points</code>, <code>draw_redistribution_fraction</code>,
+<code>draw_distribution_shape</code>, <code>redistribute_discarded_draw_points</code>, and
+<code>draw_discard_pod_fraction</code> moved from flat <code>config</code> fields into
+<code>config.scoring_params</code>, nested by whichever scoring algorithm reads them.
+See <a href="#the-config-object">The <code>config</code> object</a> and <a href="#scoring-logic">Scoring
+logic</a>. A <code>1.1</code> reader must also accept a <code>1.0</code> file with
+these nine fields still flat on <code>config</code> (see <a href="#scoring-logic">Scoring
+logic</a> for exactly which fields belong to which
+algorithm) and treat them as the equivalent <code>scoring_params</code> entries. A
+<code>1.1</code> writer always writes the nested form.</p>
+<h3 id="minimal-example">Minimal example</h3>
+<div class="highlight"><pre><span></span><code><span class="p">{</span>
+<span class="w">  </span><span class="nt">"format_version"</span><span class="p">:</span><span class="w"> </span><span class="s2">"1.1"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"generator"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"EDH_matchmaker"</span><span class="p">},</span>
+<span class="w">  </span><span class="nt">"created_at"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-08-21T10:00:00+00:00"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"updated_at"</span><span class="p">:</span><span class="w"> </span><span class="s2">"2026-08-21T10:05:00+00:00"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"uid"</span><span class="p">:</span><span class="w"> </span><span class="s2">"11111111-1111-1111-1111-111111111111"</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">"config"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">"pod_sizes"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="mi">2</span><span class="p">],</span>
+<span class="w">    </span><span class="nt">"allow_bye"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"snake_pods"</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"n_rounds"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"max_byes"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"auto_export"</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"standings_export"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">"fields"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">4</span><span class="p">],</span>
+<span class="w">      </span><span class="nt">"format"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"dir"</span><span class="p">:</span><span class="w"> </span><span class="s2">"./logs/standings.txt"</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="nt">"global_wr_seats"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="mf">0.2470</span><span class="p">,</span><span class="w"> </span><span class="mf">0.1928</span><span class="p">,</span><span class="w"> </span><span class="mf">0.1672</span><span class="p">,</span><span class="w"> </span><span class="mf">0.1458</span><span class="p">],</span>
+<span class="w">    </span><span class="nt">"top_cut"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"scoring_logic"</span><span class="p">:</span><span class="w"> </span><span class="s2">"ScoringDefault"</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">"scoring_params"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">"win_points"</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"bye_points"</span><span class="p">:</span><span class="w"> </span><span class="mi">3</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"draw_points"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">"players"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span><span class="nt">"uid"</span><span class="p">:</span><span class="w"> </span><span class="s2">"aaaaaaaa-0000-0000-0000-000000000001"</span><span class="p">,</span><span class="w"> </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Alice"</span><span class="p">,</span><span class="w"> </span><span class="nt">"decklist"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">},</span>
+<span class="w">    </span><span class="p">{</span><span class="nt">"uid"</span><span class="p">:</span><span class="w"> </span><span class="s2">"aaaaaaaa-0000-0000-0000-000000000002"</span><span class="p">,</span><span class="w"> </span><span class="nt">"name"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Bob"</span><span class="p">,</span><span class="w"> </span><span class="nt">"decklist"</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">}</span>
+<span class="w">  </span><span class="p">],</span>
+<span class="w">  </span><span class="nt">"rounds"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">"tour"</span><span class="p">:</span><span class="w"> </span><span class="s2">"11111111-1111-1111-1111-111111111111"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"seq"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"stage"</span><span class="p">:</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"logic"</span><span class="p">:</span><span class="w"> </span><span class="s2">"PairingRandom"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"uid"</span><span class="p">:</span><span class="w"> </span><span class="s2">"bbbbbbbb-0000-0000-0000-000000000001"</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">"dropped"</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<span class="w">      </span><span class="nt">"disabled"</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<span class="w">      </span><span class="nt">"byes"</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<span class="w">      </span><span class="nt">"game_loss"</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<span class="w">      </span><span class="nt">"pods"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">        </span><span class="p">{</span>
+<span class="w">          </span><span class="nt">"uid"</span><span class="p">:</span><span class="w"> </span><span class="s2">"cccccccc-0000-0000-0000-000000000001"</span><span class="p">,</span>
+<span class="w">          </span><span class="nt">"tour_round"</span><span class="p">:</span><span class="w"> </span><span class="s2">"bbbbbbbb-0000-0000-0000-000000000001"</span><span class="p">,</span>
+<span class="w">          </span><span class="nt">"table"</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<span class="w">          </span><span class="nt">"cap"</span><span class="p">:</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span>
+<span class="w">          </span><span class="nt">"result"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">"aaaaaaaa-0000-0000-0000-000000000001"</span><span class="p">],</span>
+<span class="w">          </span><span class="nt">"players"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">            </span><span class="s2">"aaaaaaaa-0000-0000-0000-000000000001"</span><span class="p">,</span>
+<span class="w">            </span><span class="s2">"aaaaaaaa-0000-0000-0000-000000000002"</span>
+<span class="w">          </span><span class="p">]</span>
+<span class="w">        </span><span class="p">}</span>
+<span class="w">      </span><span class="p">]</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">]</span>
+<span class="p">}</span>
+</code></pre></div>
+<p>This example holds two players, one round, and one pod. Alice won the
+pod (see <a href="#pod-objects">Pod objects</a> for how <code>result</code> encodes a win, a
+draw, or a pending game).</p>
+<h2 id="the-config-object">The <code>config</code> object</h2>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pod_sizes</code></td>
+<td>array of int</td>
+<td>Allowed pod sizes, largest first, for example <code>[4, 3]</code>. The pairing logic fills pods at the first size before falling back to the next.</td>
+</tr>
+<tr>
+<td><code>allow_bye</code></td>
+<td>bool</td>
+<td>If <code>true</code>, a leftover player can receive a bye instead of a pod.</td>
+</tr>
+<tr>
+<td><code>snake_pods</code></td>
+<td>bool</td>
+<td>If <code>true</code>, round 2 seeding uses a Swiss snake order.</td>
+</tr>
+<tr>
+<td><code>n_rounds</code></td>
+<td>int</td>
+<td>Number of Swiss rounds.</td>
+</tr>
+<tr>
+<td><code>max_byes</code></td>
+<td>int</td>
+<td>Maximum number of byes one player can receive across the tournament.</td>
+</tr>
+<tr>
+<td><code>auto_export</code></td>
+<td>bool</td>
+<td>If <code>true</code>, the writer also produces the plain-text exports described in <a href="#adjacent-outputs-not-part-of-this-format">Adjacent outputs</a>. Does not affect this JSON format.</td>
+</tr>
+<tr>
+<td><code>standings_export</code></td>
+<td>object</td>
+<td>See below.</td>
+</tr>
+<tr>
+<td><code>global_wr_seats</code></td>
+<td>array of float</td>
+<td>Seat-position win-rate adjustment, one value per seat, most-advantaged seat first.</td>
+</tr>
+<tr>
+<td><code>top_cut</code></td>
+<td>int</td>
+<td>The playoff cut size. See <a href="#top_cut-and-stage-values"><code>top_cut</code> and <code>stage</code> values</a>. <code>0</code> means no playoff cut (Swiss only).</td>
+</tr>
+<tr>
+<td><code>scoring_logic</code></td>
+<td>string</td>
+<td>optional, default <code>"ScoringDefault"</code>. Which formula computes player points. See <a href="#scoring-logic">Scoring logic</a>.</td>
+</tr>
+<tr>
+<td><code>scoring_params</code></td>
+<td>object</td>
+<td>optional, default <code>{}</code>. Parameters for whichever algorithm <code>scoring_logic</code> names - field names, types, and defaults are owned by that algorithm, not by this format. See <a href="#scoring-logic">Scoring logic</a> for the fields each shipped algorithm reads.</td>
+</tr>
+<tr>
+<td><code>pairing_params</code></td>
+<td>object</td>
+<td>optional, default <code>{}</code>. The pairing-logic mirror of <code>scoring_params</code>. No shipped pairing algorithm reads any parameter yet, so this is empty in practice.</td>
+</tr>
+<tr>
+<td><code>pairing_logics</code></td>
+<td>array of string</td>
+<td>optional, default <code>[]</code>. The pairing-logic name to use for each Swiss round, one entry per round. An empty or short list falls back to the adaptive default (round 1 Random, round 2 Snake when <code>snake_pods</code>, later rounds Default). Top-cut rounds ignore this.</td>
+</tr>
+</tbody>
+</table>
+<p><code>standings_export</code> fields:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fields</code></td>
+<td>array of int</td>
+<td>Which standings columns to include. See <a href="#standingsexportfield-values"><code>StandingsExport.Field</code> values</a>.</td>
+</tr>
+<tr>
+<td><code>format</code></td>
+<td>int</td>
+<td>Output format for the plain-text export. See <a href="#dataexportformat-values"><code>DataExport.Format</code> values</a>.</td>
+</tr>
+<tr>
+<td><code>dir</code></td>
+<td>string</td>
+<td>File path for the plain-text standings export. Not part of this JSON format — see <a href="#adjacent-outputs-not-part-of-this-format">Adjacent outputs</a>.</td>
+</tr>
+</tbody>
+</table>
+<p>These values are this implementation's defaults, given for reference.
+A conforming file must set every <code>config</code> field explicitly, except
+<code>scoring_params</code> keys - each is optional and defaults per-algorithm
+(see <a href="#scoring-logic">Scoring logic</a>); a reader must not assume a
+default for a missing <code>config</code> field otherwise.</p>
+<h2 id="player-objects">Player objects</h2>
+<p>Each entry in the top-level <code>players</code> array:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>uid</code></td>
+<td>string (UUID)</td>
+<td>The player's unique ID. Unique within this file.</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>string</td>
+<td>Display name.</td>
+</tr>
+<tr>
+<td><code>decklist</code></td>
+<td>string or <code>null</code></td>
+<td>Free text, commonly a URL to the player's decklist. This format places no constraint on its content. See <a href="#known-gaps-and-open-decisions">Known gaps</a>.</td>
+</tr>
+</tbody>
+</table>
+<p>A player object holds no per-round state. Seating, results, byes, drops,
+and game losses all live on the round and pod objects instead. To find a
+player's status in a given round, search that round's <code>dropped</code>,
+<code>disabled</code>, <code>byes</code>, and <code>game_loss</code> arrays, and that round's <code>pods</code>
+arrays, for the player's <code>uid</code>.</p>
+<h2 id="round-objects">Round objects</h2>
+<p>Each entry in the top-level <code>rounds</code> array:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tour</code></td>
+<td>string (UUID)</td>
+<td>The parent tournament's <code>uid</code>.</td>
+</tr>
+<tr>
+<td><code>seq</code></td>
+<td>int</td>
+<td>Round number, starting at <code>0</code>.</td>
+</tr>
+<tr>
+<td><code>stage</code></td>
+<td>int</td>
+<td>Which stage of the tournament this round belongs to. See <a href="#top_cut-and-stage-values"><code>top_cut</code> and <code>stage</code> values</a>.</td>
+</tr>
+<tr>
+<td><code>logic</code></td>
+<td>string</td>
+<td>Name of the pairing algorithm that built this round's pods. See <a href="#logic-values"><code>logic</code> values</a>.</td>
+</tr>
+<tr>
+<td><code>uid</code></td>
+<td>string (UUID)</td>
+<td>The round's unique ID. Unique within this file.</td>
+</tr>
+<tr>
+<td><code>dropped</code></td>
+<td>array of string (UUID)</td>
+<td>Players who left the tournament as of this round.</td>
+</tr>
+<tr>
+<td><code>disabled</code></td>
+<td>array of string (UUID)</td>
+<td>Players still in the tournament but not eligible to play this round, for example players eliminated from a playoff cut.</td>
+</tr>
+<tr>
+<td><code>byes</code></td>
+<td>array of string (UUID)</td>
+<td>Players who received a bye this round instead of a pod.</td>
+</tr>
+<tr>
+<td><code>game_loss</code></td>
+<td>array of string (UUID)</td>
+<td>Players who received a game loss this round.</td>
+</tr>
+<tr>
+<td><code>pods</code></td>
+<td>array of object</td>
+<td>The pods played this round. See <a href="#pod-objects">Pod objects</a>.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="pod-objects">Pod objects</h3>
+<p>Each entry in a round's <code>pods</code> array:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>uid</code></td>
+<td>string (UUID)</td>
+<td>The pod's unique ID. Unique within this file.</td>
+</tr>
+<tr>
+<td><code>tour_round</code></td>
+<td>string (UUID)</td>
+<td>The parent round's <code>uid</code>.</td>
+</tr>
+<tr>
+<td><code>table</code></td>
+<td>int</td>
+<td>Table number, for display and seating.</td>
+</tr>
+<tr>
+<td><code>cap</code></td>
+<td>int</td>
+<td>Maximum number of players this pod holds.</td>
+</tr>
+<tr>
+<td><code>result</code></td>
+<td>array of string (UUID)</td>
+<td>See below.</td>
+</tr>
+<tr>
+<td><code>players</code></td>
+<td>array of string (UUID)</td>
+<td>Players seated at this pod, in seat order.</td>
+</tr>
+</tbody>
+</table>
+<p><code>result</code> encodes the pod's outcome by how many player UIDs it holds:</p>
+<ul>
+<li><strong>Empty array</strong> — the pod has no result yet. The game is pending.</li>
+<li><strong>One UID</strong> — that player won the pod.</li>
+<li><strong>Two or more UIDs</strong> — the pod ended in a draw among those players.</li>
+</ul>
+<p>A player UID listed in the round's <code>byes</code> array does not need to appear
+in any pod that round.</p>
+<h2 id="enum-reference">Enum reference</h2>
+<p>The fields below carry integer values over the wire. A reader must
+treat each value as fixed: renumbering any of them is a breaking change
+that requires a new <code>format_version</code>.</p>
+<h3 id="top_cut-and-stage-values"><code>top_cut</code> and <code>stage</code> values</h3>
+<p><code>config.top_cut</code> and <code>rounds[].stage</code> share one value set. <code>top_cut</code>
+names its zero value <code>NONE</code>; <code>stage</code> names the same value <code>SWISS</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th><code>top_cut</code> name</th>
+<th><code>stage</code> name</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td><code>NONE</code></td>
+<td><code>SWISS</code></td>
+<td>No playoff cut / a Swiss round.</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>TOP_4</code></td>
+<td><code>TOP_4</code></td>
+<td>Top-4 playoff.</td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>TOP_7</code></td>
+<td><code>TOP_7</code></td>
+<td>Top-7 playoff.</td>
+</tr>
+<tr>
+<td>10</td>
+<td><code>TOP_10</code></td>
+<td><code>TOP_10</code></td>
+<td>Top-10 playoff.</td>
+</tr>
+<tr>
+<td>13</td>
+<td><code>TOP_13</code></td>
+<td><code>TOP_13</code></td>
+<td>Top-13 playoff.</td>
+</tr>
+<tr>
+<td>16</td>
+<td><code>TOP_16</code></td>
+<td><code>TOP_16</code></td>
+<td>Top-16 playoff.</td>
+</tr>
+<tr>
+<td>40</td>
+<td><code>TOP_40</code></td>
+<td><code>TOP_40</code></td>
+<td>Top-40 playoff.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="standingsexportfield-values"><code>StandingsExport.Field</code> values</h3>
+<p>Column identifiers used in <code>config.standings_export.fields</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Name</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td><code>STANDING</code></td>
+</tr>
+<tr>
+<td>1</td>
+<td><code>ID</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>NAME</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>RECORD</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>RATING</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>WINS</code></td>
+</tr>
+<tr>
+<td>6</td>
+<td><code>OPP_BEATEN</code></td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>OPP_POINTRATE</code></td>
+</tr>
+<tr>
+<td>8</td>
+<td><code>UNIQUE</code></td>
+</tr>
+<tr>
+<td>9</td>
+<td><code>POINTRATE</code></td>
+</tr>
+<tr>
+<td>10</td>
+<td><code>GAMES</code></td>
+</tr>
+<tr>
+<td>11</td>
+<td><code>SEAT_HISTORY</code></td>
+</tr>
+<tr>
+<td>12</td>
+<td><code>AVG_SEAT</code></td>
+</tr>
+</tbody>
+</table>
+<p>These values only affect the plain-text standings export (see
+<a href="#adjacent-outputs-not-part-of-this-format">Adjacent outputs</a>). They do
+not change how this JSON format itself is read.</p>
+<h3 id="dataexportformat-values"><code>DataExport.Format</code> values</h3>
+<p>Used in <code>config.standings_export.format</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Name</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td><code>PLAIN</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>CSV</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>JSON</code></td>
+</tr>
+</tbody>
+</table>
+<p>Value <code>1</code> is not assigned. Reserve it; do not assign it a new meaning.</p>
+<h3 id="derived-result-values">Derived result values</h3>
+<p>These two value sets are not stored anywhere in the file as integers.
+They describe the outcomes a reader computes from <code>pods[].result</code> and
+the round's <code>byes</code>/<code>game_loss</code> arrays, given here so implementations
+agree on names when they report results back to a user.</p>
+<p>Per-pod result, derived from <code>pods[].result</code> as described in
+<a href="#pod-objects">Pod objects</a>:</p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PENDING</code></td>
+<td><code>result</code> is empty.</td>
+</tr>
+<tr>
+<td><code>WIN</code></td>
+<td><code>result</code> holds exactly one UID.</td>
+</tr>
+<tr>
+<td><code>DRAW</code></td>
+<td><code>result</code> holds two or more UIDs.</td>
+</tr>
+</tbody>
+</table>
+<p>Per-player result for one round, derived by checking, in order, whether
+the player's UID appears in that round's <code>game_loss</code> array, any pod's
+<code>result</code> array, the round's <code>byes</code> array, or none of those:</p>
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>LOSS</code></td>
+<td>Player UID is in the round's <code>game_loss</code> array, or is seated in a pod but not in that pod's <code>result</code> array once the pod has a result.</td>
+</tr>
+<tr>
+<td><code>DRAW</code></td>
+<td>Player UID is in a pod's <code>result</code> array alongside one or more other UIDs.</td>
+</tr>
+<tr>
+<td><code>WIN</code></td>
+<td>Player UID is the sole entry in a pod's <code>result</code> array.</td>
+</tr>
+<tr>
+<td><code>BYE</code></td>
+<td>Player UID is in the round's <code>byes</code> array.</td>
+</tr>
+<tr>
+<td><code>PENDING</code></td>
+<td>The player's pod has an empty <code>result</code> array.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="logic-values"><code>logic</code> values</h3>
+<p><code>rounds[].logic</code> names the pairing algorithm that built the round, for
+example <code>"PairingRandom"</code> or <code>"PairingSnake"</code>. This format treats it as
+a vendor-extension string: a reader can display or log it, but must not
+depend on values beyond the two shown here matching any specific
+behavior. See <a href="#known-gaps-and-open-decisions">Known gaps</a>.</p>
+<h2 id="identifiers">Identifiers</h2>
+<p>Every <code>uid</code> field is a UUID, given as a string in canonical
+8-4-4-4-12 hyphenated form (for example
+<code>"aaaaaaaa-0000-0000-0000-000000000001"</code>).</p>
+<p>A conforming file must give every player, pod, and round a <code>uid</code> that
+is unique within that file. The tournament's own top-level <code>uid</code> must
+be unique across every file a reader expects to handle at once, since
+files are commonly compared or merged by tournament ID.</p>
+<p>This format defines no required relationship between a <code>uid</code> and any
+previously seen file, database row, or in-memory object. One existing
+implementation (EDH_matchmaker) additionally keeps a process-wide cache
+that reuses an existing in-memory tournament object when it encounters
+a <code>uid</code> it has already loaded, updating that object in place instead of
+building a new one. That behavior is an implementation detail of one
+codebase, not a requirement of this format. A conforming reader can
+build a fresh object graph on every load.</p>
+<h2 id="scoring-logic">Scoring logic</h2>
+<p>A player's point total is never stored directly in the file (see
+<a href="#player-objects">Player objects</a>). A reader recomputes it from
+<code>pods[].result</code>, <code>rounds[].byes</code>, and the <code>config</code> fields below, using
+one of the formulas selected by <code>config.scoring_logic</code>. All formulas
+only accumulate points for Swiss-stage rounds
+(<code>stage</code> / <code>rounds[].stage</code> value <code>0</code>, see
+<a href="#top_cut-and-stage-values"><code>top_cut</code> and <code>stage</code> values</a>); a
+non-Swiss round ends the accumulation for both.</p>
+<h3 id="scoringdefault"><code>ScoringDefault</code></h3>
+<p>The default. <code>scoring_params</code> fields:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>win_points</code></td>
+<td>int</td>
+<td><code>5</code></td>
+<td>Points awarded for a pod win.</td>
+</tr>
+<tr>
+<td><code>bye_points</code></td>
+<td>int</td>
+<td><code>4</code></td>
+<td>Points awarded for a bye.</td>
+</tr>
+<tr>
+<td><code>draw_points</code></td>
+<td>int</td>
+<td><code>1</code></td>
+<td>Points awarded to each player in a draw.</td>
+</tr>
+</tbody>
+</table>
+<p>A player's rating is the sum, over every Swiss round up to and
+including the round in question, of:</p>
+<ul>
+<li><code>scoring_params.win_points</code> for a round the player won.</li>
+<li><code>scoring_params.draw_points</code> for a round the player drew.</li>
+<li><code>scoring_params.bye_points</code> for a round the player received a bye.</li>
+<li><code>0</code> for a round the player lost or has pending.</li>
+</ul>
+<p>This is independent per player: no player's score affects any other
+player's.</p>
+<h3 id="scoringhareruya"><code>ScoringHareruya</code></h3>
+<p><code>scoring_params</code> fields:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>wager_percent</code></td>
+<td>float</td>
+<td><code>0.07</code></td>
+<td>Fraction of a player's current stack wagered per pod.</td>
+</tr>
+<tr>
+<td><code>wagering_starting_points</code></td>
+<td>float</td>
+<td><code>1000</code></td>
+<td>Starting stack, before round 1.</td>
+</tr>
+<tr>
+<td><code>draw_redistribution_fraction</code></td>
+<td>float, 0-1</td>
+<td><code>1.0</code></td>
+<td><code>R</code> below - fraction of a draw's pot actually paid out to the drawers.</td>
+</tr>
+<tr>
+<td><code>draw_distribution_shape</code></td>
+<td>float, 0-1</td>
+<td><code>1.0</code></td>
+<td><code>S</code> below - even split (<code>1</code>) vs. wager-proportional split (<code>0</code>) of a draw payout.</td>
+</tr>
+<tr>
+<td><code>redistribute_discarded_draw_points</code></td>
+<td>bool</td>
+<td><code>false</code></td>
+<td>If <code>true</code>, the pot left over after <code>draw_redistribution_fraction</code> is applied is reclaimed instead of discarded.</td>
+</tr>
+<tr>
+<td><code>draw_discard_pod_fraction</code></td>
+<td>float, 0-1</td>
+<td><code>1.0</code></td>
+<td><code>P</code> below - only used when <code>redistribute_discarded_draw_points</code> is <code>true</code>.</td>
+</tr>
+</tbody>
+</table>
+<p>Each player carries a running point stack, seeded at
+<code>scoring_params.wagering_starting_points</code> before round 1. For every pod a
+player is seated in, once that pod has a result:</p>
+<ol>
+<li>Every seated player wagers <code>scoring_params.wager_percent × their current
+   stack</code>, deducted immediately. The <strong>pot</strong> is the sum of every
+   seated player's wager. The pot uses the real seated players only. A
+   pod smaller than the largest <code>config.pod_sizes</code> value has fewer
+   wagers, so a smaller pot and a smaller reward. No phantom or
+   placeholder player is added to a short pod.</li>
+<li><strong>Win</strong> (<code>pods[].result</code> holds one UID): that player receives the
+   full pot. Every other seated player has already lost their wager
+   and receives nothing further.</li>
+<li><strong>Draw</strong> (<code>pods[].result</code> holds two or more UIDs, the <em>drawers</em>):
+   any seated player not listed is a loser under the same rule as
+   step 2. Their wager stays in the pot, and they receive nothing.
+   The pot (drawers' wagers plus any losers' forfeited wagers) is
+   then split among the <em>N</em> drawers. For drawer <em>i</em>, whose own wager
+   was <code>w_i</code>:
+   <div class="highlight"><pre><span></span><code>payout_i = R × ( S × (pot / N) + (1 − S) × w_i )
+</code></pre></div>
+   where <code>R</code> = <code>scoring_params.draw_redistribution_fraction</code> and <code>S</code> =
+   <code>scoring_params.draw_distribution_shape</code>, each <code>0</code>-<code>1</code>. At <code>R = 1, S = 1</code>
+   the pot splits evenly regardless of individual wager size. At
+   <code>R = 1, S = 0</code> each drawer gets exactly their own wager back, with
+   no net change. At <code>R = 0</code> every drawer's wager is lost regardless
+   of <code>S</code>.</li>
+</ol>
+<p>By default, <code>(1 − R) × pot</code> — whatever <code>payout_i</code> above never
+   pays out — leaves the economy entirely: it is not returned to the
+   original wagerers. If <code>scoring_params.redistribute_discarded_draw_points</code>
+   is <code>true</code>, that amount is reclaimed instead of discarded, split by
+   <code>scoring_params.draw_discard_pod_fraction</code> (<code>P</code>, <code>0</code>-<code>1</code>):
+   <div class="highlight"><pre><span></span><code>discarded    = (1 − R) × pot
+pod_share    = P × discarded
+global_share = discarded − pod_share
+</code></pre></div>
+   <code>pod_share</code> is paid to the same <em>N</em> drawers only (not the pod's
+   other seated losers), as a bonus on top of <code>payout_i</code>, split by the
+   same <code>S</code> shape but normalized to each drawer's share of the total
+   drawer wager <code>w_i / Σw_j</code> rather than the raw wager <code>w_i</code>:
+   <div class="highlight"><pre><span></span><code>bonus_i = pod_share × ( S × (1 / N) + (1 − S) × (w_i / Σw_j) )
+</code></pre></div>
+   <code>global_share</code> is paid out as an equal per-capita dividend to every
+   player in the tournament — including this pod's own drawers, and
+   including players not seated in this round at all (a bye recipient
+   this round included, per step 4). At <code>P = 1</code> all of <code>discarded</code>
+   goes to <code>bonus_i</code>; at <code>P = 0</code> all of it goes to the dividend.
+   Either way, <code>bonus_i</code> and the dividend sum back to exactly
+   <code>discarded</code>, so the total ever paid out on a draw
+   (<code>Σ payout_i + discarded</code>) never exceeds <code>pot</code>.
+4. <strong>Bye</strong> (player listed in <code>rounds[].byes</code>): receiving the bye
+   itself is a no-op — no wager, no <code>bye_points</code>. It does not exempt
+   the player from step 3's per-capita dividend, if any other pod in
+   the round has a redistributed draw this round.
+5. <strong>Pending</strong> (<code>pods[].result</code> is empty): no wager is assessed for
+   that pod this round.</p>
+<p>A win's payout depends on every other seated player's current stack.
+Because of this, one player's rating cannot be computed from that
+player's own history alone. Computing it requires replaying every
+player's stack up to the round in question. A reader implementing
+this must build the whole tournament's running stacks together, not
+player by player.</p>
+<p><code>pointrate</code> (used for standings tie-breaking, see
+<a href="#reference-implementation">Reference implementation</a>) has no exact
+<code>0</code>-<code>1</code> bound under this formula, since a single win is not capped at
+a fixed maximum the way <code>ScoringDefault</code>'s is. EDH_matchmaker's
+reference implementation approximates it as
+<code>rating / (wagering_starting_points × (round number + 1))</code>. This is
+shaped like the default formula, but it is not a strict bound. Treat
+it as a rough ordering signal, not a percentage.</p>
+<h3 id="scoringmodifiedhareruya"><code>ScoringModifiedHareruya</code></h3>
+<p><code>ScoringHareruya</code> depends on the round order. Each wager is a
+percentage of the current stack, so the stack compounds. The record
+<code>WDD</code> gives a different total than <code>DDW</code>. The round order is arbitrary,
+so this dependency is unwanted.</p>
+<p><code>ScoringModifiedHareruya</code> removes the dependency on round order. It runs
+the <code>ScoringHareruya</code> economy once for each permutation of the Swiss
+round order. Then it averages each player's final stack across all
+permutations. For 3 rounds, it averages the 6 orders.</p>
+<p>A pod result does not change with the round order. Only the stack
+values change. So a reader extracts each pod result one time, then
+replays the wager math for each order.</p>
+<p>The permutation count is the factorial of the round count. For more
+than 7 rounds, the reference implementation does not use every order. It
+averages a fixed sample of random orders instead. This is an
+implementation choice, not a requirement of this format.</p>
+<p>This variant uses the same <code>scoring_params</code> fields as <code>ScoringHareruya</code>. It
+shares the same <code>pointrate</code> approximation.</p>
+<h3 id="where-parameter-definitions-live-implementation-note">Where parameter definitions live (implementation note)</h3>
+<p>This part is about the reference implementation, not the JSON format. Each
+algorithm's parameter names, defaults, types, ranges, and human descriptions
+live in a sidecar file next to the algorithm class, named
+<code>&lt;ClassName&gt;.params.yaml</code> (for example
+<code>src/scoring_logic/ScoringHareruya.params.yaml</code>). The file is the single source
+of truth. The code loads it at class-definition time and derives the defaults
+from it - no parameter values are hard-coded in the class.</p>
+<p>To add a new scoring or pairing algorithm with tunable parameters:</p>
+<ol>
+<li>Write the algorithm class in <code>src/scoring_logic/</code> or <code>src/pairing_logic/</code>.
+   Set <code>IS_COMPLETE = True</code>. Read a parameter with <code>self._param(tour, "name")</code>.</li>
+<li>Add <code>&lt;ClassName&gt;.params.yaml</code> next to it. Each entry needs a <code>default</code> and a
+   <code>description</code>. Optional keys: <code>type</code>, <code>min</code>, <code>max</code>, <code>step</code>, <code>label</code>,
+   <code>widget</code>, <code>choices</code>, <code>scale</code>, <code>suffix</code>, <code>visible_when</code>.
+   The config GUI generates a widget per entry from these fields, so the field
+   appears with no GUI code. <code>widget</code> is inferred from <code>type</code> when omitted
+   (<code>bool</code>-&gt;checkbox, <code>int</code>-&gt;spinbox, <code>float</code>-&gt;doublespinbox, <code>str</code>-&gt;lineedit,
+   <code>choices</code>-&gt;combobox). <code>scale</code>/<code>suffix</code> set a display transform (a fraction
+   shown as a percentage). <code>visible_when: {other_param: value}</code> shows the field
+   only while another param holds that value.</li>
+<li>A subclass with no sidecar of its own inherits its parent's parameters (as
+   <code>ScoringModifiedHareruya</code> inherits <code>ScoringHareruya</code>'s).</li>
+</ol>
+<p>An algorithm with no parameters needs no sidecar file.</p>
+<h2 id="adjacent-outputs-not-part-of-this-format">Adjacent outputs (not part of this format)</h2>
+<p>EDH_matchmaker writes several other files alongside the JSON log. None
+of them are part of this specification. A conforming reader/writer only
+needs the sections above.</p>
+<ul>
+<li>A plain-text standings table, written to <code>config.standings_export.dir</code>.</li>
+<li>A plain-text pairings dump per round.</li>
+<li>An optional webhook POST of pairings data, controlled by environment
+  variables outside this file.</li>
+<li>An in-memory event log (severity levels: none, info, warning, error),
+  used for status messages. Nothing writes this to disk by default.</li>
+</ul>
+<h2 id="machine-checkable-schema">Machine-checkable schema</h2>
+<p><a href="../tournament-log.schema.json"><code>docs/tournament-log.schema.json</code></a> is a
+JSON Schema (draft 2020-12) that formalizes the tables above. Use it to
+validate a file programmatically instead of checking each field by
+hand.</p>
+<p><code>docs/tournament-log-examples/</code> holds example files for testing an
+implementation against the schema:
+<a href="../tournament-log-examples/valid-minimal.json"><code>valid-minimal.json</code></a>,
+<a href="../tournament-log-examples/valid-topcut.json"><code>valid-topcut.json</code></a>, and
+<a href="../tournament-log-examples/valid-hareruya.json"><code>valid-hareruya.json</code></a>
+(exercises <code>config.scoring_logic: "ScoringHareruya"</code>) must pass
+validation;
+<a href="../tournament-log-examples/invalid-missing-required.json"><code>invalid-missing-required.json</code></a>
+and <a href="../tournament-log-examples/invalid-bad-enum.json"><code>invalid-bad-enum.json</code></a>
+must fail it, each for the specific reason its name states.</p>
+<h2 id="governance">Governance</h2>
+<p>This repository is the source of truth for this format. A format
+change is a pull request against this repository that updates
+<code>docs/tournament-log.schema.json</code>, this page, and <code>core.py</code>'s
+<code>serialize</code>/<code>inflate</code> methods together, in the same pull request. A
+change that is not backward compatible must bump <code>format_version</code> and
+add an entry to <code>CHANGELOG.md</code>. A change that only adds optional
+fields does not need a version bump, per
+<a href="#format-versioning">Format versioning</a>.</p>
+<h2 id="security-considerations">Security considerations</h2>
+<p>This format defines no size or depth limit for any field. A reader
+that parses a file from an untrusted source must apply its own limits
+(maximum file size, maximum array length, a sane ceiling on <code>n_rounds</code>
+and pod counts) before trusting values taken from the file.
+EDH_matchmaker itself does not enforce such limits today, since it
+only reads files a user selects from local disk.</p>
+<h2 id="reference-implementation">Reference implementation</h2>
+<p>EDH_matchmaker's Python implementation of this format, for a reader who
+wants working code to compare against:</p>
+<table>
+<thead>
+<tr>
+<th>Class</th>
+<th><code>serialize</code></th>
+<th><code>inflate</code></th>
+<th>File</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Tournament</code></td>
+<td>writes the top-level object</td>
+<td>reads the top-level object</td>
+<td><code>src/core.py</code></td>
+</tr>
+<tr>
+<td><code>Player</code></td>
+<td>writes a <code>players[]</code> entry</td>
+<td>reads a <code>players[]</code> entry</td>
+<td><code>src/core.py</code></td>
+</tr>
+<tr>
+<td><code>Round</code></td>
+<td>writes a <code>rounds[]</code> entry</td>
+<td>reads a <code>rounds[]</code> entry</td>
+<td><code>src/core.py</code></td>
+</tr>
+<tr>
+<td><code>Pod</code></td>
+<td>writes a <code>pods[]</code> entry</td>
+<td>reads a <code>pods[]</code> entry</td>
+<td><code>src/core.py</code></td>
+</tr>
+<tr>
+<td><code>TournamentConfiguration</code></td>
+<td>writes <code>config</code></td>
+<td>reads <code>config</code></td>
+<td><code>src/core.py</code></td>
+</tr>
+<tr>
+<td><code>StandingsExport</code></td>
+<td>writes <code>standings_export</code></td>
+<td>reads <code>standings_export</code></td>
+<td><code>src/core.py</code></td>
+</tr>
+<tr>
+<td><code>TournamentAction</code></td>
+<td><code>store()</code> writes the file</td>
+<td><code>load()</code> reads the file</td>
+<td><code>src/core.py</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>ScoringDefault</code>, <code>ScoringHareruya</code>, and <code>ScoringModifiedHareruya</code> (all
+in <code>src/scoring_logic/examples.py</code>) implement the formulas from
+<a href="#scoring-logic">Scoring logic</a>; they are not part of the JSON schema
+themselves, only the <code>config.scoring_logic</code> string that names one of
+them.</p>
+<p><code>tests/test_serialization.py</code> holds round-trip tests that double as
+executable proof of this contract, including a test that loads a real
+captured tournament file end to end. <code>tests/test_scoring_wagering.py</code>
+holds the same proof for the two scoring logic formulas, including the
+draw payout formula at its <code>R</code>/<code>S</code> boundary values.</p>
+<h2 id="worked-example-load-change-save">Worked example: load, change, save</h2>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">src.core</span><span class="w"> </span><span class="kn">import</span> <span class="n">TournamentAction</span>
+
+<span class="n">tournament</span> <span class="o">=</span> <span class="n">TournamentAction</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">"logs/default.json"</span><span class="p">)</span>
+<span class="k">assert</span> <span class="n">tournament</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+
+<span class="c1"># Read a field.</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">tournament</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">n_rounds</span><span class="p">)</span>
+
+<span class="c1"># Change a field and save. TournamentAction.store() always writes the</span>
+<span class="c1"># full current state, using the atomic write procedure described above.</span>
+<span class="n">tournament</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">n_rounds</span> <span class="o">=</span> <span class="mi">6</span>
+<span class="n">TournamentAction</span><span class="o">.</span><span class="n">store</span><span class="p">(</span><span class="n">tournament</span><span class="p">)</span>
+</code></pre></div>
+<h2 id="known-gaps-and-open-decisions">Known gaps and open decisions</h2>
+<p>Format <code>1.0</code> already includes <code>format_version</code>, <code>generator</code>,
+<code>created_at</code>, <code>updated_at</code>, and the atomic write procedure. The items
+below remain open for a future version aimed at multiple independent
+implementations.</p>
+<ul>
+<li><strong>Enum value stability is a convention, not an enforced contract.</strong>
+  Nothing in the file format stops a future writer from reusing an
+  integer for a different meaning. Treat the tables in
+  <a href="#enum-reference">Enum reference</a> as frozen, and bump
+  <code>format_version</code> before ever changing one.</li>
+<li><strong><code>decklist</code> has no defined format.</strong> It is free text today — often
+  a URL, sometimes plain text, sometimes absent. A future version must
+  pick one convention (for example, "must be a URL or <code>null</code>") for
+  cross-software decklist exchange to work.</li>
+<li><strong><code>rounds[].logic</code> names one codebase's pairing-algorithm classes.</strong>
+  A future version needing pairing-algorithm portability across
+  software must define a fixed, software-independent vocabulary
+  instead of accepting any string.</li>
+<li><strong><code>config.scoring_logic</code> has the same limitation.</strong> <code>"ScoringDefault"</code>
+  and <code>"ScoringHareruya"</code> are this codebase's class names, not a fixed
+  cross-software vocabulary. A reader that does not recognize a
+  <code>scoring_logic</code> value cannot know how to reproduce that tournament's
+  point totals from <code>pods[].result</code> alone.</li>
+<li><strong>Under <code>ScoringHareruya</code>, computing one player's rating requires
+  replaying every player's stack</strong>, since payouts are interdependent
+  (see <a href="#scoring-logic">Scoring logic</a>). EDH_matchmaker's reference
+  implementation accepts this cost rather than adding a cache, since
+  it is only paid per standings computation, not per game reported;
+  see the <code># ponytail:</code> comment on <code>Tournament.rating()</code> in
+  <code>src/core.py</code> for the exact tradeoff.</li>
+<li><strong>No concurrent-write protection.</strong> Two writers on the same path can
+  silently overwrite each other. A future version needing multi-writer
+  safety must add file locking or a compare-and-swap mechanism; this
+  version does not attempt it. This is a deliberate choice, not an
+  oversight: EDH_matchmaker has no current multi-writer use case, and
+  building locking infrastructure for a need nobody has yet is not
+  worth the added complexity.</li>
+<li><strong>No file-naming convention.</strong> This format is a description of file
+  <em>content</em>; it says nothing about file names or where files live on
+  disk. Software that wants to auto-discover tournament files from a
+  directory must agree on a naming convention separately from this
+  page.</li>
+<li><strong>One reference implementation, in one language.</strong> Every claim on
+  this page is checked against EDH_matchmaker's Python code and the
+  schema in <a href="#machine-checkable-schema">Machine-checkable schema</a>, but
+  no second, independent implementation exists to confirm the page is
+  sufficient on its own. This is a deliberate choice, not an
+  oversight: building a second implementation for a format with one
+  current consumer is not worth the effort yet. The conformance
+  example files exist so a future second implementation has something
+  concrete to test against.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.sections", "navigation.top", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
