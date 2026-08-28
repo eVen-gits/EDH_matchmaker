@@ -57,7 +57,8 @@ class ScoringDefault(CommonScoring):
 
     IS_COMPLETE: bool = True
 
-    DEFAULT_PARAMS: dict[str, Any] = {"win_points": 5, "bye_points": 4, "draw_points": 1}
+    # Parameters (names, defaults, descriptions) live in the sidecar
+    # ScoringDefault.params.yaml; DEFAULT_PARAMS is derived from it.
 
     def rating(self, player: IPlayer, tour_round: IRound) -> float:
         # Independent per player - O(rounds), not O(players * rounds).
@@ -106,14 +107,8 @@ class ScoringHareruya(CommonScoring):
 
     IS_COMPLETE: bool = True
 
-    DEFAULT_PARAMS: dict[str, Any] = {
-        "wager_percent": 0.07,
-        "wagering_starting_points": 1000,
-        "draw_redistribution_fraction": 1.0,
-        "draw_distribution_shape": 1.0,
-        "redistribute_discarded_draw_points": False,
-        "draw_discard_pod_fraction": 1.0,
-    }
+    # Parameters live in the sidecar ScoringHareruya.params.yaml.
+    # ScoringModifiedHareruya inherits this spec (it ships no sidecar).
 
     def compute_ratings(
         self, tour: ITournament, tour_round: IRound

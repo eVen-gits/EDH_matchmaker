@@ -671,6 +671,14 @@ class TournamentConfiguration(ITournamentConfiguration):
         # IScoringLogic.params()/._param().
         self.scoring_logic: str = kwargs.get("scoring_logic", "ScoringDefault")
         self.scoring_params: dict[str, Any] = dict(kwargs.get("scoring_params", {}))
+        # Per Swiss round, the pairing-logic name to use. One entry per round;
+        # empty (or short) falls back to the adaptive default in
+        # Tournament.__compute_stage_and_logic. Top-cut rounds ignore this.
+        self.pairing_logics: list[str] = list(kwargs.get("pairing_logics", []))
+        # pairing_params mirrors scoring_params for IPairingLogic algorithms.
+        # ponytail: unused until a pairing algorithm declares params; the seam
+        # is here so adding one needs only a class plus a sidecar, no core change.
+        self.pairing_params: dict[str, Any] = dict(kwargs.get("pairing_params", {}))
 
     @property
     @override
@@ -739,6 +747,8 @@ class TournamentConfiguration(ITournamentConfiguration):
             "top_cut": self.top_cut.value,
             "scoring_logic": self.scoring_logic,
             "scoring_params": self.scoring_params,
+            "pairing_params": self.pairing_params,
+            "pairing_logics": self.pairing_logics,
         }
 
     @classmethod
@@ -773,6 +783,9 @@ class TournamentConfiguration(ITournamentConfiguration):
             # version, so read with a default for backward compatibility.
             scoring_logic=data.get("scoring_logic", "ScoringDefault"),
             scoring_params=scoring_params,
+            # Additive - absent in older logs, defaults to empty.
+            pairing_params=data.get("pairing_params", {}),
+            pairing_logics=data.get("pairing_logics", []),
         )
 
 
@@ -855,6 +868,20 @@ class Tournament(ITournament):
             raise ValueError(f"Unknown pairing logic: {logic_name}")
 
         return cls._pairing_logic_cache[logic_name]
+
+    @classmethod
+    def selectable_pairing_logics(cls) -> list[str]:
+        """Names of pairing logics a user may pick for a Swiss round.
+
+        Excludes top-cut pairings (SELECTABLE == False), which are chosen
+        automatically by stage.
+        """
+        cls.discover_pairing_logic()
+        return sorted(
+            name
+            for name, obj in cls._pairing_logic_cache.items()
+            if obj.SELECTABLE
+        )
 
     @classmethod
     def discover_scoring_logic(cls) -> None:
@@ -1390,6 +1417,11 @@ class Tournament(ITournament):
     ) -> tuple[Round.Stage, IPairingLogic] | None:
         """Computes the stage and pairing logic for a round at the given sequence position.
 
+        For a Swiss round, the pairing logic comes from config.pairing_logics
+        (one name per Swiss round) when that seq is configured; otherwise it
+        falls back to the adaptive default (round 1 Random, round 2 Snake when
+        snake_pods, later rounds Default). Top-cut rounds are fixed by stage.
+
         Args:
             seq: The 0-indexed sequence number of the round.
             prev_stage: The stage of the immediately preceding round, or None if this is the first round.
@@ -1466,7 +1498,10 @@ class Tournament(ITournament):
             else:
                 raise ValueError(f"Unknown top cut: {self.config.top_cut}")
         else:
-            if seq == 0:
+            configured = self.config.pairing_logics
+            if seq < len(configured):
+                logic = self.get_pairing_logic(configured[seq])
+            elif seq == 0:
                 logic = self.get_pairing_logic("PairingRandom")
             elif seq == 1 and self.config.snake_pods:
                 logic = self.get_pairing_logic("PairingSnake")
@@ -1513,7 +1548,8 @@ class Tournament(ITournament):
         """Creates pairings for the current round.
 
         If the round has not been initialized or previous rounds are not complete, this method attempts
-        to handle those states.
+        to handle those states. The Swiss pairing logic per round comes from
+        config.pairing_logics (see __compute_stage_and_logic).
 
         Returns:
             bool: True if pairings were successfully created (or were already created). False if

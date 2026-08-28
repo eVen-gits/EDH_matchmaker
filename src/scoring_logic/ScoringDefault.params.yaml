@@ -1,0 +1,22 @@
+# Parameters for ScoringDefault. This file is the source of truth for the
+# algorithm's parameter names, defaults, ranges, and descriptions.
+win_points:
+  default: 5
+  type: int
+  min: 0
+  label: Win points
+  description: Points added for a round the player won.
+
+draw_points:
+  default: 1
+  type: int
+  min: 0
+  label: Draw points
+  description: Points added for a round the player drew.
+
+bye_points:
+  default: 4
+  type: int
+  min: 0
+  label: Bye points
+  description: Points added for a round the player received a bye.

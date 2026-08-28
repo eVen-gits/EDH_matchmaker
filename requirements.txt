@@ -13,3 +13,4 @@ requests
 pytest
 pytest-cov
 jsonschema
+PyYAML
