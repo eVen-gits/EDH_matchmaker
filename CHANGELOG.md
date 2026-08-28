@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-08-28
+
 ### Added
 - Pluggable, spec-driven algorithm parameters. Each scoring/pairing algorithm
   declares its parameters in a sidecar file `<ClassName>.params.yaml` (name,
@@ -60,3 +62,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The `-x/--scoring` command-line flag now works again. It crashed on launch
   (it called a `TournamentConfiguration.scoring()` method that no longer
   exists); it now writes win/draw/bye into `config.scoring_params`.
+
+[Unreleased]: https://github.com/eVen-gits/EDH_matchmaker/compare/v3.1.0...HEAD
+[3.1.0]: https://github.com/eVen-gits/EDH_matchmaker/compare/v3.0.0...v3.1.0
