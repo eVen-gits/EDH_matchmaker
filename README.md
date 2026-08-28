@@ -10,7 +10,8 @@ A comprehensive tool for managing Commander (EDH) tournaments with Swiss pairing
 
 ## Features
 
-- **Swiss Pairings**: Automated pairing logic optimized for EDH (4-player pods).
+- **Swiss Pairings**: Automated pairing logic optimized for EDH (4-player pods). Pick the pairing logic per round in the tournament config.
+- **Pluggable Scoring**: Choose the scoring algorithm (Default, Hareruya, Modified Hareruya). Each algorithm declares its own parameters in a sidecar file, and the config screen builds their fields automatically.
 - **Tournament Management**: Track standings, drops, and round history.
 - **Standings Export**: Export results for external use.
 - **Cross-Platform**: Runs on Linux, Windows, and macOS (Python-based).
