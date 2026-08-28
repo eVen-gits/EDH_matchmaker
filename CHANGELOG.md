@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Parameter specifications for scoring and pairing algorithms. Each algorithm
+  declares its parameters (name, default, type, range, and a human description)
+  in a sidecar file `<ClassName>.params.yaml` next to the class. The file is the
+  single source of truth. The code loads it at class-definition time and derives
+  the defaults from it, so nothing is hard-coded. A subclass with no sidecar
+  inherits its parent's parameters. This lets a new-algorithm author add
+  documented parameters in one modular place, and a future GUI render them.
+  Adds a `PyYAML` dependency.
 - Modified Hareruya scoring logic. This variant removes the round-order
   dependency of Hareruya. It averages the wagering economy over every
   permutation of the Swiss round order, so the record WDD scores the same as

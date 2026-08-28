@@ -174,6 +174,7 @@ draw, or a pending game).
 | `top_cut` | int | The playoff cut size. See [`top_cut` and `stage` values](#top_cut-and-stage-values). `0` means no playoff cut (Swiss only). |
 | `scoring_logic` | string | optional, default `"ScoringDefault"`. Which formula computes player points. See [Scoring logic](#scoring-logic). |
 | `scoring_params` | object | optional, default `{}`. Parameters for whichever algorithm `scoring_logic` names - field names, types, and defaults are owned by that algorithm, not by this format. See [Scoring logic](#scoring-logic) for the fields each shipped algorithm reads. |
+| `pairing_params` | object | optional, default `{}`. The pairing-logic mirror of `scoring_params`. No shipped pairing algorithm reads any parameter yet, so this is empty in practice. |
 
 `standings_export` fields:
 
@@ -502,6 +503,27 @@ implementation choice, not a requirement of this format.
 
 This variant uses the same `scoring_params` fields as `ScoringHareruya`. It
 shares the same `pointrate` approximation.
+
+### Where parameter definitions live (implementation note)
+
+This part is about the reference implementation, not the JSON format. Each
+algorithm's parameter names, defaults, types, ranges, and human descriptions
+live in a sidecar file next to the algorithm class, named
+`<ClassName>.params.yaml` (for example
+`src/scoring_logic/ScoringHareruya.params.yaml`). The file is the single source
+of truth. The code loads it at class-definition time and derives the defaults
+from it - no parameter values are hard-coded in the class.
+
+To add a new scoring or pairing algorithm with tunable parameters:
+
+1. Write the algorithm class in `src/scoring_logic/` or `src/pairing_logic/`.
+   Set `IS_COMPLETE = True`. Read a parameter with `self._param(tour, "name")`.
+2. Add `<ClassName>.params.yaml` next to it. Each entry needs a `default` and a
+   `description`. Optional keys: `type`, `min`, `max`, `step`, `label`.
+3. A subclass with no sidecar of its own inherits its parent's parameters (as
+   `ScoringModifiedHareruya` inherits `ScoringHareruya`'s).
+
+An algorithm with no parameters needs no sidecar file.
 
 ## Adjacent outputs (not part of this format)
 

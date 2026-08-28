@@ -5,6 +5,8 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 from uuid import UUID, uuid4
 
+from .param_spec import ParamSpec, load_param_spec
+
 
 class SortMethod(IntEnum):
     """Enum for sorting methods."""
@@ -213,7 +215,19 @@ class IPairingLogic(ABC):
     """Interface for pairing logic."""
 
     IS_COMPLETE: bool = False
+    # User-pickable for a Swiss round. False for top-cut pairings, which are
+    # chosen automatically by stage and must not appear in the round selector.
+    SELECTABLE: bool = True
     name: str
+    # Loaded at class definition from the sidecar `<ClassName>.params.yaml`.
+    # No pairing algorithm ships params yet - the seam is here so one can.
+    PARAM_SPEC: dict[str, ParamSpec] = {}
+    DEFAULT_PARAMS: dict[str, Any] = {}
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        cls.PARAM_SPEC = load_param_spec(cls)
+        cls.DEFAULT_PARAMS = {n: s.default for n, s in cls.PARAM_SPEC.items()}
 
     @abstractmethod
     def make_pairings(
@@ -247,9 +261,17 @@ class IScoringLogic(ABC):
 
     IS_COMPLETE: bool = False
     name: str
-    # This algorithm's own parameter names and defaults - see
-    # TournamentConfiguration.scoring_params.
+    # This algorithm's parameter spec, loaded at class definition from the
+    # sidecar `<ClassName>.params.yaml` (name, default, type, range,
+    # description). DEFAULT_PARAMS is derived from it - the names and defaults
+    # used by TournamentConfiguration.scoring_params.
+    PARAM_SPEC: dict[str, ParamSpec] = {}
     DEFAULT_PARAMS: dict[str, Any] = {}
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        cls.PARAM_SPEC = load_param_spec(cls)
+        cls.DEFAULT_PARAMS = {n: s.default for n, s in cls.PARAM_SPEC.items()}
 
     @abstractmethod
     def compute_ratings(
@@ -325,6 +347,11 @@ class ITournamentConfiguration(ABC):
     # Owned by whichever class scoring_logic names - see
     # IScoringLogic.DEFAULT_PARAMS.
     scoring_params: dict[str, Any] = {}
+    # Mirror for IPairingLogic algorithms - see IPairingLogic.DEFAULT_PARAMS.
+    pairing_params: dict[str, Any] = {}
+    # Pairing-logic name per Swiss round; empty falls back to the adaptive
+    # default (see Tournament.__compute_stage_and_logic).
+    pairing_logics: list[str] = []
 
     @property
     @abstractmethod

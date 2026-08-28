@@ -45,6 +45,129 @@ from src.misc import generate_player_names
 # from qt_material import apply_stylesheet
 
 
+def _decimals_for(step: float) -> int:
+    """Decimal places needed to display `step`, for a QDoubleSpinBox."""
+    text = repr(float(step))
+    if "." not in text:
+        return 0
+    return len(text.split(".")[1].rstrip("0"))
+
+
+class ParamForm(QWidget):
+    """Editable widgets generated from a ``dict[str, ParamSpec]``.
+
+    Each parameter's widget kind, range, label, tooltip, and display transform
+    come from its sidecar spec (see src/param_spec.py). ``values()`` reads the
+    widgets back into a ``{name: value}`` dict, undoing any display scale and
+    casting to the parameter's type. This is the single renderer for every
+    algorithm's parameters - no per-parameter GUI code.
+    """
+
+    def __init__(self, spec, values, parent=None):
+        super().__init__(parent)
+        self._spec = spec
+        self._fields: dict[str, QWidget] = {}
+        self._rows: dict[str, tuple] = {}  # name -> (label_or_None, field)
+        layout = QFormLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        for name, ps in spec.items():
+            seed = values.get(name, ps.default)
+            field = self._make_field(ps, seed)
+            field.setToolTip(ps.description)
+            self._fields[name] = field
+            if ps.widget == "checkbox":
+                field.setText(ps.label)  # checkbox carries its own label
+                layout.addRow(field)
+                self._rows[name] = (None, field)
+            else:
+                label = QLabel(ps.label)
+                label.setToolTip(ps.description)
+                layout.addRow(label, field)
+                self._rows[name] = (label, field)
+        self._wire_visibility()
+
+    def _make_field(self, ps, value):
+        if ps.widget == "checkbox":
+            box = QCheckBox()
+            box.setChecked(bool(value))
+            return box
+        if ps.widget == "combobox":
+            combo = QComboBox()
+            for choice in ps.choices or ():
+                combo.addItem(str(choice), choice)
+            idx = combo.findData(value)
+            combo.setCurrentIndex(idx if idx >= 0 else 0)
+            return combo
+        if ps.widget == "lineedit":
+            return QLineEdit(str(value))
+        scale = ps.scale or 1
+        if ps.widget == "spinbox":
+            box = QSpinBox()
+            box.setMinimum(int((ps.min if ps.min is not None else 0) * scale))
+            box.setMaximum(int((ps.max if ps.max is not None else 10**9) * scale))
+            if ps.step is not None:
+                box.setSingleStep(int(ps.step * scale))
+            if ps.suffix:
+                box.setSuffix(ps.suffix)
+            box.setValue(int(round(value * scale)))
+            return box
+        # doublespinbox (and any unhandled numeric widget) as a float spinner.
+        box = QDoubleSpinBox()
+        step = (ps.step if ps.step is not None else 0.01) * scale
+        box.setDecimals(_decimals_for(step))
+        box.setMinimum((ps.min if ps.min is not None else 0.0) * scale)
+        box.setMaximum((ps.max if ps.max is not None else 10.0**9) * scale)
+        box.setSingleStep(step)
+        if ps.suffix:
+            box.setSuffix(ps.suffix)
+        box.setValue(float(value) * scale)
+        return box
+
+    def _field_value(self, name):
+        ps = self._spec[name]
+        field = self._fields[name]
+        if ps.widget == "checkbox":
+            return field.isChecked()
+        if ps.widget == "combobox":
+            return field.currentData()
+        if ps.widget == "lineedit":
+            return field.text()
+        raw = field.value() / (ps.scale or 1)
+        return int(round(raw)) if ps.type == "int" else float(raw)
+
+    def values(self) -> dict:
+        """Reads every field back into a ``{name: value}`` dict."""
+        return {name: self._field_value(name) for name in self._spec}
+
+    def _wire_visibility(self):
+        # Connect each controlling widget's change signal so dependent rows
+        # show/hide live (e.g. pod-fraction only while reclaim is checked).
+        controllers = {
+            ps.visible_when[0] for ps in self._spec.values() if ps.visible_when
+        }
+        for ctrl in controllers:
+            field = self._fields.get(ctrl)
+            if field is None:
+                continue
+            for signal_name in ("stateChanged", "currentIndexChanged", "valueChanged"):
+                signal = getattr(field, signal_name, None)
+                if signal is not None:
+                    signal.connect(self._apply_visibility)
+                    break
+        self._apply_visibility()
+
+    def _apply_visibility(self, *_):
+        for name, ps in self._spec.items():
+            if ps.visible_when is None:
+                continue
+            ctrl, want = ps.visible_when
+            visible = ctrl in self._fields and self._field_value(ctrl) == want
+            label, field = self._rows[name]
+            field.setVisible(visible)
+            if label is not None:
+                label.setVisible(visible)
+
+
 class UILog:
     backlog = 0
 
@@ -1000,14 +1123,13 @@ class TournamentConfigDialog(QDialog):
         self.ui = uic.loadUi("./ui/TournamentConfigDialog.ui", self)
         assert self.ui is not None
 
-        self.ui.cb_allow_bye.stateChanged.connect(self.ui.sb_bye.setEnabled)
+        self._scoring_form: ParamForm | None = None
+        self._pairing_combos: list = []
         self.ui.cb_allow_bye.stateChanged.connect(self.ui.sb_max_byes.setEnabled)
         self.ui.cb_scoringLogic.currentIndexChanged.connect(
-            self.on_scoring_logic_changed
+            self._rebuild_scoring_form
         )
-        self.ui.cb_redistributeDiscardedDraw.stateChanged.connect(
-            self._update_discard_pod_fraction_visibility
-        )
+        self.ui.sb_nRounds.valueChanged.connect(self._rebuild_pairing_rows)
         self.ui.pb_browse.clicked.connect(self.select_log_location)
         self.ui.pb_add_psize.clicked.connect(self.add_psize)
         self.ui.pb_remove_psize.clicked.connect(self.remove_psize)
@@ -1023,15 +1145,10 @@ class TournamentConfigDialog(QDialog):
         # Load and set bye option
         self.cb_allow_bye.setChecked(self.core.config.allow_bye)
         self.check_pod_sizes()
-        # Load and set scoring - both widget groups are populated
-        # regardless of which scoring_logic is active; on_scoring_logic_changed()
-        # below only toggles which group is visible.
-        default_sp = Tournament.get_scoring_logic("ScoringDefault").params(self.core)
-        self.sb_win.setValue(default_sp["win_points"])
-        self.sb_draw.setValue(default_sp["draw_points"])
-        self.sb_bye.setValue(default_sp["bye_points"])
-        self.sb_nRounds.setValue(self.core.config.n_rounds)
+        # snake_pods before the pairing rows: it feeds their default preselection.
         self.cb_snakePods.setChecked(self.core.config.snake_pods)
+        self.sb_nRounds.setValue(self.core.config.n_rounds)
+        self._rebuild_pairing_rows()
         self.sb_max_byes.setValue(self.core.config.max_byes)
         self.ui.cb_auto_export.setChecked(self.core.config.auto_export)
         # Populte cb_topCut
@@ -1052,21 +1169,7 @@ class TournamentConfigDialog(QDialog):
         self.ui.cb_scoringLogic.setCurrentIndex(
             self.ui.cb_scoringLogic.findData(self.core.config.scoring_logic)
         )
-        hareruya_sp = Tournament.get_scoring_logic("ScoringHareruya").params(self.core)
-        self.ui.dsb_wagerPercent.setValue(hareruya_sp["wager_percent"] * 100)
-        self.ui.sb_wageringStart.setValue(int(hareruya_sp["wagering_starting_points"]))
-        self.ui.dsb_drawRedistribution.setValue(
-            hareruya_sp["draw_redistribution_fraction"]
-        )
-        self.ui.dsb_drawShape.setValue(hareruya_sp["draw_distribution_shape"])
-        self.ui.cb_redistributeDiscardedDraw.setChecked(
-            hareruya_sp["redistribute_discarded_draw_points"]
-        )
-        self.ui.dsb_discardPodFraction.setValue(
-            hareruya_sp["draw_discard_pod_fraction"]
-        )
-        self._update_discard_pod_fraction_visibility()
-        self.on_scoring_logic_changed()
+        self._rebuild_scoring_form()
 
         if TournamentAction.LOGF:
             self.ui.le_log_location.setText(TournamentAction.LOGF)
@@ -1075,25 +1178,71 @@ class TournamentConfigDialog(QDialog):
                 os.path.abspath(TournamentAction.DEFAULT_LOGF)
             )
 
-    def on_scoring_logic_changed(self):
-        is_hareruya = self.ui.cb_scoringLogic.currentData() in (
-            "ScoringHareruya",
-            "ScoringModifiedHareruya",
-        )
-        self.ui.w_wagering_fields.setVisible(is_hareruya)
-        self.ui.label_11.setVisible(not is_hareruya)
-        self.ui.sb_win.setVisible(not is_hareruya)
-        self.ui.label_4.setVisible(not is_hareruya)
-        self.ui.sb_draw.setVisible(not is_hareruya)
-        # A bye leaves a player's stack unchanged under Hareruya - no
-        # bye_points involved, so the field is meaningless there.
-        self.ui.label_6.setVisible(not is_hareruya)
-        self.ui.sb_bye.setVisible(not is_hareruya)
+    def _rebuild_scoring_form(self, *_):
+        """Generates the parameter widgets for the selected scoring logic.
 
-    def _update_discard_pod_fraction_visibility(self):
-        show = self.ui.cb_redistributeDiscardedDraw.isChecked()
-        self.ui.label_17.setVisible(show)
-        self.ui.dsb_discardPodFraction.setVisible(show)
+        Called on load and whenever the scoring-logic dropdown changes. The
+        widgets come entirely from the algorithm's PARAM_SPEC, seeded from the
+        tournament's current scoring_params - no per-parameter GUI code.
+        """
+        logic_name = self.ui.cb_scoringLogic.currentData()
+        if logic_name is None:
+            return
+        logic = Tournament.get_scoring_logic(logic_name)
+        form = ParamForm(logic.PARAM_SPEC, logic.params(self.core))
+
+        layout = self.ui.w_scoring_params.layout()
+        if self._scoring_form is not None:
+            self._scoring_form.setParent(None)
+            self._scoring_form.deleteLater()
+        layout.addWidget(form)
+        self._scoring_form = form
+
+    def _adaptive_pairing_default(self, seq: int) -> str:
+        """The pairing logic the adaptive scheme uses for a Swiss round seq."""
+        if seq == 0:
+            return "PairingRandom"
+        if seq == 1 and self.cb_snakePods.isChecked():
+            return "PairingSnake"
+        return "PairingDefault"
+
+    def _rebuild_pairing_rows(self, *_):
+        """One pairing-logic dropdown per Swiss round, driven by the rounds count.
+
+        Rebuilt whenever the rounds count changes. Picks already made are kept;
+        new rows default to config.pairing_logics, then the adaptive scheme.
+        """
+        n = self.ui.sb_nRounds.value()
+        current = [c.currentData() for c in self._pairing_combos]
+        layout = self.ui.w_pairing_rounds.layout()
+        while layout.count():
+            item = layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+        self._pairing_combos = []
+        selectable = Tournament.selectable_pairing_logics()
+        configured = self.core.config.pairing_logics
+        for seq in range(n):
+            if seq < len(current) and current[seq] is not None:
+                preselect = current[seq]
+            elif seq < len(configured):
+                preselect = configured[seq]
+            else:
+                preselect = self._adaptive_pairing_default(seq)
+            row = QWidget()
+            hbox = QHBoxLayout(row)
+            hbox.setContentsMargins(0, 0, 0, 0)
+            hbox.addWidget(QLabel(f"Round {seq + 1}"))
+            combo = QComboBox()
+            for name in selectable:
+                combo.addItem(name.replace("Pairing", ""), name)
+            idx = combo.findData(preselect)
+            combo.setCurrentIndex(idx if idx >= 0 else 0)
+            hbox.addWidget(combo)
+            hbox.addStretch(1)
+            layout.addWidget(row)
+            self._pairing_combos.append(combo)
 
     def check_pod_sizes(self):
         items = [self.lw_pod_sizes.item(i) for i in range(self.lw_pod_sizes.count())]
@@ -1160,19 +1309,12 @@ class TournamentConfigDialog(QDialog):
             auto_export=self.cb_auto_export.isChecked(),
             top_cut=self.ui.cb_topCut.currentData(),
             scoring_logic=self.ui.cb_scoringLogic.currentData(),
-            # Both widget groups are always populated, whichever
-            # scoring_logic is active - see the populate block above.
-            scoring_params={
-                "win_points": self.sb_win.value(),
-                "draw_points": self.sb_draw.value(),
-                "bye_points": self.sb_bye.value(),
-                "wager_percent": self.ui.dsb_wagerPercent.value() / 100,
-                "wagering_starting_points": self.ui.sb_wageringStart.value(),
-                "draw_redistribution_fraction": self.ui.dsb_drawRedistribution.value(),
-                "draw_distribution_shape": self.ui.dsb_drawShape.value(),
-                "redistribute_discarded_draw_points": self.ui.cb_redistributeDiscardedDraw.isChecked(),
-                "draw_discard_pod_fraction": self.ui.dsb_discardPodFraction.value(),
-            },
+            # Read only the selected algorithm's params, straight off the
+            # generated form (see _rebuild_scoring_form).
+            scoring_params=(
+                self._scoring_form.values() if self._scoring_form else {}
+            ),
+            pairing_logics=[c.currentData() for c in self._pairing_combos],
         )
         if self.reset:
             t = Tournament(
@@ -1309,6 +1451,27 @@ class ExportStandingsDialog(QDialog):
         result = dlg.exec()
 
 
+def apply_cli_config(core, args):
+    """Applies command-line config overrides to a tournament.
+
+    Kept out of __main__ so it is importable and testable.
+    """
+    if args.pod_sizes:
+        core.config.pod_sizes = args.pod_sizes
+    if args.allow_bye:
+        core.config.allow_bye = True
+    if args.scoring:
+        # -x win draw bye -> ScoringDefault's params (see scoring_params).
+        win, draw, bye = args.scoring
+        core.config.scoring_params.update(
+            {"win_points": win, "draw_points": draw, "bye_points": bye}
+        )
+    if args.snake:
+        core.config.snake_pods = True
+    if args.rounds:
+        core.config.n_rounds = args.rounds
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
@@ -1365,21 +1528,12 @@ if __name__ == "__main__":
         core = Tournament()
         core.new_round()
 
-    if args.pod_sizes:
-        core.config.pod_sizes = args.pod_sizes
-    if args.allow_bye:
-        core.config.allow_bye = True
-    if args.scoring:
-        core.config.scoring(args.scoring)
+    apply_cli_config(core, args)
     if args.number_of_mock_players:
         fkr = Faker()
         core.add_player(
             [f"{i}:{fkr.name()}" for i in range(args.number_of_mock_players)]
         )
-    if args.snake:
-        core.config.snake_pods = True
-    if args.rounds:
-        core.config.n_rounds = args.rounds
 
     # for i in range(7):
     #   core.make_pods()
