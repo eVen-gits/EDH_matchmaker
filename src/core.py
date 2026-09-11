@@ -671,14 +671,47 @@ class TournamentConfiguration(ITournamentConfiguration):
         # IScoringLogic.params()/._param().
         self.scoring_logic: str = kwargs.get("scoring_logic", "ScoringDefault")
         self.scoring_params: dict[str, Any] = dict(kwargs.get("scoring_params", {}))
-        # Per Swiss round, the pairing-logic name to use. One entry per round;
-        # empty (or short) falls back to the adaptive default in
+        # Per Swiss round, the pairing configuration: one dict per round,
+        # {"logic": <name or None>, "params": {<param>: value}}. logic None (or
+        # a missing/short list) falls back to the adaptive default in
         # Tournament.__compute_stage_and_logic. Top-cut rounds ignore this.
-        self.pairing_logics: list[str] = list(kwargs.get("pairing_logics", []))
-        # pairing_params mirrors scoring_params for IPairingLogic algorithms.
-        # ponytail: unused until a pairing algorithm declares params; the seam
-        # is here so adding one needs only a class plus a sidecar, no core change.
-        self.pairing_params: dict[str, Any] = dict(kwargs.get("pairing_params", {}))
+        # params are opaque here - field names and defaults belong to each
+        # pairing class (its DEFAULT_PARAMS), see CommonPairing.params().
+        self.pairing_rounds: list[dict[str, Any]] = self._build_pairing_rounds(kwargs)
+
+    @staticmethod
+    def _build_pairing_rounds(kwargs: dict) -> list[dict[str, Any]]:
+        """Builds pairing_rounds from kwargs.
+
+        Accepts the consolidated "pairing_rounds" list, or the separate
+        "pairing_logics"/"pairing_params" lists (a convenience for callers and
+        tests), zipping them by round index.
+        """
+        rounds = kwargs.get("pairing_rounds")
+        if rounds is not None:
+            return [
+                {"logic": r.get("logic"), "params": dict(r.get("params", {}))}
+                for r in rounds
+            ]
+        logics = list(kwargs.get("pairing_logics", []))
+        params = list(kwargs.get("pairing_params", []))
+        return [
+            {
+                "logic": logics[i] if i < len(logics) else None,
+                "params": dict(params[i]) if i < len(params) else {},
+            }
+            for i in range(max(len(logics), len(params)))
+        ]
+
+    @property
+    def pairing_logics(self) -> list[str | None]:
+        """The pairing-logic name per round (None where adaptive)."""
+        return [r.get("logic") for r in self.pairing_rounds]
+
+    @property
+    def pairing_params(self) -> list[dict[str, Any]]:
+        """The pairing params per round, aligned with pairing_logics."""
+        return [r.get("params", {}) for r in self.pairing_rounds]
 
     @property
     @override
@@ -747,8 +780,7 @@ class TournamentConfiguration(ITournamentConfiguration):
             "top_cut": self.top_cut.value,
             "scoring_logic": self.scoring_logic,
             "scoring_params": self.scoring_params,
-            "pairing_params": self.pairing_params,
-            "pairing_logics": self.pairing_logics,
+            "pairing_rounds": self.pairing_rounds,
         }
 
     @classmethod
@@ -783,10 +815,24 @@ class TournamentConfiguration(ITournamentConfiguration):
             # version, so read with a default for backward compatibility.
             scoring_logic=data.get("scoring_logic", "ScoringDefault"),
             scoring_params=scoring_params,
-            # Additive - absent in older logs, defaults to empty.
-            pairing_params=data.get("pairing_params", {}),
-            pairing_logics=data.get("pairing_logics", []),
+            # Additive - absent in older logs, defaults to empty. Prefer the
+            # consolidated "pairing_rounds"; else zip the never-released separate
+            # "pairing_logics"/"pairing_params" lists (params may be a stale {}).
+            **cls._inflate_pairing(data),
         )
+
+    @staticmethod
+    def _inflate_pairing(data: dict) -> dict:
+        """Reads pairing config, accepting the current and interim formats."""
+        if "pairing_rounds" in data:
+            return {"pairing_rounds": data["pairing_rounds"]}
+        params = data.get("pairing_params", [])
+        if not isinstance(params, list):  # interim empty {} form
+            params = []
+        return {
+            "pairing_logics": data.get("pairing_logics", []),
+            "pairing_params": params,
+        }
 
 
 class Tournament(ITournament):
@@ -870,17 +916,22 @@ class Tournament(ITournament):
         return cls._pairing_logic_cache[logic_name]
 
     @classmethod
-    def selectable_pairing_logics(cls) -> list[str]:
+    def selectable_pairing_logics(
+        cls, pod_sizes: Sequence[int] | None = None
+    ) -> list[str]:
         """Names of pairing logics a user may pick for a Swiss round.
 
         Excludes top-cut pairings (SELECTABLE == False), which are chosen
-        automatically by stage.
+        automatically by stage. When pod_sizes is given, also excludes any
+        logic that does not support all of those sizes (see
+        IPairingLogic.supports_pod_sizes).
         """
         cls.discover_pairing_logic()
         return sorted(
             name
             for name, obj in cls._pairing_logic_cache.items()
             if obj.SELECTABLE
+            and (pod_sizes is None or obj.supports_pod_sizes(pod_sizes))
         )
 
     @classmethod
@@ -1365,7 +1416,7 @@ class Tournament(ITournament):
             )
 
     def get_pod_sizes(self, n) -> list[int] | None:
-        """Determines possible pod sizes for a given number of players based on configuration.
+        """Determines possible pod sizes for a given number of players.
 
         Args:
             n: The number of players.
@@ -1373,6 +1424,8 @@ class Tournament(ITournament):
         Returns:
             A list of integers representing the sizes of the pods, or None if no valid combination is found.
         """
+        pod_sizes = self.config.pod_sizes
+        min_pod_size = min(pod_sizes)
         # Stack to store (remaining_players, current_pod_size_index, current_solution)
         stack = [(n, 0, [])]
 
@@ -1380,10 +1433,10 @@ class Tournament(ITournament):
             remaining, pod_size_idx, current_solution = stack.pop()
 
             # If we've processed all pod sizes, continue to next iteration
-            if pod_size_idx >= len(self.config.pod_sizes):
+            if pod_size_idx >= len(pod_sizes):
                 continue
 
-            pod_size = self.config.pod_sizes[pod_size_idx]
+            pod_size = pod_sizes[pod_size_idx]
             rem = remaining - pod_size
 
             # Skip if this pod size would exceed remaining players
@@ -1396,21 +1449,42 @@ class Tournament(ITournament):
                 return current_solution + [pod_size]
 
             # Handle case where remaining players is less than minimum pod size
-            if rem < self.config.min_pod_size:
+            if rem < min_pod_size:
                 if self.config.allow_bye and rem <= self.config.max_byes:
                     return current_solution + [pod_size]
-                elif pod_size == self.config.pod_sizes[-1]:
+                elif pod_size == pod_sizes[-1]:
                     continue
                 else:
                     stack.append((remaining, pod_size_idx + 1, current_solution))
                     continue
 
             # If remaining players is valid, try this pod size and continue with remaining players
-            if rem >= self.config.min_pod_size:
+            if rem >= min_pod_size:
                 stack.append((remaining, pod_size_idx + 1, current_solution))
                 stack.append((rem, 0, current_solution + [pod_size]))
 
         return None
+
+    def _adaptive_pairing_logic(self, seq: int) -> IPairingLogic:
+        """The default pairing logic for a Swiss round with no explicit choice.
+
+        Round 0 uses Random, round 1 Snake (when snake_pods), later rounds
+        Default. If that pick does not support the tournament's pod sizes, it
+        falls back to the first compatible selectable logic (Random supports
+        any size), so the adaptive default never violates the pod-size limit.
+        """
+        if seq == 0:
+            name = "PairingRandom"
+        elif seq == 1 and self.config.snake_pods:
+            name = "PairingSnake"
+        else:
+            name = "PairingDefault"
+        logic = self.get_pairing_logic(name)
+        if not logic.supports_pod_sizes(self.config.pod_sizes):
+            compatible = self.selectable_pairing_logics(self.config.pod_sizes)
+            name = compatible[0] if compatible else "PairingRandom"
+            logic = self.get_pairing_logic(name)
+        return logic
 
     def __compute_stage_and_logic(
         self, seq: int, prev_stage: Round.Stage | None
@@ -1499,14 +1573,20 @@ class Tournament(ITournament):
                 raise ValueError(f"Unknown top cut: {self.config.top_cut}")
         else:
             configured = self.config.pairing_logics
-            if seq < len(configured):
-                logic = self.get_pairing_logic(configured[seq])
-            elif seq == 0:
-                logic = self.get_pairing_logic("PairingRandom")
-            elif seq == 1 and self.config.snake_pods:
-                logic = self.get_pairing_logic("PairingSnake")
+            name = configured[seq] if seq < len(configured) else None
+            if name is not None:
+                logic = self.get_pairing_logic(name)
+                # Respect the user's explicit choice, but warn if it does not
+                # support the tournament's pod sizes (the GUI prevents this;
+                # a hand-edited or CLI config can still reach here).
+                if not logic.supports_pod_sizes(self.config.pod_sizes):
+                    Log.log(
+                        f"Pairing logic {name} does not support pod sizes "
+                        f"{list(self.config.pod_sizes)} (round {seq + 1}).",
+                        level=Log.Level.WARNING,
+                    )
             else:
-                logic = self.get_pairing_logic("PairingDefault")
+                logic = self._adaptive_pairing_logic(seq)
 
         if not logic:
             Log.log("No pairing logic found.", level=Log.Level.ERROR)

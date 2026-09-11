@@ -1,0 +1,22 @@
+# Parameters for PairingDefault. This file is the source of truth for the
+# algorithm's parameter names, defaults, ranges, and descriptions.
+rematch_penalty_exponent:
+  default: 2
+  type: int
+  min: 1
+  max: 4
+  label: Rematch penalty exponent
+  description: >
+    Exponent on the repeat-opponent count when scoring how well a player fits a
+    pod. A higher value pushes harder against seating players who already met.
+
+small_pod_penalty:
+  default: 10
+  type: int
+  min: 0
+  max: 100
+  label: Small pod penalty
+  description: >
+    Penalty for seating a player in a pod smaller than the preferred pod size
+    (for example a 3-player pod), when the player already sat in a small pod. A
+    higher value spreads the small pods across more players.

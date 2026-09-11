@@ -15,20 +15,26 @@ class CommonPairing(IPairingLogic, ABC):
     def __init__(self, name: str):
         self.name = name
 
-    def params(self, tour: ITournament) -> dict[str, Any]:
-        """This algorithm's params: tournament overrides on top of its defaults.
+    def _round_overrides(self, tour_round: IRound) -> dict[str, Any]:
+        """The pairing_params entry for this round, or an empty dict."""
+        config = tour_round.tour.config  # type: ignore[attr-defined]
+        params = config.pairing_params
+        seq = tour_round.seq
+        return params[seq] if seq < len(params) else {}
 
-        Mirrors CommonScoring.params. No pairing algorithm ships params today,
-        so this returns an empty dict - the seam is here so a parameterized
-        pairing algorithm needs only a class plus a sidecar YAML.
+    def params(self, tour_round: IRound) -> dict[str, Any]:
+        """This round's params: round overrides on top of the class defaults.
+
+        Unlike CommonScoring.params (one flat dict for the single selected
+        scoring logic), config.pairing_params is a list indexed by round, because
+        pairing logic and its settings can differ per round.
         """
-        config = tour.config  # type: ignore[attr-defined]
-        return {**self.DEFAULT_PARAMS, **config.pairing_params}
+        return {**self.DEFAULT_PARAMS, **self._round_overrides(tour_round)}
 
-    def _param(self, tour: ITournament, key: str) -> Any:
+    def _param(self, tour_round: IRound, key: str) -> Any:
         """Single-param lookup with no allocation - for a hot path."""
-        config = tour.config  # type: ignore[attr-defined]
-        return config.pairing_params.get(key, self.DEFAULT_PARAMS[key])
+        overrides = self._round_overrides(tour_round)
+        return overrides.get(key, self.DEFAULT_PARAMS[key])
 
     def field_ratings(self, tour_round: IRound) -> Mapping[Any, float]:
         """Computes the whole field's ratings once, to pass down sort keys.
@@ -44,17 +50,25 @@ class CommonPairing(IPairingLogic, ABC):
         score = 0
         if len(pod) == pod.cap:
             return -sys.maxsize
+        exponent = self._param(tour_round, "rematch_penalty_exponent")
         for p in pod.players:
-            score -= player.played(tour_round).count(p) ** 2
-        if pod.cap < player.tour.config.max_pod_size:
+            score -= player.played(tour_round).count(p) ** exponent
+        # A pod smaller than the preferred (first, highest-preference) pod size
+        # is "small". Using the preferred size, not the largest, keeps the
+        # 3-player pod as the small one when a larger size (for example 5) is
+        # also allowed - otherwise adding 5 would make 4-player pods count as
+        # small and skew pairing toward the largest pod.
+        preferred_size = player.tour.config.pod_sizes[0]
+        small_pod_penalty = self._param(tour_round, "small_pod_penalty")
+        if pod.cap < preferred_size:
             for prev_pod in player.pods(tour_round):
                 if prev_pod in IPlayer.ELocation:
                     continue
                 score -= sum(
                     [
-                        10
+                        small_pod_penalty
                         for _ in prev_pod.players
-                        if prev_pod.cap < player.tour.config.max_pod_size
+                        if prev_pod.cap < preferred_size
                     ]
                 )
         return score
@@ -112,6 +126,8 @@ class CommonPairing(IPairingLogic, ABC):
 
 class PairingRandom(CommonPairing):
     IS_COMPLETE: bool = True
+    # Random shuffles players into pods of any cap, so it supports any size.
+    SUPPORTED_POD_SIZES = None
 
     @override
     def make_pairings(
@@ -134,6 +150,7 @@ class PairingRandom(CommonPairing):
 
 class PairingSnake(CommonPairing):
     IS_COMPLETE: bool = True
+    SUPPORTED_POD_SIZES = (3, 4, 5)
 
     # Snake pods logic for 2nd tour_round
     # First bucket is players with most points and least unique opponents
@@ -323,6 +340,7 @@ class PairingSnake(CommonPairing):
 
 class PairingDefault(CommonPairing):
     IS_COMPLETE = True
+    SUPPORTED_POD_SIZES = (3, 4, 5)
 
     def matching(
         self,
