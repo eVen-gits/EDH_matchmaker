@@ -163,7 +163,7 @@ draw, or a pending game).
 
 | Field | Type | Description |
 |---|---|---|
-| `pod_sizes` | array of int | Allowed pod sizes, largest first, for example `[4, 3]`. The pairing logic fills pods at the first size before falling back to the next. |
+| `pod_sizes` | array of int | The tournament's pod sizes, ordered (first = most preferred), for example `[4, 3]`. The pairing logic fills pods at the first size before falling back to the next. These sizes also decide which pairing logics a round may use - see [Pairing logic](#pairing-logic). |
 | `allow_bye` | bool | If `true`, a leftover player can receive a bye instead of a pod. |
 | `snake_pods` | bool | If `true`, round 2 seeding uses a Swiss snake order. |
 | `n_rounds` | int | Number of Swiss rounds. |
@@ -174,8 +174,7 @@ draw, or a pending game).
 | `top_cut` | int | The playoff cut size. See [`top_cut` and `stage` values](#top_cut-and-stage-values). `0` means no playoff cut (Swiss only). |
 | `scoring_logic` | string | optional, default `"ScoringDefault"`. Which formula computes player points. See [Scoring logic](#scoring-logic). |
 | `scoring_params` | object | optional, default `{}`. Parameters for whichever algorithm `scoring_logic` names - field names, types, and defaults are owned by that algorithm, not by this format. See [Scoring logic](#scoring-logic) for the fields each shipped algorithm reads. |
-| `pairing_params` | object | optional, default `{}`. The pairing-logic mirror of `scoring_params`. No shipped pairing algorithm reads any parameter yet, so this is empty in practice. |
-| `pairing_logics` | array of string | optional, default `[]`. The pairing-logic name to use for each Swiss round, one entry per round. An empty or short list falls back to the adaptive default (round 1 Random, round 2 Snake when `snake_pods`, later rounds Default). Top-cut rounds ignore this. |
+| `pairing_rounds` | array of object | optional, default `[]`. The pairing configuration per Swiss round, one object per round: `{"logic": <name or null>, "params": {<field>: value}}`. `logic` is the pairing-logic name (or `null` / a missing/short list to use the adaptive default: round 1 Random, round 2 Snake when `snake_pods`, later rounds Default). `params` holds that logic's overrides; a missing field uses the logic's default. A configured `logic` should support the tournament's `pod_sizes` - see [Pairing logic](#pairing-logic). Top-cut rounds ignore this. |
 
 `standings_export` fields:
 
@@ -532,6 +531,43 @@ To add a new scoring or pairing algorithm with tunable parameters:
    `ScoringModifiedHareruya` inherits `ScoringHareruya`'s).
 
 An algorithm with no parameters needs no sidecar file.
+
+## Pairing logic
+
+Pairing logic decides how players are grouped into pods each round.
+`config.pairing_rounds` holds one object per round (see the `config` table),
+`{"logic": <name>, "params": {...}}`. Entry `[i]` sets the logic and its
+overrides for round `i`. The per-round list differs from the flat
+`scoring_params`, because pairing logic and its settings can differ per round.
+
+A reader that does not re-pair rounds can ignore this section. Pairing affects
+how a file was produced, not how a stored result is read back.
+
+### Pod sizes
+
+`config.pod_sizes` sets the tournament's pod sizes (ordered, preference first).
+Each pairing algorithm declares which sizes it supports; an algorithm is offered
+for a round only if it supports every size in `config.pod_sizes`. `PairingDefault`
+and `PairingSnake` support `3`, `4`, and `5`; `PairingRandom` supports any size.
+So a tournament with pod sizes `[2]` can only use `PairingRandom`. This is a
+constraint the writer applies; the format itself does not enforce it.
+
+A "small" pod, for the `small_pod_penalty` below, is one smaller than the
+preferred (first) size in `config.pod_sizes`. So with `[4, 3]` the 3-player pod
+is small; with `[5, 4, 3]` the 4-player and 3-player pods are both smaller than
+the preferred `5`.
+
+### `PairingDefault`
+
+Fields in the `params` object for a round that uses `PairingDefault`:
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `rematch_penalty_exponent` | int | `2` | Exponent on the repeat-opponent count when scoring how well a player fits a pod. A higher value pushes harder against seating players who already met. |
+| `small_pod_penalty` | int | `10` | Penalty for seating a player in a pod smaller than the preferred (first) pod size, for example a 3-player pod, when the player already sat in a small pod. A higher value spreads the small pods across more players. |
+
+`PairingRandom`, `PairingSnake`, and the top-cut pairings read no parameters.
+Their `params` object is empty.
 
 ## Adjacent outputs (not part of this format)
 

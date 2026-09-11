@@ -29,7 +29,7 @@ EDH Matchmaker runs Commander (EDH) Swiss-pairing tournaments (4-player pods, 3-
 
 - **`src/interface.py`** — Abstract interfaces (`IPlayer`, `ITournament`, `IPod`, `IRound`, `IPairingLogic`, `IScoringLogic`, `IStandingsExport`, `ITournamentConfiguration`). `IHashable` provides UUID-based `O(1)` object caching via a class-level `CACHE`.
 - **`src/core.py`** — Concrete `Tournament`, `Player`, `Pod`, `Round`, `TournamentConfiguration`, `StandingsExport`/`PodsExport`, `Log`, and the `TournamentAction` decorator (auto-persists state to JSON in `logs/` after each mutating action).
-- **`src/pairing_logic/`** — `IPairingLogic` implementations, auto-discovered. `PairingRandom` / `PairingSnake` / `PairingDefault` for Swiss rounds; the `PairingTopN` family for top-cut (marked `SELECTABLE = False`). Each Swiss round's logic comes from `config.pairing_logics`, else an adaptive default.
+- **`src/pairing_logic/`** — `IPairingLogic` implementations, auto-discovered. `PairingRandom` / `PairingSnake` / `PairingDefault` for Swiss rounds; the `PairingTopN` family for top-cut (marked `SELECTABLE = False`). Each Swiss round's logic and params come from `config.pairing_rounds`, else an adaptive default (which respects each logic's `SUPPORTED_POD_SIZES`).
 - **`src/scoring_logic/`** — `IScoringLogic` implementations, auto-discovered: `ScoringDefault`, `ScoringHareruya`, `ScoringModifiedHareruya`. Selected by `config.scoring_logic`.
 - **`src/param_spec.py`** — Loads each algorithm's parameters from a sidecar `<ClassName>.params.yaml` file (the source of truth for names, defaults, types, ranges, GUI widget hints, and descriptions). The config GUI generates parameter widgets from it.
 - **`src/misc.py`** — `Json2Obj`, `generate_player_names()` (Faker-based), `timeit`.
@@ -37,7 +37,8 @@ EDH Matchmaker runs Commander (EDH) Swiss-pairing tournaments (4-player pods, 3-
 
 Authoritative references (do not copy their values here — they drift):
 `docs/tournament-log-spec.md` for the save format and scoring formulas, and the
-`src/scoring_logic/*.params.yaml` sidecars for each algorithm's parameters.
+`src/scoring_logic/*.params.yaml` and `src/pairing_logic/*.params.yaml` sidecars
+for each algorithm's parameters.
 
 ### Data flow
 
@@ -54,7 +55,7 @@ run_ui.py (PyQt6 GUI)
 
 - **`@TournamentAction.action()`** wraps mutating `Tournament` methods and auto-saves to JSON.
 - **`@StandingsExport.auto_export()` / `@PodsExport.auto_export()`** run exports after standings change.
-- **Adding a scoring or pairing algorithm:** add a class (set `IS_COMPLETE = True`) plus a `<ClassName>.params.yaml` sidecar if it has parameters. Auto-discovery and the config GUI pick it up — no core or GUI changes.
+- **Adding a scoring or pairing algorithm:** add a class (set `IS_COMPLETE = True`) plus a `<ClassName>.params.yaml` sidecar if it has parameters. Auto-discovery and the config GUI pick it up — no core or GUI changes. A pairing algorithm may set `SUPPORTED_POD_SIZES` (a tuple; `None` = any) to limit which tournament pod sizes it is offered for.
 - **Tests** use `unittest` (`unittest.TestCase`). A test module that builds a `Tournament` must set `TournamentAction.LOGF = False` at its top, or it writes a log file during the run.
 - **Type checking:** pyright `basic` mode. Prefer `# pyright: ignore` or `cast()` over disabling rules globally.
 - **Docstrings:** Google style (required by MkDocs `mkdocstrings`).
