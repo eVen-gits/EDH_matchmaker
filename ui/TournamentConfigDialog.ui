@@ -30,7 +30,17 @@
   </property>
   <layout class="QVBoxLayout" name="verticalLayout_8">
    <item>
-    <layout class="QVBoxLayout" name="verticalLayout">
+    <widget class="QScrollArea" name="scrollArea">
+     <property name="widgetResizable">
+      <bool>true</bool>
+     </property>
+     <property name="frameShape">
+      <enum>QFrame::Shape::NoFrame</enum>
+     </property>
+     <widget class="QWidget" name="scrollAreaContents">
+      <layout class="QVBoxLayout" name="scrollContentLayout">
+       <item>
+        <layout class="QVBoxLayout" name="verticalLayout">
      <item>
       <widget class="QLabel" name="label_8">
        <property name="text">
@@ -224,6 +234,31 @@
     </layout>
    </item>
    <item>
+    <widget class="QLabel" name="label_podsizes">
+     <property name="text">
+      <string>Pod sizes (order = preference)</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QWidget" name="w_pod_sizes" native="true">
+     <layout class="QVBoxLayout" name="podSizesLayout">
+      <property name="leftMargin">
+       <number>0</number>
+      </property>
+      <property name="topMargin">
+       <number>0</number>
+      </property>
+      <property name="rightMargin">
+       <number>0</number>
+      </property>
+      <property name="bottomMargin">
+       <number>0</number>
+      </property>
+     </layout>
+    </widget>
+   </item>
+   <item>
     <widget class="QLabel" name="label_pairing">
      <property name="text">
       <string>Pairing per round</string>
@@ -283,107 +318,14 @@
     </layout>
    </item>
    <item>
-    <widget class="Line" name="line_2">
+    <widget class="Line" name="line_3">
      <property name="orientation">
       <enum>Qt::Orientation::Horizontal</enum>
      </property>
     </widget>
    </item>
-   <item>
-    <layout class="QVBoxLayout" name="verticalLayout_7">
-     <item>
-      <widget class="QLabel" name="label_10">
-       <property name="text">
-        <string>Pod sizes</string>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <layout class="QHBoxLayout" name="horizontalLayout_4">
-       <item>
-        <widget class="QListWidget" name="lw_pod_sizes">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="MinimumExpanding" vsizetype="Expanding">
-           <horstretch>50</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
-         <property name="minimumSize">
-          <size>
-           <width>60</width>
-           <height>0</height>
-          </size>
-         </property>
-         <property name="contextMenuPolicy">
-          <enum>Qt::ContextMenuPolicy::ActionsContextMenu</enum>
-         </property>
-         <property name="editTriggers">
-          <set>QAbstractItemView::EditTrigger::DoubleClicked</set>
-         </property>
-         <property name="defaultDropAction">
-          <enum>Qt::DropAction::MoveAction</enum>
-         </property>
-         <property name="alternatingRowColors">
-          <bool>true</bool>
-         </property>
-         <property name="selectionMode">
-          <enum>QAbstractItemView::SelectionMode::SingleSelection</enum>
-         </property>
-         <property name="movement">
-          <enum>QListView::Movement::Snap</enum>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <layout class="QVBoxLayout" name="verticalLayout_6">
-         <item>
-          <widget class="QPushButton" name="pb_add_psize">
-           <property name="text">
-            <string>Add</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QPushButton" name="pb_remove_psize">
-           <property name="text">
-            <string>Remove</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QLabel" name="label_7">
-           <property name="text">
-            <string>Add or remove possible pod sizes. Higher position equals higher preference. Double click entry to edit, drag to rearrange.</string>
-           </property>
-           <property name="wordWrap">
-            <bool>true</bool>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <spacer name="verticalSpacer">
-           <property name="orientation">
-            <enum>Qt::Orientation::Vertical</enum>
-           </property>
-           <property name="sizeHint" stdset="0">
-            <size>
-             <width>20</width>
-             <height>40</height>
-            </size>
-           </property>
-          </spacer>
-         </item>
-        </layout>
-       </item>
       </layout>
-     </item>
-    </layout>
-   </item>
-   <item>
-    <widget class="Line" name="line_3">
-     <property name="orientation">
-      <enum>Qt::Orientation::Horizontal</enum>
-     </property>
+     </widget>
     </widget>
    </item>
    <item>

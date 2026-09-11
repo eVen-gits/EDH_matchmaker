@@ -218,9 +218,24 @@ class IPairingLogic(ABC):
     # User-pickable for a Swiss round. False for top-cut pairings, which are
     # chosen automatically by stage and must not appear in the round selector.
     SELECTABLE: bool = True
+    # Pod sizes this algorithm supports (its capability). None means any size.
+    # The tournament's pod sizes must all be supported for this algorithm to be
+    # offered - see supports_pod_sizes and Tournament.selectable_pairing_logics.
+    SUPPORTED_POD_SIZES: tuple[int, ...] | None = None
     name: str
+
+    @classmethod
+    def supports_pod_sizes(cls, pod_sizes: Sequence[int]) -> bool:
+        """Whether this algorithm can pair a tournament with these pod sizes.
+
+        True if it supports any size (SUPPORTED_POD_SIZES is None) or every
+        given size is in its supported set.
+        """
+        if cls.SUPPORTED_POD_SIZES is None:
+            return True
+        return set(pod_sizes).issubset(cls.SUPPORTED_POD_SIZES)
     # Loaded at class definition from the sidecar `<ClassName>.params.yaml`.
-    # No pairing algorithm ships params yet - the seam is here so one can.
+    # Per-round overrides live in config.pairing_rounds[seq]["params"].
     PARAM_SPEC: dict[str, ParamSpec] = {}
     DEFAULT_PARAMS: dict[str, Any] = {}
 
@@ -347,11 +362,14 @@ class ITournamentConfiguration(ABC):
     # Owned by whichever class scoring_logic names - see
     # IScoringLogic.DEFAULT_PARAMS.
     scoring_params: dict[str, Any] = {}
-    # Mirror for IPairingLogic algorithms - see IPairingLogic.DEFAULT_PARAMS.
-    pairing_params: dict[str, Any] = {}
-    # Pairing-logic name per Swiss round; empty falls back to the adaptive
-    # default (see Tournament.__compute_stage_and_logic).
-    pairing_logics: list[str] = []
+    # Pairing config per Swiss round: one {"logic", "params"} dict per round.
+    # A list (not flat like scoring_params) because pairing logic and its
+    # settings can differ per round. logic None (or a short list) falls back to
+    # the adaptive default - see Tournament.__compute_stage_and_logic.
+    pairing_rounds: list[dict[str, Any]] = []
+    # Read-only views derived from pairing_rounds (see the concrete config).
+    pairing_logics: list[str | None] = []
+    pairing_params: list[dict[str, Any]] = []
 
     @property
     @abstractmethod

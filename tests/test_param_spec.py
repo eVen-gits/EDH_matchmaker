@@ -57,8 +57,22 @@ class TestShippedParamSpecs(unittest.TestCase):
         self.assertEqual(modified.PARAM_SPEC, hareruya.PARAM_SPEC)
         self.assertEqual(modified.DEFAULT_PARAMS, hareruya.DEFAULT_PARAMS)
 
-    def test_pairing_logic_without_sidecar_has_empty_spec(self):
+    def test_pairing_default_params_derived_from_sidecar(self):
         logic = Tournament.get_pairing_logic("PairingDefault")
+        self.assertEqual(
+            logic.DEFAULT_PARAMS,
+            {"rematch_penalty_exponent": 2, "small_pod_penalty": 10},
+        )
+        for value in logic.DEFAULT_PARAMS.values():
+            self.assertIs(type(value), int)
+        spec = logic.PARAM_SPEC["rematch_penalty_exponent"]
+        self.assertIsInstance(spec, ParamSpec)
+        self.assertTrue(spec.description)
+        self.assertEqual(spec.type, "int")
+        self.assertEqual((spec.min, spec.max), (1, 4))
+
+    def test_pairing_logic_without_sidecar_has_empty_spec(self):
+        logic = Tournament.get_pairing_logic("PairingRandom")
         self.assertEqual(logic.PARAM_SPEC, {})
         self.assertEqual(logic.DEFAULT_PARAMS, {})
 

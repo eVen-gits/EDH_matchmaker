@@ -53,6 +53,91 @@ def _decimals_for(step: float) -> int:
     return len(text.split(".")[1].rstrip("0"))
 
 
+def _clear_layout(layout) -> None:
+    """Remove and delete every widget in a layout.
+
+    setParent(None) detaches immediately; takeAt alone leaves the widget
+    parented and floating until deleteLater runs, so a rapid rebuild would
+    stack ghost widgets on top of the new ones.
+    """
+    while layout.count():
+        item = layout.takeAt(0)
+        widget = item.widget() if item is not None else None
+        if widget is not None:
+            widget.setParent(None)
+            widget.deleteLater()
+
+
+class PodSizeEditor(QWidget):
+    """Reorderable tournament pod-size list.
+
+    Order encodes preference (top row = most preferred). A spin box adds any
+    size; drag to reorder; Remove drops the selection. ``values()`` reads the
+    list top to bottom. Emits ``changed`` when the set of sizes changes, so the
+    per-round pairing dropdowns can be re-filtered (see supports_pod_sizes).
+    """
+
+    changed = pyqtSignal()
+
+    def __init__(self, sizes, parent=None):
+        super().__init__(parent)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        self._list = QListWidget()
+        self._list.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        self._list.setSelectionMode(
+            QAbstractItemView.SelectionMode.SingleSelection
+        )
+        self._list.setMaximumHeight(120)
+        for size in sizes:
+            self._add_item(size)
+        # Reorder changes preference order (not the set), but re-emit anyway.
+        model = self._list.model()
+        if model is not None:
+            model.rowsMoved.connect(lambda *_: self.changed.emit())
+        layout.addWidget(self._list)
+
+        side = QVBoxLayout()
+        self._spin = QSpinBox()
+        self._spin.setRange(2, 12)
+        self._spin.setValue(4)
+        add_btn = QPushButton("Add")
+        add_btn.clicked.connect(self._add_selected)
+        rm_btn = QPushButton("Remove")
+        rm_btn.clicked.connect(self._remove_selected)
+        side.addWidget(self._spin)
+        side.addWidget(add_btn)
+        side.addWidget(rm_btn)
+        side.addStretch(1)
+        layout.addLayout(side)
+
+    def _add_item(self, size: int):
+        item = QListWidgetItem(str(size))
+        item.setData(Qt.ItemDataRole.UserRole, int(size))
+        self._list.addItem(item)
+
+    def _add_selected(self, *_):
+        size = self._spin.value()
+        if size in self.values():  # no duplicate sizes
+            return
+        self._add_item(size)
+        self.changed.emit()
+
+    def _remove_selected(self, *_):
+        row = self._list.currentRow()
+        if row >= 0:
+            self._list.takeItem(row)
+            self.changed.emit()
+
+    def values(self) -> list[int]:
+        out = []
+        for i in range(self._list.count()):
+            item = self._list.item(i)
+            if item is not None:
+                out.append(item.data(Qt.ItemDataRole.UserRole))
+        return out
+
+
 class ParamForm(QWidget):
     """Editable widgets generated from a ``dict[str, ParamSpec]``.
 
@@ -1125,26 +1210,30 @@ class TournamentConfigDialog(QDialog):
 
         self._scoring_form: ParamForm | None = None
         self._pairing_combos: list = []
+        # One entry per round (aligned with _pairing_combos): the round's
+        # ParamForm, or None when its logic ships no parameters.
+        self._pairing_forms: list = []
+        # The tournament's global pod-size editor; drives which pairing logics
+        # each round may offer (see _rebuild_pairing_rows).
+        self._pod_size_editor: PodSizeEditor | None = None
         self.ui.cb_allow_bye.stateChanged.connect(self.ui.sb_max_byes.setEnabled)
         self.ui.cb_scoringLogic.currentIndexChanged.connect(
             self._rebuild_scoring_form
         )
         self.ui.sb_nRounds.valueChanged.connect(self._rebuild_pairing_rows)
         self.ui.pb_browse.clicked.connect(self.select_log_location)
-        self.ui.pb_add_psize.clicked.connect(self.add_psize)
-        self.ui.pb_remove_psize.clicked.connect(self.remove_psize)
         self.ui.pb_confirm.clicked.connect(self.apply_choices)
-        self.ui.lw_pod_sizes.itemChanged.connect(self.check_pod_sizes)
 
         self.restore_ui()
 
     def restore_ui(self):
-        # Load current pod sizes
-        for psize in self.core.config.pod_sizes:
-            self.create_psize_widget(psize)
         # Load and set bye option
         self.cb_allow_bye.setChecked(self.core.config.allow_bye)
-        self.check_pod_sizes()
+        # Pod sizes before the pairing rows: they filter each round's logics.
+        self._pod_size_editor = PodSizeEditor(list(self.core.config.pod_sizes))
+        self._pod_size_editor.changed.connect(self._rebuild_pairing_rows)
+        pod_layout = self.ui.w_pod_sizes.layout()
+        pod_layout.addWidget(self._pod_size_editor)
         # snake_pods before the pairing rows: it feeds their default preselection.
         self.cb_snakePods.setChecked(self.core.config.snake_pods)
         self.sb_nRounds.setValue(self.core.config.n_rounds)
@@ -1207,84 +1296,89 @@ class TournamentConfigDialog(QDialog):
         return "PairingDefault"
 
     def _rebuild_pairing_rows(self, *_):
-        """One pairing-logic dropdown per Swiss round, driven by the rounds count.
+        """One pairing envelope per Swiss round, driven by the rounds count.
 
-        Rebuilt whenever the rounds count changes. Picks already made are kept;
-        new rows default to config.pairing_logics, then the adaptive scheme.
+        Each round gets a group box with a pairing-logic dropdown and, below it,
+        the parameter widgets for the selected logic. Only logics compatible
+        with the tournament's pod sizes are offered (see
+        selectable_pairing_logics). Rebuilt when the rounds count or the pod
+        sizes change; existing picks and edited values are kept when still valid.
         """
         n = self.ui.sb_nRounds.value()
-        current = [c.currentData() for c in self._pairing_combos]
+        prev_logics = [c.currentData() for c in self._pairing_combos]
+        prev_params = [f.values() if f else {} for f in self._pairing_forms]
         layout = self.ui.w_pairing_rounds.layout()
-        while layout.count():
-            item = layout.takeAt(0)
-            widget = item.widget()
-            if widget is not None:
-                widget.deleteLater()
+        _clear_layout(layout)
         self._pairing_combos = []
-        selectable = Tournament.selectable_pairing_logics()
+        self._pairing_forms = []
+        pod_sizes = self._pod_size_editor.values() if self._pod_size_editor else None
+        selectable = Tournament.selectable_pairing_logics(pod_sizes)
         configured = self.core.config.pairing_logics
+        configured_params = self.core.config.pairing_params
         for seq in range(n):
-            if seq < len(current) and current[seq] is not None:
-                preselect = current[seq]
-            elif seq < len(configured):
+            if seq < len(prev_logics) and prev_logics[seq] in selectable:
+                preselect = prev_logics[seq]
+            elif seq < len(configured) and configured[seq] in selectable:
                 preselect = configured[seq]
             else:
-                preselect = self._adaptive_pairing_default(seq)
-            row = QWidget()
-            hbox = QHBoxLayout(row)
-            hbox.setContentsMargins(0, 0, 0, 0)
-            hbox.addWidget(QLabel(f"Round {seq + 1}"))
+                adaptive = self._adaptive_pairing_default(seq)
+                # Fall back to the first compatible logic if the adaptive pick
+                # is not offered for these pod sizes (for example size-2 pods).
+                preselect = adaptive if adaptive in selectable else (
+                    selectable[0] if selectable else None
+                )
+
+            box = QGroupBox(f"Round {seq + 1}")
+            vbox = QVBoxLayout(box)
             combo = QComboBox()
             for name in selectable:
                 combo.addItem(name.replace("Pairing", ""), name)
             idx = combo.findData(preselect)
             combo.setCurrentIndex(idx if idx >= 0 else 0)
-            hbox.addWidget(combo)
-            hbox.addStretch(1)
-            layout.addWidget(row)
+            vbox.addWidget(combo)
+            # Container the per-round param form is (re)built into.
+            holder = QWidget()
+            holder_layout = QVBoxLayout(holder)
+            holder_layout.setContentsMargins(0, 0, 0, 0)
+            vbox.addWidget(holder)
+            layout.addWidget(box)
+
             self._pairing_combos.append(combo)
-
-    def check_pod_sizes(self):
-        items = [self.lw_pod_sizes.item(i) for i in range(self.lw_pod_sizes.count())]
-        for item in items:
-            try:
-                item.setData(Qt.ItemDataRole.UserRole, int(item.text()))
-            except ValueError:
-                self.lw_pod_sizes.takeItem(self.lw_pod_sizes.row(item))
-
-    def remove_psize(self):
-        if self.lw_pod_sizes.currentItem():
-            self.lw_pod_sizes.takeItem(
-                self.lw_pod_sizes.row(self.lw_pod_sizes.currentItem())
+            self._pairing_forms.append(None)
+            # Param seed: values edited this session win, else stored config.
+            if seq < len(prev_params) and prev_params[seq]:
+                param_seed = prev_params[seq]
+            elif seq < len(configured_params):
+                param_seed = configured_params[seq]
+            else:
+                param_seed = {}
+            self._build_round_param_form(seq, holder, param_seed)
+            # Switching a round's logic resets its params to that logic's
+            # defaults (seed {}), mirroring the scoring form's behavior.
+            combo.currentIndexChanged.connect(
+                lambda _=None, s=seq, h=holder: self._build_round_param_form(s, h, {})
             )
 
-    def add_psize(self):
-        self.check_pod_sizes()
-        current_values = [
-            int(self.lw_pod_sizes.item(i).text())
-            for i in range(self.lw_pod_sizes.count())
-        ]
-        if len(current_values) == 0:
-            self.create_psize_widget(4)
-        else:
-            self.create_psize_widget(
-                min(current_values) - 1
-                if min(current_values) > 1
-                else max(current_values) + 1
-            )
-        self.check_pod_sizes()
+    def _build_round_param_form(self, seq, holder, param_seed):
+        """(Re)builds the parameter widgets for one round's selected logic.
 
-    def create_psize_widget(self, psize: int):
-        item = QListWidgetItem(str(psize))
-        item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
-        item.setData(Qt.ItemDataRole.UserRole, psize)
-        self.lw_pod_sizes.addItem(item)
-
-    def get_psizes(self):
-        return [
-            self.lw_pod_sizes.item(i).data(Qt.ItemDataRole.UserRole)
-            for i in range(self.lw_pod_sizes.count())
-        ]
+        seq indexes the round; holder is the container inside that round's
+        envelope; param_seed starts the widgets (empty resets to defaults). A
+        logic with no parameters leaves the holder empty and stores None.
+        """
+        holder_layout = holder.layout()
+        assert holder_layout is not None  # created in _rebuild_pairing_rows
+        _clear_layout(holder_layout)
+        self._pairing_forms[seq] = None
+        name = self._pairing_combos[seq].currentData()
+        if name is None:
+            return
+        logic = Tournament.get_pairing_logic(name)
+        if not logic.PARAM_SPEC:
+            return
+        form = ParamForm(logic.PARAM_SPEC, {**logic.DEFAULT_PARAMS, **param_seed})
+        holder_layout.addWidget(form)
+        self._pairing_forms[seq] = form
 
     def select_log_location(self):
         file, ext = QFileDialog.getSaveFileName(
@@ -1302,7 +1396,11 @@ class TournamentConfigDialog(QDialog):
         TournamentAction.LOGF = self.ui.le_log_location.text()
         self.config = TournamentConfiguration(
             allow_bye=self.cb_allow_bye.isChecked(),
-            pod_sizes=self.get_psizes(),
+            # The tournament's pod sizes (ordered, preference first). These also
+            # decide which pairing logics each round may use.
+            pod_sizes=(
+                self._pod_size_editor.values() if self._pod_size_editor else [4, 3]
+            ),
             n_rounds=self.sb_nRounds.value(),
             snake_pods=self.cb_snakePods.isChecked(),
             max_byes=self.sb_max_byes.value(),
@@ -1314,7 +1412,15 @@ class TournamentConfigDialog(QDialog):
             scoring_params=(
                 self._scoring_form.values() if self._scoring_form else {}
             ),
-            pairing_logics=[c.currentData() for c in self._pairing_combos],
+            # One entry per round (see _rebuild_pairing_rows): the chosen logic
+            # and its params. A round whose logic has no params carries {}.
+            pairing_rounds=[
+                {
+                    "logic": combo.currentData(),
+                    "params": form.values() if form else {},
+                }
+                for combo, form in zip(self._pairing_combos, self._pairing_forms)
+            ],
         )
         if self.reset:
             t = Tournament(

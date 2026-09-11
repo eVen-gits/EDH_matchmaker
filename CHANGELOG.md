@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Tunable pairing-logic parameters, using the same sidecar mechanism as scoring.
+  A pairing algorithm declares its parameters in `<ClassName>.params.yaml`, reads
+  them with `self._param(...)`, and the tournament config screen generates the
+  widgets from the spec. `PairingDefault` ships two parameters:
+  `rematch_penalty_exponent` (default `2`), which controls how hard pairing
+  pushes against seating players who already met, and `small_pod_penalty`
+  (default `10`), which controls how hard pairing avoids repeatedly seating a
+  player in a pod smaller than the preferred size (for example a 3-player pod).
+- Per-round pairing settings in the tournament config. Each round is a group box
+  with a pairing-logic dropdown and, below it, the parameter widgets for the
+  selected logic. Settings are per round, stored in `config.pairing_rounds` as
+  one `{"logic", "params"}` object per round. When the adaptive default picks an
+  incompatible logic (or a configured one is incompatible), the pairing engine
+  falls back to a compatible logic or logs a warning. Old logs load unchanged.
+- Pod-size-aware pairing selection. Each pairing algorithm declares the pod
+  sizes it supports (`SUPPORTED_POD_SIZES`; `None` means any). A round offers
+  only the logics that support the tournament's `config.pod_sizes`. For example,
+  a tournament with 2-player pods offers only `PairingRandom`, because
+  `PairingDefault` and `PairingSnake` support only `3`, `4`, and `5`. The config
+  screen has one tournament-wide pod-size editor, and the per-round pairing
+  dropdowns re-filter when the pod sizes change.
+
+### Changed
+- `PairingDefault` now measures a "small" pod against the preferred (first) pod
+  size in `config.pod_sizes`, not the largest. For the standard `[4, 3]` this is
+  the same as before. It matters only when a larger size such as `5` is added:
+  4-player pods are no longer treated as small.
+
 ## [3.1.0] - 2026-08-28
 
 ### Added
