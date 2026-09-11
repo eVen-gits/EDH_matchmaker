@@ -5,7 +5,14 @@ from itertools import product
 
 from faker import Faker
 
-from src.core import Player, Round, Tournament, TournamentAction, TournamentConfiguration
+from src.core import (
+    Log,
+    Player,
+    Round,
+    Tournament,
+    TournamentAction,
+    TournamentConfiguration,
+)
 
 fkr = Faker()
 TournamentAction.LOGF = False  # type: ignore
@@ -386,20 +393,192 @@ class TestPairingLogicsConfig(unittest.TestCase):
         import json
 
         cfg = TournamentConfiguration(
-            pairing_logics=["PairingRandom", "PairingSnake"],
-            pairing_params={"k": 1},
+            pairing_rounds=[
+                {"logic": "PairingRandom", "params": {}},
+                {"logic": "PairingDefault", "params": {
+                    "rematch_penalty_exponent": 3, "small_pod_penalty": 5,
+                }},
+            ],
             auto_export=False,
         )
-        restored = TournamentConfiguration.inflate(
-            json.loads(json.dumps(cfg.serialize()))
-        )
-        self.assertEqual(restored.pairing_logics, ["PairingRandom", "PairingSnake"])
-        self.assertEqual(restored.pairing_params, {"k": 1})
-
-        # An old file without the keys inflates to empty defaults (adaptive).
         data = cfg.serialize()
-        del data["pairing_logics"]
-        del data["pairing_params"]
+        self.assertIn("pairing_rounds", data)
+        restored = TournamentConfiguration.inflate(json.loads(json.dumps(data)))
+        self.assertEqual(restored.pairing_logics, ["PairingRandom", "PairingDefault"])
+        self.assertEqual(
+            restored.pairing_params,
+            [{}, {"rematch_penalty_exponent": 3, "small_pod_penalty": 5}],
+        )
+
+        # An old file without pairing config inflates to empty (adaptive).
+        del data["pairing_rounds"]
         old = TournamentConfiguration.inflate(data)
-        self.assertEqual(old.pairing_logics, [])
-        self.assertEqual(old.pairing_params, {})
+        self.assertEqual(old.pairing_rounds, [])
+
+    def test_inflate_interim_separate_lists(self):
+        # The never-released interim format stored separate logics/params lists
+        # (and an empty {} for params). Inflate must zip them into pairing_rounds.
+        data = TournamentConfiguration(auto_export=False).serialize()
+        data.pop("pairing_rounds", None)
+        data["pairing_logics"] = ["PairingRandom", "PairingDefault"]
+        data["pairing_params"] = [{}, {"rematch_penalty_exponent": 4}]
+        restored = TournamentConfiguration.inflate(data)
+        self.assertEqual(
+            restored.pairing_rounds,
+            [
+                {"logic": "PairingRandom", "params": {}},
+                {"logic": "PairingDefault", "params": {"rematch_penalty_exponent": 4}},
+            ],
+        )
+        # A stale empty {} for params coerces to no entries.
+        data["pairing_logics"] = []
+        data["pairing_params"] = {}
+        self.assertEqual(TournamentConfiguration.inflate(data).pairing_rounds, [])
+
+
+class TestPairingParams(unittest.TestCase):
+    """config.pairing_params gives each round its own pairing overrides."""
+
+    def _tournament(self, pairing_params=None):
+        cfg = TournamentConfiguration(
+            pod_sizes=[4], n_rounds=3, allow_bye=True, auto_export=False,
+            pairing_params=pairing_params or [],
+        )
+        t = Tournament(cfg)
+        t.add_player([f"P{i}" for i in range(16)])
+        return t
+
+    def _round(self, t):
+        t.create_pairings()
+        return t.tour_round
+
+    def test_param_defaults_when_no_override(self):
+        t = self._tournament()
+        logic = Tournament.get_pairing_logic("PairingDefault")
+        r = self._round(t)
+        self.assertEqual(logic._param(r, "rematch_penalty_exponent"), 2)
+        self.assertEqual(logic._param(r, "small_pod_penalty"), 10)
+
+    def test_param_reads_per_round_override(self):
+        # Round 0 overrides, round 1 does not.
+        t = self._tournament([{"rematch_penalty_exponent": 3, "small_pod_penalty": 5}])
+        logic = Tournament.get_pairing_logic("PairingDefault")
+        r0 = self._round(t)
+        self.assertEqual(logic._param(r0, "rematch_penalty_exponent"), 3)
+        self.assertEqual(logic.params(r0), {
+            "rematch_penalty_exponent": 3, "small_pod_penalty": 5,
+        })
+        t.random_results()
+        t.new_round()
+        r1 = self._round(t)  # no entry for seq 1 -> defaults
+        self.assertEqual(logic._param(r1, "rematch_penalty_exponent"), 2)
+
+    def test_override_does_not_leak_across_rounds(self):
+        # An override for round 1 must not reach round 0.
+        t = self._tournament([{}, {"rematch_penalty_exponent": 99}])
+        logic = Tournament.get_pairing_logic("PairingDefault")
+        r0 = self._round(t)
+        self.assertEqual(logic._param(r0, "rematch_penalty_exponent"), 2)
+
+    def test_pairing_completes_with_override(self):
+        # Custom params must not break pod assignment: every player seated.
+        t = self._tournament(
+            [{"rematch_penalty_exponent": 1, "small_pod_penalty": 0}] * 3
+        )
+        for _ in range(3):
+            t.create_pairings()
+            seated = sum(len(pod.players) for pod in t.tour_round.pods)
+            byes = len(t.tour_round.byes)
+            self.assertEqual(seated + byes, 16)
+            t.random_results()
+            t.new_round()
+
+
+class TestPodSizeCompatibility(unittest.TestCase):
+    """Pairing logics are offered only when they support the tournament sizes."""
+
+    def test_supports_pod_sizes(self):
+        default = Tournament.get_pairing_logic("PairingDefault")
+        random_ = Tournament.get_pairing_logic("PairingRandom")
+        self.assertEqual(default.SUPPORTED_POD_SIZES, (3, 4, 5))
+        self.assertIsNone(random_.SUPPORTED_POD_SIZES)  # any size
+        # Default supports a subset of {3,4,5}, not 2.
+        self.assertTrue(default.supports_pod_sizes([4, 3]))
+        self.assertTrue(default.supports_pod_sizes([5, 4, 3]))
+        self.assertFalse(default.supports_pod_sizes([2]))
+        self.assertFalse(default.supports_pod_sizes([4, 3, 2]))
+        # Random supports anything.
+        self.assertTrue(random_.supports_pod_sizes([2]))
+        self.assertTrue(random_.supports_pod_sizes([4, 3]))
+
+    def test_selectable_filtered_by_pod_sizes(self):
+        self.assertEqual(
+            Tournament.selectable_pairing_logics([4, 3]),
+            ["PairingDefault", "PairingRandom", "PairingSnake"],
+        )
+        self.assertEqual(
+            Tournament.selectable_pairing_logics([5, 4, 3]),
+            ["PairingDefault", "PairingRandom", "PairingSnake"],
+        )
+        # Only Random supports 2-player pods among current algorithms.
+        self.assertEqual(
+            Tournament.selectable_pairing_logics([2]), ["PairingRandom"]
+        )
+        self.assertEqual(
+            Tournament.selectable_pairing_logics([4, 3, 2]), ["PairingRandom"]
+        )
+
+    def test_selectable_without_pod_sizes_returns_all(self):
+        self.assertEqual(
+            Tournament.selectable_pairing_logics(),
+            ["PairingDefault", "PairingRandom", "PairingSnake"],
+        )
+
+    def test_supported_pod_sizes_are_valid(self):
+        # Every selectable logic declares None (any) or a tuple of ints.
+        for name in Tournament.selectable_pairing_logics():
+            supported = Tournament.get_pairing_logic(name).SUPPORTED_POD_SIZES
+            if supported is None:
+                continue
+            self.assertIsInstance(supported, tuple, name)
+            self.assertTrue(supported, name)  # non-empty
+            for size in supported:
+                self.assertIsInstance(size, int, name)
+                self.assertGreaterEqual(size, 2, name)
+
+    def test_adaptive_default_respects_pod_sizes(self):
+        # With 2-player pods and no explicit logics, the adaptive default must
+        # never pick an incompatible logic (Snake/Default) - only Random fits.
+        cfg = TournamentConfiguration(
+            pod_sizes=[2], n_rounds=3, snake_pods=True, allow_bye=True,
+            auto_export=False,
+        )
+        t = Tournament(cfg)
+        t.add_player([f"P{i}" for i in range(8)])
+        for _ in range(3):
+            t.create_pairings()
+            logic = t.tour_round.logic
+            self.assertTrue(
+                logic.supports_pod_sizes([2]),
+                f"{logic.name} does not support pod size 2",
+            )
+            t.random_results()
+            t.new_round()
+
+    def test_incompatible_configured_logic_warns(self):
+        # An explicit incompatible choice is honored but logged as a warning.
+        Log.output.clear()
+        cfg = TournamentConfiguration(
+            pod_sizes=[2], n_rounds=1, allow_bye=True, auto_export=False,
+            pairing_rounds=[{"logic": "PairingDefault", "params": {}}],
+        )
+        t = Tournament(cfg)
+        t.add_player([f"P{i}" for i in range(8)])
+        t.create_pairings()
+        self.assertEqual(t.tour_round.logic.name, "PairingDefault")  # honored
+        warnings = [
+            e.msg
+            for e in Log.output
+            if e.level == Log.Level.WARNING and "does not support" in e.msg
+        ]
+        self.assertTrue(warnings, "expected a pod-size compatibility warning")
