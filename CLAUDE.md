@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+Domain terms and their traps are in `CONTEXT.md`. Judgment calls that no
+tool enforces (auto-discovery, param sidecars, test setup, etc.) are in
+`CONTRIBUTING.md`'s "Judgment standards" section.
+
 ## Commands
 
 **Run the application:**

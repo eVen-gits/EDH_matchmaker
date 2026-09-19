@@ -1,0 +1,30 @@
+# tests/blns.txt (the "naughty strings" fixture) is excluded from the
+# hygiene hooks below: it intentionally contains whitespace-only lines and
+# other edge-case content as test data, which trailing-whitespace/
+# end-of-file-fixer would otherwise "fix" and silently break.
+exclude: ^tests/blns\.txt$
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: check-merge-conflict
+      - id: mixed-line-ending
+
+  - repo: local
+    hooks:
+      # Advisory only: pyright has ~245 pre-existing errors across the
+      # codebase (never enforced before this hook existed), so this reports
+      # rather than blocks commits. Drop the `|| true` once the backlog is
+      # cleared and this should gate for real.
+      - id: pyright
+        name: pyright (advisory - does not block commit)
+        entry: bash -c 'pyright || true'
+        language: system
+        pass_filenames: false
+        files: \.py$
+        verbose: true
