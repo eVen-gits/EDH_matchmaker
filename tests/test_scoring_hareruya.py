@@ -463,7 +463,7 @@ class TestScoringModifiedHareruya(unittest.TestCase):
     def test_sampling_path_is_deterministic(self):
         # Force the sampled branch with a low threshold and confirm the fixed
         # seed makes two evaluations identical (stable standings).
-        from src.scoring_logic import examples
+        from src.logic.commander import scoring as commander
 
         t = _make_wagering_tournament(scoring_logic="ScoringModifiedHareruya")
         p = t.add_player([f"P{i}" for i in range(4)])
@@ -474,13 +474,13 @@ class TestScoringModifiedHareruya(unittest.TestCase):
         t.report_draw(p)
 
         logic = t.get_scoring_logic("ScoringModifiedHareruya")
-        original = examples.ScoringModifiedHareruya._EXACT_MAX_ROUNDS
+        original = commander.ScoringModifiedHareruya._EXACT_MAX_ROUNDS
         try:
-            examples.ScoringModifiedHareruya._EXACT_MAX_ROUNDS = 1  # 2 rounds -> sampled branch
+            commander.ScoringModifiedHareruya._EXACT_MAX_ROUNDS = 1  # 2 rounds -> sampled branch
             first = logic.compute_ratings(t, t.tour_round)
             second = logic.compute_ratings(t, t.tour_round)
         finally:
-            examples.ScoringModifiedHareruya._EXACT_MAX_ROUNDS = original
+            commander.ScoringModifiedHareruya._EXACT_MAX_ROUNDS = original
         self.assertEqual(first, second)
 
     def test_standings_export_does_not_crash(self):

@@ -9,7 +9,6 @@ import importlib
 import json
 import math
 import os
-import pkgutil
 import random
 import threading
 from collections.abc import Iterable, Mapping
@@ -664,7 +663,7 @@ class TournamentConfiguration(ITournamentConfiguration):
                 0.1458,
             ],
         )
-        # Scoring logic selection - see src/scoring_logic/examples.py.
+        # Scoring logic selection - see src/logic/commander/scoring.py.
         # scoring_params is opaque here: field names and defaults belong to
         # whichever IScoringLogic class scoring_logic names (its
         # DEFAULT_PARAMS), not to TournamentConfiguration - see
@@ -860,43 +859,46 @@ class Tournament(ITournament):
     LOG_FORMAT_VERSION = "1.1"
 
     @classmethod
-    def discover_pairing_logic(cls) -> None:
-        """Discover and cache all pairing logic implementations from src/pairing_logic."""
-        if cls._pairing_logic_cache:
-            return
+    def _discover_logic(
+        cls, filename: str, base: type, cache: dict[str, Any]
+    ) -> None:
+        """Populates cache from every src/logic/<game>/<filename> module.
 
-        # Get the base directory of the project
+        Each game directory under src/logic/ may ship a matching.py (pairing
+        logic) and/or a scoring.py (scoring logic); every class in it that
+        implements `base` and sets IS_COMPLETE = True is instantiated and
+        cached by class name.
+        """
         base_dir = Path(__file__).parent.parent
-        pairing_logic_dir = base_dir / "src" / "pairing_logic"
-
-        # Walk through all Python files in the pairing_logic directory
-        for module_info in pkgutil.iter_modules([str(pairing_logic_dir)]):
+        logic_dir = base_dir / "src" / "logic"
+        for game_dir in sorted(p for p in logic_dir.iterdir() if p.is_dir()):
+            if not (game_dir / filename).is_file():
+                continue
+            module_name = f"src.logic.{game_dir.name}.{filename[:-len('.py')]}"
             try:
-                # Import the module
-                module = importlib.import_module(
-                    f"src.pairing_logic.{module_info.name}"
-                )
-
-                # Find all classes that implement IPairingLogic
+                module = importlib.import_module(module_name)
                 for name, obj in module.__dict__.items():
                     if (
                         isinstance(obj, type)
-                        and issubclass(obj, IPairingLogic)
-                        and obj != IPairingLogic
+                        and issubclass(obj, base)
+                        and obj is not base
                         and obj.IS_COMPLETE
                     ):
-                        if obj.__name__ in cls._pairing_logic_cache:
-                            raise ValueError(
-                                f"Pairing logic {obj.__name__} already exists"
-                            )
-                        cls._pairing_logic_cache[obj.__name__] = obj(
-                            name=f"{obj.__name__}"
-                        )
+                        if obj.__name__ in cache:
+                            raise ValueError(f"{obj.__name__} already exists")
+                        cache[obj.__name__] = obj(name=f"{obj.__name__}")
             except Exception as e:
                 Log.log(
-                    f"Failed to import pairing logic module {module_info.name}: {e}",
+                    f"Failed to import logic module {module_name}: {e}",
                     level=Log.Level.WARNING,
                 )
+
+    @classmethod
+    def discover_pairing_logic(cls) -> None:
+        """Discover and cache all pairing logic implementations from src/logic/*/matching.py."""
+        if cls._pairing_logic_cache:
+            return
+        cls._discover_logic("matching.py", IPairingLogic, cls._pairing_logic_cache)
 
     @classmethod
     def get_pairing_logic(cls, logic_name: str) -> IPairingLogic:
@@ -936,38 +938,10 @@ class Tournament(ITournament):
 
     @classmethod
     def discover_scoring_logic(cls) -> None:
-        """Discover and cache all scoring logic implementations from src/scoring_logic."""
+        """Discover and cache all scoring logic implementations from src/logic/*/scoring.py."""
         if cls._scoring_logic_cache:
             return
-
-        base_dir = Path(__file__).parent.parent
-        scoring_logic_dir = base_dir / "src" / "scoring_logic"
-
-        for module_info in pkgutil.iter_modules([str(scoring_logic_dir)]):
-            try:
-                module = importlib.import_module(
-                    f"src.scoring_logic.{module_info.name}"
-                )
-
-                for name, obj in module.__dict__.items():
-                    if (
-                        isinstance(obj, type)
-                        and issubclass(obj, IScoringLogic)
-                        and obj != IScoringLogic
-                        and obj.IS_COMPLETE
-                    ):
-                        if obj.__name__ in cls._scoring_logic_cache:
-                            raise ValueError(
-                                f"Scoring logic {obj.__name__} already exists"
-                            )
-                        cls._scoring_logic_cache[obj.__name__] = obj(
-                            name=f"{obj.__name__}"
-                        )
-            except Exception as e:
-                Log.log(
-                    f"Failed to import scoring logic module {module_info.name}: {e}",
-                    level=Log.Level.WARNING,
-                )
+        cls._discover_logic("scoring.py", IScoringLogic, cls._scoring_logic_cache)
 
     @classmethod
     def get_scoring_logic(cls, logic_name: str) -> IScoringLogic:
@@ -1934,7 +1908,7 @@ class Tournament(ITournament):
 
         Delegates to the tournament's configured scoring logic
         (config.scoring_logic, default "ScoringDefault") - see
-        src/scoring_logic/examples.py.
+        src/logic/commander/scoring.py.
 
         Args:
             player: The player for whom to calculate the rating.

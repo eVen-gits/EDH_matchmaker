@@ -229,7 +229,7 @@ class TestPlayer(unittest.TestCase):
 
     def test_rating_after_round(self):
         cfg = TournamentConfiguration(
-            pod_sizes=[4], allow_bye=False, auto_export=False, win_points=5
+            pod_sizes=[4], allow_bye=False, auto_export=False, win_points=7
         )
         t = Tournament(cfg)
         t.new_round()
@@ -239,7 +239,7 @@ class TestPlayer(unittest.TestCase):
         winner = t.tour_round.pods[0].players[0]
         t.report_win(winner)
 
-        self.assertEqual(winner.rating(t.tour_round), 5.0)
+        self.assertEqual(winner.rating(t.tour_round), 7.0)
 
     def test_opponent_pointrate(self):
         cfg = TournamentConfiguration(

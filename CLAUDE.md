@@ -33,16 +33,14 @@ EDH Matchmaker runs Commander (EDH) Swiss-pairing tournaments (4-player pods, 3-
 
 - **`src/interface.py`** — Abstract interfaces (`IPlayer`, `ITournament`, `IPod`, `IRound`, `IPairingLogic`, `IScoringLogic`, `IStandingsExport`, `ITournamentConfiguration`). `IHashable` provides UUID-based `O(1)` object caching via a class-level `CACHE`.
 - **`src/core.py`** — Concrete `Tournament`, `Player`, `Pod`, `Round`, `TournamentConfiguration`, `StandingsExport`/`PodsExport`, `Log`, and the `TournamentAction` decorator (auto-persists state to JSON in `logs/` after each mutating action).
-- **`src/pairing_logic/`** — `IPairingLogic` implementations, auto-discovered. `PairingRandom` / `PairingSnake` / `PairingDefault` for Swiss rounds; the `PairingTopN` family for top-cut (marked `SELECTABLE = False`). Each Swiss round's logic and params come from `config.pairing_rounds`, else an adaptive default (which respects each logic's `SUPPORTED_POD_SIZES`).
-- **`src/scoring_logic/`** — `IScoringLogic` implementations, auto-discovered: `ScoringDefault`, `ScoringHareruya`, `ScoringModifiedHareruya`. Selected by `config.scoring_logic`.
-- **`src/param_spec.py`** — Loads each algorithm's parameters from a sidecar `<ClassName>.params.yaml` file (the source of truth for names, defaults, types, ranges, GUI widget hints, and descriptions). The config GUI generates parameter widgets from it.
+- **`src/logic/<game>/`** — One directory per game/format, each holding `matching.py` (`IPairingLogic` implementations) and/or `scoring.py` (`IScoringLogic` implementations), auto-discovered by filename — no core or GUI change to register a new class or a new game. `src/logic/commander/matching.py` has `PairingRandom` / `PairingSnake` / `PairingDefault` for Swiss rounds and the `PairingTopN` family for top-cut (marked `SELECTABLE = False`); `src/logic/commander/scoring.py` has `ScoringDefault`, `ScoringHareruya`, `ScoringModifiedHareruya`. Swiss pairing logic and params come from `config.pairing_rounds`, else an adaptive default (which respects each logic's `SUPPORTED_POD_SIZES`); scoring logic is selected by `config.scoring_logic`.
+- **`src/param_spec.py`** — Loads each algorithm's parameters from a sidecar `<ClassName>.params.yaml` file, next to the module that defines the class (the source of truth for names, defaults, types, ranges, GUI widget hints, and descriptions). The config GUI generates parameter widgets from it.
 - **`src/misc.py`** — `Json2Obj`, `generate_player_names()` (Faker-based), `timeit`.
 - **`run_ui.py`** — PyQt6 GUI entry point; loads `.ui` files from `ui/`.
 
 Authoritative references (do not copy their values here — they drift):
 `docs/tournament-log-spec.md` for the save format and scoring formulas, and the
-`src/scoring_logic/*.params.yaml` and `src/pairing_logic/*.params.yaml` sidecars
-for each algorithm's parameters.
+`src/logic/<game>/*.params.yaml` sidecars for each algorithm's parameters.
 
 ### Data flow
 
