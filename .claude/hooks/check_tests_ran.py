@@ -18,7 +18,15 @@ def changed_files():
         ["git", "status", "--porcelain", "--", *WATCHED_DIRS],
         cwd=REPO_ROOT, capture_output=True, text=True, check=False,
     )
-    return [line[3:] for line in result.stdout.splitlines() if line[3:].endswith(".py")]
+    files = []
+    for line in result.stdout.splitlines():
+        path = line[3:]
+        if " -> " in path:
+            # Rename/copy: "old/path.py -> new/path.py" - only the new path exists on disk.
+            path = path.split(" -> ", 1)[1]
+        if path.endswith(".py"):
+            files.append(path)
+    return files
 
 
 def main():
@@ -40,7 +48,19 @@ def main():
     cache_marker = os.path.join(REPO_ROOT, ".pytest_cache", "v", "cache", "nodeids")
     cache_mtime = os.path.getmtime(cache_marker) if os.path.isfile(cache_marker) else 0
 
-    stale = [f for f in files if os.path.getmtime(os.path.join(REPO_ROOT, f)) > cache_mtime]
+    def is_stale(f):
+        path = os.path.join(REPO_ROOT, f)
+        if not os.path.isfile(path):
+            # Deleted file - no mtime of its own. Fall back to the nearest
+            # surviving ancestor directory, whose mtime is bumped when an
+            # entry is removed from it.
+            path = os.path.dirname(path)
+            while path and not os.path.isdir(path):
+                path = os.path.dirname(path)
+            path = path or REPO_ROOT
+        return os.path.getmtime(path) > cache_mtime
+
+    stale = [f for f in files if is_stale(f)]
     if stale:
         print(
             "Uncommitted changes under src/ or tests/ have no fresh pytest run:\n  "

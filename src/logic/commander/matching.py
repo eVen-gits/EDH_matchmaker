@@ -3,7 +3,7 @@ from abc import ABC
 from typing import Any, Callable, final
 from collections.abc import Mapping, Sequence
 
-from ..interface import IPlayer, IPod, IRound, IPairingLogic, ITournament
+from ...interface import IPlayer, IPod, IRound, IPairingLogic, ITournament
 
 from typing_extensions import override
 import random

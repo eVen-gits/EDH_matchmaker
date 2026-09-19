@@ -510,14 +510,15 @@ This part is about the reference implementation, not the JSON format. Each
 algorithm's parameter names, defaults, types, ranges, and human descriptions
 live in a sidecar file next to the algorithm class, named
 `<ClassName>.params.yaml` (for example
-`src/scoring_logic/ScoringHareruya.params.yaml`). The file is the single source
+`src/logic/commander/ScoringHareruya.params.yaml`). The file is the single source
 of truth. The code loads it at class-definition time and derives the defaults
 from it - no parameter values are hard-coded in the class.
 
 To add a new scoring or pairing algorithm with tunable parameters:
 
-1. Write the algorithm class in `src/scoring_logic/` or `src/pairing_logic/`.
-   Set `IS_COMPLETE = True`. Read a parameter with `self._param(tour, "name")`.
+1. Write the algorithm class in `src/logic/<game>/scoring.py` or
+   `src/logic/<game>/matching.py`. Set `IS_COMPLETE = True`. Read a parameter
+   with `self._param(tour, "name")`.
 2. Add `<ClassName>.params.yaml` next to it. Each entry needs a `default` and a
    `description`. Optional keys: `type`, `min`, `max`, `step`, `label`,
    `widget`, `choices`, `scale`, `suffix`, `visible_when`.
@@ -636,7 +637,7 @@ wants working code to compare against:
 | `TournamentAction` | `store()` writes the file | `load()` reads the file | `src/core.py` |
 
 `ScoringDefault`, `ScoringHareruya`, and `ScoringModifiedHareruya` (all
-in `src/scoring_logic/examples.py`) implement the formulas from
+in `src/logic/commander/scoring.py`) implement the formulas from
 [Scoring logic](#scoring-logic); they are not part of the JSON schema
 themselves, only the `config.scoring_logic` string that names one of
 them.

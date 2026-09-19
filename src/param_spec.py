@@ -5,7 +5,7 @@ Each algorithm declares its tunable parameters in a sidecar YAML file named
 is the single source of truth for a parameter's name, default, type, range, and
 human description. Code never hard-codes these values.
 
-Example ``src/scoring_logic/ScoringHareruya.params.yaml``::
+Example ``src/logic/commander/ScoringHareruya.params.yaml``::
 
     wager_percent:
       default: 0.07

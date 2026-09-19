@@ -5,7 +5,7 @@ from abc import ABC
 from collections.abc import Iterator
 from typing import Any
 
-from ..interface import IPlayer, IRound, IScoringLogic, ITournament
+from ...interface import IPlayer, IRound, IScoringLogic, ITournament
 
 class CommonScoring(IScoringLogic, ABC):
     _SWISS = 0  # Round.Stage.SWISS / TournamentConfiguration.TopCut.NONE value

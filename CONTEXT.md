@@ -66,11 +66,12 @@ run (see `DEFAULT_LOGF = "logs/default.json"`).
 
 The two extension points for tournament behavior: how players get grouped
 into pods (`IPairingLogic`) and how results become points/standings
-(`IScoringLogic`). Both are auto-discovered — implementations under
-`src/pairing_logic/` or `src/scoring_logic/` are picked up without touching
-core or GUI code.
+(`IScoringLogic`). Both are auto-discovered — for each game directory under
+`src/logic/`, a `matching.py` and/or `scoring.py` module is picked up
+without touching core or GUI code.
 
-**Lives in:** `src/interface.py`, `src/pairing_logic/`, `src/scoring_logic/`
+**Lives in:** `src/interface.py`, `src/logic/<game>/matching.py`,
+`src/logic/<game>/scoring.py`
 **Invariant:** A new implementation is *not* offered to the config GUI
 unless `IS_COMPLETE = True` is set — an in-progress algorithm left at the
 default `IS_COMPLETE = False` stays invisible rather than half-working.

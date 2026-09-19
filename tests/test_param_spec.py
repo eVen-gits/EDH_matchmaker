@@ -17,7 +17,7 @@ class TestShippedParamSpecs(unittest.TestCase):
         logic = Tournament.get_scoring_logic("ScoringDefault")
         self.assertEqual(
             logic.DEFAULT_PARAMS,
-            {"win_points": 5, "draw_points": 1, "bye_points": 4},
+            {"win_points": 7, "draw_points": 1, "bye_points": 7},
         )
         # Types matter: these feed StandingsExport's "{:d}" formatting.
         for value in logic.DEFAULT_PARAMS.values():
