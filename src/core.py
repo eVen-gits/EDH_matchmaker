@@ -1993,13 +1993,17 @@ class Tournament(ITournament):
         Returns:
             list[Player]: A list of players sorted by their current standing.
         """
+        if tour_round is None:
+            tour_round = self.tour_round
+        if tour_round is None:
+            # No round has been created yet - nothing to rank on.
+            return sorted(self.players, key=lambda x: x.name)
+
         method = Player.SORT_METHOD
         order = Player.SORT_ORDER
         Player.SORT_METHOD = SortMethod.RANK
         Player.SORT_ORDER = SortOrder.ASCENDING
         playoffs = False
-        if tour_round is None:
-            tour_round = self.tour_round
         if tour_round.stage == Round.Stage.SWISS:
             # Compute the whole field's ratings once and pass the map down the
             # ranking chain, so the sort does not recompute it once per player
