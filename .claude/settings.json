@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(git push --force*)",
+      "Bash(git reset --hard*)",
+      "Bash(git checkout -- *)",
+      "Bash(git checkout .)",
+      "Bash(git restore -- *)",
+      "Bash(git restore .)",
+      "Bash(git clean -f*)",
+      "Bash(git branch -D*)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/check_tests_ran.py",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  }
+}

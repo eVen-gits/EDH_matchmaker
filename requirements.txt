@@ -12,5 +12,6 @@ typing_extensions
 requests
 pytest
 pytest-cov
+pre-commit
 jsonschema
 PyYAML

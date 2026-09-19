@@ -1,0 +1,6 @@
+# Commits git blame should skip. Activate locally once:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+# (GitHub's blame view picks this file up automatically.)
+#
+# Add the SHA of any purely mechanical, whole-tree reformat commit here so
+# blame skips past it to the real last-touching commit.
