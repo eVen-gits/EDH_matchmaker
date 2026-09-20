@@ -31,16 +31,18 @@ one player's game-win tally reaches `Round.games_to_win`.
 
 `games_to_win` is a parameter of whichever pairing logic built that round
 (`src/logic/commander/CommonPairing.params.yaml`, inherited by every
-pairing class with no sidecar of its own; `PairingDefault.params.yaml`,
-inherited by `mtg.Pairing1v1` since it subclasses commander's
-`PairingDefault` directly — see the `IPairingLogic` / `IScoringLogic`
+pairing class with no sidecar of its own; `PairingDefault.params.yaml`
+for `commander.PairingDefault`; `mtg.Pairing1v1` ships its own
+`Pairing1v1.params.yaml` even though it subclasses `PairingDefault`,
+since the sidecar lookup stops at the first ancestor with a file rather
+than merging across ancestors — see the `IPairingLogic` / `IScoringLogic`
 entry below) — not a bespoke tournament-config field. It follows the
 existing per-round pairing-param override mechanism
 (`config.pairing_rounds[seq].params`), same as any other pairing
-parameter. It defaults to `1` everywhere, so Commander's
+parameter. It defaults to `1` for Commander pairing logic, so Commander's
 one-game-per-pod convention is unchanged unless a round's config
-explicitly overrides it (a 1v1 tournament typically sets it to `2`,
-best-of-3, on the rounds that need it).
+explicitly overrides it. `Pairing1v1` defaults it to `2`, best-of-3,
+matching the Magic Tournament Rules norm for constructed 1v1 events.
 
 Do not confuse this with `Round._game_loss` (also spelled "game_loss" in
 the JSON format's `rounds[].game_loss`) — that's an unrelated, round-level
@@ -50,7 +52,8 @@ name.
 **Lives in:** `src/core.py` (`Pod._games`, `Pod.game_wins`,
 `Round.games_to_win`, `Round._game_loss`),
 `src/logic/commander/CommonPairing.params.yaml`,
-`src/logic/commander/PairingDefault.params.yaml`
+`src/logic/commander/PairingDefault.params.yaml`,
+`src/logic/mtg/Pairing1v1.params.yaml`
 
 ## Round
 

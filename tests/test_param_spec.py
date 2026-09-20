@@ -61,7 +61,11 @@ class TestShippedParamSpecs(unittest.TestCase):
         logic = Tournament.get_pairing_logic("PairingDefault")
         self.assertEqual(
             logic.DEFAULT_PARAMS,
-            {"rematch_penalty_exponent": 2, "small_pod_penalty": 10},
+            {
+                "rematch_penalty_exponent": 2,
+                "small_pod_penalty": 10,
+                "games_to_win": 1,
+            },
         )
         for value in logic.DEFAULT_PARAMS.values():
             self.assertIs(type(value), int)
@@ -71,10 +75,26 @@ class TestShippedParamSpecs(unittest.TestCase):
         self.assertEqual(spec.type, "int")
         self.assertEqual((spec.min, spec.max), (1, 4))
 
-    def test_pairing_logic_without_sidecar_has_empty_spec(self):
+    def test_pairing_1v1_defaults_games_to_win_to_best_of_3(self):
+        # Pairing1v1 ships its own sidecar overriding games_to_win to 2
+        # (best-of-3 per the Magic Tournament Rules), unlike PairingDefault's
+        # games_to_win of 1 (Commander's single-game convention).
+        logic = Tournament.get_pairing_logic("Pairing1v1")
+        self.assertEqual(
+            logic.DEFAULT_PARAMS,
+            {
+                "rematch_penalty_exponent": 2,
+                "small_pod_penalty": 10,
+                "games_to_win": 2,
+            },
+        )
+
+    def test_pairing_logic_without_sidecar_inherits_common_spec(self):
+        # PairingRandom ships no sidecar of its own, so it falls back to
+        # CommonPairing.params.yaml (shared by every pairing logic without a
+        # more specific sidecar), which only declares games_to_win.
         logic = Tournament.get_pairing_logic("PairingRandom")
-        self.assertEqual(logic.PARAM_SPEC, {})
-        self.assertEqual(logic.DEFAULT_PARAMS, {})
+        self.assertEqual(logic.DEFAULT_PARAMS, {"games_to_win": 1})
 
 
 class TestLoaderValidation(unittest.TestCase):
