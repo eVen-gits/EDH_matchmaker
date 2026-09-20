@@ -248,8 +248,8 @@ player UIDs it holds:
 scoring read — derived from `games` and the round's `games_to_win` (a
 parameter of whichever pairing logic built that round, read from
 `rounds[].logic` and `config.pairing_rounds[rounds[].seq].params` - see
-[`games_to_win`](#games_to_win) under [Pairing logic](#pairing-logic),
-default `1`): the match is won by
+[`games_to_win`](#games_to_win) under [Pairing logic](#pairing-logic) for
+its per-logic default): the match is won by
 whichever player's count of single-UID (i.e. non-drawn) entries in `games`
 first reaches `games_to_win`; drawn games count toward neither player. If
 `games` runs out (`2 * games_to_win - 1` games played) before either player
@@ -259,7 +259,8 @@ or every tied leader if equal (a drawn match). For the default
 Commander's convention, where a pod's match is always exactly one game. A
 reader that ignores `games` and every pairing logic's `games_to_win`
 param entirely still reads a correct final `result` for every pod, since
-both are optional/additive and default to the single-game behavior; it
+both are optional/additive and `result` stays correct regardless of the
+logic's `games_to_win` default; it
 only loses the interim per-game history and any in-progress (not-yet-
 decided) multi-game pod's state.
 
@@ -595,18 +596,22 @@ the preferred `5`.
 
 ### `games_to_win`
 
-Every pairing logic reads one shared parameter, `games_to_win` (int, default
-`1`, minimum `1`) - games a player must win to win a match at that round (see
+Every pairing logic reads one shared parameter, `games_to_win` (int, minimum
+`1`) - games a player must win to win a match at that round (see
 [Pod objects](#pod-objects) for how this decides `pods[].result` from
 `pods[].games`). `1` means a single game decides the round (Commander's
-convention); `2` is best-of-3, the common 1v1 setting. It lives in the same
-`params` object as any other override for that round's logic, for example
-`{"logic": "Pairing1v1", "params": {"games_to_win": 2}}`.
+convention and the default for every Commander pairing logic); `2` is
+best-of-3, the Magic Tournament Rules norm for constructed 1v1 events, and
+`Pairing1v1`'s default. It lives in the same `params` object as any other
+override for that round's logic, for example
+`{"logic": "Pairing1v1", "params": {"games_to_win": 1}}` to force a
+single-game 1v1 round.
 
 ### `PairingDefault`
 
 Additional fields in the `params` object for a round that uses `PairingDefault`
-(or `Pairing1v1`, which shares the same parameters):
+(or `Pairing1v1`, which shares the same parameters other than `games_to_win`'s
+default):
 
 | Field | Type | Default | Description |
 |---|---|---|---|
