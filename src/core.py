@@ -187,6 +187,10 @@ class StandingsExport(DataExport, IStandingsExport):
         GAMES = 10  # Number of games played
         SEAT_HISTORY = 11  # Seat record
         AVG_SEAT = 12  # Average seat
+        MOTC = 16  # Match opponents' total combined score
+        OP1 = 17  # Opponents' best single game wins
+        OP2 = 18  # Opponents' second-best single game wins
+        OP3 = 19  # Opponents' third-best single game wins
 
     class Formatting:
         def __init__(
@@ -258,6 +262,22 @@ class StandingsExport(DataExport, IStandingsExport):
     @staticmethod
     def _get_record(player: Player, context: TournamentContext) -> str:
         return Player.fmt_record(player.record(context.tour_round))
+
+    @staticmethod
+    def _get_motc(player: Player, context: TournamentContext) -> float:
+        return player.motc(context.tour_round)
+
+    @staticmethod
+    def _get_op1(player: Player, context: TournamentContext) -> float:
+        return player.op1(context.tour_round)
+
+    @staticmethod
+    def _get_op2(player: Player, context: TournamentContext) -> float:
+        return player.op2(context.tour_round)
+
+    @staticmethod
+    def _get_op3(player: Player, context: TournamentContext) -> float:
+        return player.op3(context.tour_round)
 
     info: dict[Field, Formatting] = {
         Field.STANDING: Formatting(
@@ -354,6 +374,34 @@ class StandingsExport(DataExport, IStandingsExport):
             denom=None,
             description="Player's record",
             getter=_get_record,
+        ),
+        Field.MOTC: Formatting(
+            label="MOTC",
+            format="{:0.2f}",
+            denom=None,
+            description="Match opponents' total combined score",
+            getter=_get_motc,
+        ),
+        Field.OP1: Formatting(
+            label="OP1",
+            format="{:0.2f}",
+            denom=None,
+            description="Opponents' best single game wins",
+            getter=_get_op1,
+        ),
+        Field.OP2: Formatting(
+            label="OP2",
+            format="{:0.2f}",
+            denom=None,
+            description="Opponents' second-best single game wins",
+            getter=_get_op2,
+        ),
+        Field.OP3: Formatting(
+            label="OP3",
+            format="{:0.2f}",
+            denom=None,
+            description="Opponents' third-best single game wins",
+            getter=_get_op3,
         ),
     }
 
@@ -756,6 +804,10 @@ class TournamentConfiguration(ITournamentConfiguration):
             len(x.games(tour_round)),
             np.round(x.opponent_pointrate(tour_round, ratings), 10),
             len(x.players_beaten(tour_round)),
+            np.round(x.motc(tour_round), 10),
+            np.round(x.op1(tour_round), 10),
+            np.round(x.op2(tour_round), 10),
+            np.round(x.op3(tour_round), 10),
             -x.average_seat([r for r in x.tour.rounds if r.seq <= tour_round.seq]),
             -x.uid if isinstance(x.uid, int) else -int(x.uid.int),
         )
@@ -2484,6 +2536,23 @@ class Player(IPlayer):
             ]
         )
 
+    def game_wins(self, tour_round: Round | None = None) -> int:
+        """Counts total individual games won across all pods.
+
+        Args:
+            tour_round: The round up to which to count.
+
+        Returns:
+            int: Total games won (sum of pod.game_wins[self.uid]).
+        """
+        if tour_round is None:
+            tour_round = self.tour.tour_round
+        total = 0
+        for pod in self.games(tour_round):
+            if hasattr(pod, 'game_wins'):
+                total += pod.game_wins.get(self.uid, 0)
+        return total
+
     def record(self, tour_round: Round | None = None) -> list[Player.EResult]:
         """Retrieves the full history of results.
 
@@ -2660,6 +2729,45 @@ class Player(IPlayer):
             return 0
         oppwr = [opp.pointrate(tour_round, ratings) for opp in self.played(tour_round)]
         return sum(oppwr) / len(oppwr)
+
+    def motc(self, tour_round: Round | None = None) -> float:
+        """Match Opponents' Total Combined score.
+        
+        Sum of match points of all opponents faced.
+        """
+        if tour_round is None:
+            tour_round = self.tour.tour_round
+        total = 0.0
+        for opponent in self.played(tour_round):
+            total += opponent.wins(tour_round)
+        return total
+
+    def _opponent_game_wins_list(
+        self, tour_round: Round | None = None
+    ) -> list[int]:
+        """Helper: returns sorted list of game wins for all opponents faced."""
+        if tour_round is None:
+            tour_round = self.tour.tour_round
+        game_wins_list = []
+        for opponent in self.played(tour_round):
+            gw = opponent.game_wins(tour_round)
+            game_wins_list.append(gw)
+        return sorted(game_wins_list, reverse=True)
+
+    def op1(self, tour_round: Round | None = None) -> float:
+        """Opponents' best single game wins (highest)."""
+        gw_list = self._opponent_game_wins_list(tour_round)
+        return gw_list[0] if gw_list else 0.0
+
+    def op2(self, tour_round: Round | None = None) -> float:
+        """Opponents' second-best single game wins."""
+        gw_list = self._opponent_game_wins_list(tour_round)
+        return gw_list[1] if len(gw_list) > 1 else 0.0
+
+    def op3(self, tour_round: Round | None = None) -> float:
+        """Opponents' third-best single game wins."""
+        gw_list = self._opponent_game_wins_list(tour_round)
+        return gw_list[2] if len(gw_list) > 2 else 0.0
 
     # PROPERTIES
 
