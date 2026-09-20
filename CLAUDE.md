@@ -24,6 +24,8 @@ PYTHONPATH=. pytest
 - **Type checking:** `pyright` (basic mode, config in `pyrightconfig.json`).
 - **Dependencies:** `pip install -r requirements.txt`.
 - **Docs site:** `mkdocs gh-deploy --force`.
+- Use `gh-axi` for GitHub operations (PRs, issues, CI runs) instead of `gh`.
+- Use `pypi-axi` to inspect PyPI package versions/dependencies when updating `requirements.txt`.
 
 ## Architecture
 
