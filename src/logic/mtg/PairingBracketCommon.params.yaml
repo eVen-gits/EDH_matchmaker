@@ -1,0 +1,13 @@
+# Shared parameter for every PairingBracketN class (param_spec.py's MRO walk
+# finds this file for any PairingBracketCommon subclass with no more
+# specific sidecar of its own).
+games_to_win:
+  default: 2
+  type: int
+  min: 1
+  label: Games to win a match
+  description: >
+    Games a player must win to win a match at this round (Magic Tournament
+    Rules §2.1). Constructed 1v1 play is best-of-3 throughout, including the
+    playoff cut, so this defaults to 2 rather than commander/CommonPairing.
+    params.yaml's 1.

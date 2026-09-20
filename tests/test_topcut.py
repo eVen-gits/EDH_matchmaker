@@ -42,13 +42,13 @@ class TestTopCutTop4(unittest.TestCase):
     """TOP_4: one playoff round, 4 players."""
 
     def setUp(self):
-        self.t = _make_tournament(TournamentConfiguration.TopCut.TOP_4)
+        self.t = _make_tournament(4)
         _run_swiss(self.t, 2)
 
     def test_stage_transitions_to_top4(self):
         ok = self.t.create_pairings()
         self.assertTrue(ok)
-        self.assertEqual(self.t.tour_round.stage, Round.Stage.TOP_4)
+        self.assertEqual(self.t.tour_round.stage, 4)
 
     def test_only_4_players_active(self):
         self.t.create_pairings()
@@ -94,13 +94,13 @@ class TestTopCutTop7(unittest.TestCase):
     """
 
     def setUp(self):
-        self.t = _make_tournament(TournamentConfiguration.TopCut.TOP_7)
+        self.t = _make_tournament(7)
         _run_swiss(self.t, 2)
 
     def test_first_playoff_stage_is_top7(self):
         ok = self.t.create_pairings()
         self.assertTrue(ok)
-        self.assertEqual(self.t.tour_round.stage, Round.Stage.TOP_7)
+        self.assertEqual(self.t.tour_round.stage, 7)
 
     def test_top7_has_7_active_players(self):
         self.t.create_pairings()
@@ -123,7 +123,7 @@ class TestTopCutTop7(unittest.TestCase):
         # TOP_4 round
         ok = self.t.create_pairings()
         self.assertTrue(ok)
-        self.assertEqual(self.t.tour_round.stage, Round.Stage.TOP_4)
+        self.assertEqual(self.t.tour_round.stage, 4)
 
     def test_top4_has_4_active_players(self):
         self.t.create_pairings()
@@ -144,13 +144,13 @@ class TestTopCutTop16(unittest.TestCase):
     """TOP_16: no byes, 16 players play in 4 pods."""
 
     def setUp(self):
-        self.t = _make_tournament(TournamentConfiguration.TopCut.TOP_16)
+        self.t = _make_tournament(16)
         _run_swiss(self.t, 2)
 
     def test_top16_stage(self):
         ok = self.t.create_pairings()
         self.assertTrue(ok)
-        self.assertEqual(self.t.tour_round.stage, Round.Stage.TOP_16)
+        self.assertEqual(self.t.tour_round.stage, 16)
 
     def test_top16_no_byes(self):
         self.t.create_pairings()
@@ -165,7 +165,7 @@ class TestTopCutTop16(unittest.TestCase):
         self.t.random_results()
         ok = self.t.create_pairings()
         self.assertTrue(ok)
-        self.assertEqual(self.t.tour_round.stage, Round.Stage.TOP_4)
+        self.assertEqual(self.t.tour_round.stage, 4)
 
     def test_top16_complete_after_top4(self):
         self.t.create_pairings()
@@ -180,13 +180,13 @@ class TestTopCutTop10(unittest.TestCase):
     """TOP_10: 2 byes, 8 players in 2 pods."""
 
     def setUp(self):
-        self.t = _make_tournament(TournamentConfiguration.TopCut.TOP_10)
+        self.t = _make_tournament(10)
         _run_swiss(self.t, 2)
 
     def test_top10_stage(self):
         ok = self.t.create_pairings()
         self.assertTrue(ok)
-        self.assertEqual(self.t.tour_round.stage, Round.Stage.TOP_10)
+        self.assertEqual(self.t.tour_round.stage, 10)
 
     def test_top10_two_byes(self):
         self.t.create_pairings()
@@ -197,20 +197,20 @@ class TestTopCutTop10(unittest.TestCase):
         self.t.random_results()
         ok = self.t.create_pairings()
         self.assertTrue(ok)
-        self.assertEqual(self.t.tour_round.stage, Round.Stage.TOP_4)
+        self.assertEqual(self.t.tour_round.stage, 4)
 
 
 class TestTopCutTop13(unittest.TestCase):
     """TOP_13: 1 bye, 12 players in 3 pods."""
 
     def setUp(self):
-        self.t = _make_tournament(TournamentConfiguration.TopCut.TOP_13)
+        self.t = _make_tournament(13)
         _run_swiss(self.t, 2)
 
     def test_top13_stage(self):
         ok = self.t.create_pairings()
         self.assertTrue(ok)
-        self.assertEqual(self.t.tour_round.stage, Round.Stage.TOP_13)
+        self.assertEqual(self.t.tour_round.stage, 13)
 
     def test_top13_one_bye(self):
         self.t.create_pairings()
@@ -221,14 +221,14 @@ class TestTopCutTop13(unittest.TestCase):
         self.t.random_results()
         ok = self.t.create_pairings()
         self.assertTrue(ok)
-        self.assertEqual(self.t.tour_round.stage, Round.Stage.TOP_4)
+        self.assertEqual(self.t.tour_round.stage, 4)
 
 
 class TestTopCutNone(unittest.TestCase):
     """Verify NONE top-cut stops after n_rounds."""
 
     def test_no_topcut_stops_at_n_rounds(self):
-        t = _make_tournament(TournamentConfiguration.TopCut.NONE)
+        t = _make_tournament(0)
         _run_swiss(t, 2)
         ok = t.create_pairings()
         self.assertFalse(ok)
@@ -238,7 +238,7 @@ class TestTopCutStandings(unittest.TestCase):
     """Playoff standings correctly rank advancing and eliminated players."""
 
     def test_playoff_standings_include_all_players(self):
-        t = _make_tournament(TournamentConfiguration.TopCut.TOP_4)
+        t = _make_tournament(4)
         _run_swiss(t, 2)
         t.create_pairings()
         t.random_results()
@@ -247,7 +247,7 @@ class TestTopCutStandings(unittest.TestCase):
         self.assertEqual(len(standings), 16)
 
     def test_playoff_winner_ranked_first(self):
-        t = _make_tournament(TournamentConfiguration.TopCut.TOP_4)
+        t = _make_tournament(4)
         _run_swiss(t, 2)
         t.create_pairings()
         winner = t.tour_round.pods[0].players[0]

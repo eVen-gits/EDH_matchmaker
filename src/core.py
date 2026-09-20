@@ -10,10 +10,11 @@ import json
 import math
 import os
 import random
+import sys
 import threading
 from collections.abc import Iterable, Mapping
 from datetime import datetime, timezone
-from enum import Enum, IntEnum
+from enum import Enum
 from pathlib import Path
 from uuid import UUID
 
@@ -35,9 +36,6 @@ from .interface import (
 )
 
 _F = TypeVar("_F", bound=Callable[..., Any])
-
-# import sys
-# sys.setrecursionlimit(5000)  # Increase recursion limit
 
 
 class DataExport:
@@ -613,15 +611,6 @@ class TournamentAction:
 
 
 class TournamentConfiguration(ITournamentConfiguration):
-    class TopCut(IntEnum):
-        NONE = 0
-        TOP_4 = 4
-        TOP_7 = 7
-        TOP_10 = 10
-        TOP_13 = 13
-        TOP_16 = 16
-        TOP_40 = 40
-
     def __init__(self, **kwargs):
         """Initializes the TournamentConfiguration.
 
@@ -632,18 +621,14 @@ class TournamentConfiguration(ITournamentConfiguration):
         self.allow_bye: bool = kwargs.get("allow_bye", True)
         self.snake_pods: bool = kwargs.get("snake_pods", True)
         self.n_rounds: int = kwargs.get("n_rounds", 5)
-        # Parse int or enum for TopCut
-        tc_val: TournamentConfiguration.TopCut | int = kwargs.get(
-            "top_cut", TournamentConfiguration.TopCut.NONE
-        )
-        if isinstance(tc_val, TournamentConfiguration.TopCut):
-            self.top_cut: TournamentConfiguration.TopCut = tc_val
-        else:
-            # If it's already an int, map to Enum
-            try:
-                self.top_cut = TournamentConfiguration.TopCut(tc_val)
-            except Exception:
-                self.top_cut = TournamentConfiguration.TopCut.NONE
+        # The playoff cut size - meaning is owned by whichever game's
+        # CUT_STAGES table config.game names (see
+        # Tournament.__compute_stage_and_logic). 0 means no cut.
+        self.top_cut: int = int(kwargs.get("top_cut", 0))
+        # Which ruleset this tournament follows - selects the
+        # src/logic/<game>/ module. "commander" for backward
+        # file-compatibility with logs written before this field existed.
+        self.game: str = kwargs.get("game", "commander")
         self.max_byes: int = kwargs.get("max_byes", 2)
         self.auto_export: bool = kwargs.get("auto_export", True)
         self.standings_export: IStandingsExport = kwargs.get(
@@ -732,34 +717,6 @@ class TournamentConfiguration(ITournamentConfiguration):
         """
         return max(self.pod_sizes)
 
-    @staticmethod
-    @override
-    def ranking(
-        x: IPlayer,
-        tour_round: IRound,
-        ratings: Mapping[Any, float] | None = None,
-    ) -> tuple[int | float | str, ...]:
-        """Calculates the ranking score for a player.
-
-        Args:
-            x: The player.
-            tour_round: The current round.
-            ratings: Optional precomputed full-field rating map. get_standings
-                computes it once and passes it so the sort does not recompute
-                the whole field once per player.
-
-        Returns:
-            A tuple of ranking criteria.
-        """
-        return (
-            x.rating(tour_round, ratings),
-            len(x.games(tour_round)),
-            np.round(x.opponent_pointrate(tour_round, ratings), 10),
-            len(x.players_beaten(tour_round)),
-            -x.average_seat([r for r in x.tour.rounds if r.seq <= tour_round.seq]),
-            -x.uid if isinstance(x.uid, int) else -int(x.uid.int),
-        )
-
     @override
     def __repr__(self):
         return "Tour. cfg:" + "|".join(
@@ -776,7 +733,8 @@ class TournamentConfiguration(ITournamentConfiguration):
             "auto_export": self.auto_export,
             "standings_export": self.standings_export.serialize(),
             "global_wr_seats": self.global_wr_seats,
-            "top_cut": self.top_cut.value,
+            "top_cut": self.top_cut,
+            "game": self.game,
             "scoring_logic": self.scoring_logic,
             "scoring_params": self.scoring_params,
             "pairing_rounds": self.pairing_rounds,
@@ -809,9 +767,11 @@ class TournamentConfiguration(ITournamentConfiguration):
             auto_export=data["auto_export"],
             standings_export=StandingsExport.inflate(data["standings_export"]),
             global_wr_seats=data["global_wr_seats"],
-            top_cut=TournamentConfiguration.TopCut(data["top_cut"]),
+            top_cut=data["top_cut"],
             # Additive field - absent in files written before this
-            # version, so read with a default for backward compatibility.
+            # version, so read with a default for backward compatibility
+            # (every pre-existing log implicitly means Commander).
+            game=data.get("game", "commander"),
             scoring_logic=data.get("scoring_logic", "ScoringDefault"),
             scoring_params=scoring_params,
             # Additive - absent in older logs, defaults to empty. Prefer the
@@ -899,6 +859,20 @@ class Tournament(ITournament):
         if cls._pairing_logic_cache:
             return
         cls._discover_logic("matching.py", IPairingLogic, cls._pairing_logic_cache)
+
+    @classmethod
+    def cut_stages(cls, game: str) -> dict[int, list[tuple[int, int, str]]]:
+        """The named game's top-cut stage table.
+
+        Each game's src/logic/<game>/matching.py may define a module-level
+        CUT_STAGES: dict[int, list[tuple[stage_value, n_players,
+        pairing_logic_name]] keyed by config.top_cut - see
+        src/logic/commander/matching.py for the reference shape. A game with
+        no such table (or no top-cut support at all) returns {}.
+        """
+        cls.discover_pairing_logic()  # ensures src.logic.<game>.matching is imported
+        module = sys.modules.get(f"src.logic.{game}.matching")
+        return getattr(module, "CUT_STAGES", {}) if module else {}
 
     @classmethod
     def get_pairing_logic(cls, logic_name: str) -> IPairingLogic:
@@ -1069,7 +1043,7 @@ class Tournament(ITournament):
         """
         if len(self.rounds) >= self.config.n_rounds:
             last_round = self.rounds[self.config.n_rounds - 1]
-            if last_round.stage != Round.Stage.SWISS:
+            if last_round.stage_value != Round.Stage.SWISS.value:
                 raise ValueError("Last round is not a Swiss round.")
             return last_round
         return None
@@ -1118,7 +1092,7 @@ class Tournament(ITournament):
             list[Round]:
                 - The list of swiss rounds.
         """
-        return [r for r in self.rounds if r.stage == Round.Stage.SWISS]
+        return [r for r in self.rounds if r.stage_value == Round.Stage.SWISS.value]
 
     @property
     def ended_rounds(self):
@@ -1461,14 +1435,17 @@ class Tournament(ITournament):
         return logic
 
     def __compute_stage_and_logic(
-        self, seq: int, prev_stage: Round.Stage | None
-    ) -> tuple[Round.Stage, IPairingLogic] | None:
+        self, seq: int, prev_stage: Round.Stage | int | None
+    ) -> tuple[Round.Stage | int, IPairingLogic] | None:
         """Computes the stage and pairing logic for a round at the given sequence position.
 
         For a Swiss round, the pairing logic comes from config.pairing_logics
         (one name per Swiss round) when that seq is configured; otherwise it
         falls back to the adaptive default (round 1 Random, round 2 Snake when
-        snake_pods, later rounds Default). Top-cut rounds are fixed by stage.
+        snake_pods, later rounds Default). Top-cut rounds are fixed by stage:
+        a table lookup against config.game's CUT_STAGES[config.top_cut] (see
+        Tournament.cut_stages) - no per-size branching here, every game's cut
+        sizes and stage sequencing live in that per-game table instead.
 
         Args:
             seq: The 0-indexed sequence number of the round.
@@ -1477,74 +1454,38 @@ class Tournament(ITournament):
         Returns:
             A (stage, logic) tuple, or None if no more rounds should be created/configured.
         """
-        stage = Round.Stage.SWISS
+        stage: Round.Stage | int = Round.Stage.SWISS
         logic: IPairingLogic | None = None
         if seq >= self.config.n_rounds and prev_stage is not None:
-            if self.config.top_cut == TournamentConfiguration.TopCut.NONE:
+            stages = self.cut_stages(self.config.game).get(self.config.top_cut)
+            if not stages:
                 Log.log("Maximum number of rounds reached.", level=Log.Level.WARNING)
                 return None
-            if self.config.top_cut == TournamentConfiguration.TopCut.TOP_4:
-                if prev_stage == Round.Stage.SWISS:
-                    logic = self.get_pairing_logic("PairingTop4")
-                    stage = Round.Stage.TOP_4
-                else:
-                    Log.log("Tournament completed.")
-                    return None
-            elif self.config.top_cut == TournamentConfiguration.TopCut.TOP_7:
-                if prev_stage == Round.Stage.SWISS:
-                    stage = Round.Stage.TOP_7
-                    logic = self.get_pairing_logic("PairingTop7")
-                elif prev_stage == Round.Stage.TOP_7:
-                    stage = Round.Stage.TOP_4
-                    logic = self.get_pairing_logic("PairingTop4")
-                else:
-                    Log.log("Tournament completed.")
-                    return None
-            elif self.config.top_cut == TournamentConfiguration.TopCut.TOP_10:
-                if prev_stage == Round.Stage.SWISS:
-                    stage = Round.Stage.TOP_10
-                    logic = self.get_pairing_logic("PairingTop10")
-                elif prev_stage == Round.Stage.TOP_10:
-                    stage = Round.Stage.TOP_4
-                    logic = self.get_pairing_logic("PairingTop4")
-                else:
-                    Log.log("Tournament completed.")
-                    return None
-            elif self.config.top_cut == TournamentConfiguration.TopCut.TOP_13:
-                if prev_stage == Round.Stage.SWISS:
-                    stage = Round.Stage.TOP_13
-                    logic = self.get_pairing_logic("PairingTop13")
-                elif prev_stage == Round.Stage.TOP_13:
-                    stage = Round.Stage.TOP_4
-                    logic = self.get_pairing_logic("PairingTop4")
-                else:
-                    Log.log("Tournament completed.")
-                    return None
-            elif self.config.top_cut == TournamentConfiguration.TopCut.TOP_16:
-                if prev_stage == Round.Stage.SWISS:
-                    stage = Round.Stage.TOP_16
-                    logic = self.get_pairing_logic("PairingTop16")
-                elif prev_stage == Round.Stage.TOP_16:
-                    stage = Round.Stage.TOP_4
-                    logic = self.get_pairing_logic("PairingTop4")
-                else:
-                    Log.log("Tournament completed.")
-                    return None
-            elif self.config.top_cut == TournamentConfiguration.TopCut.TOP_40:
-                if prev_stage == Round.Stage.SWISS:
-                    stage = Round.Stage.TOP_40
-                    logic = self.get_pairing_logic("PairingTop40")
-                elif prev_stage == Round.Stage.TOP_40:
-                    stage = Round.Stage.TOP_16
-                    logic = self.get_pairing_logic("PairingTop16")
-                elif prev_stage == Round.Stage.TOP_16:
-                    stage = Round.Stage.TOP_4
-                    logic = self.get_pairing_logic("PairingTop4")
-                else:
-                    Log.log("Tournament completed.")
-                    return None
+            prev_value = (
+                prev_stage.value
+                if isinstance(prev_stage, Round.Stage)
+                else prev_stage
+            )
+            if prev_value == Round.Stage.SWISS.value:
+                next_index = 0
             else:
-                raise ValueError(f"Unknown top cut: {self.config.top_cut}")
+                next_index = next(
+                    (i + 1 for i, entry in enumerate(stages) if entry[0] == prev_value),
+                    None,
+                )
+                if next_index is None:
+                    Log.log(
+                        f"Round stage {prev_value} is not part of the "
+                        f"{self.config.game} top_cut={self.config.top_cut} table.",
+                        level=Log.Level.ERROR,
+                    )
+                    return None
+            if next_index >= len(stages):
+                Log.log("Tournament completed.")
+                return None
+            stage_value, _n_players, logic_name = stages[next_index]
+            stage = stage_value
+            logic = self.get_pairing_logic(logic_name)
         else:
             configured = self.config.pairing_logics
             name = configured[seq] if seq < len(configured) else None
@@ -1975,14 +1916,15 @@ class Tournament(ITournament):
         Player.SORT_METHOD = SortMethod.RANK
         Player.SORT_ORDER = SortOrder.ASCENDING
         playoffs = False
-        if tour_round.stage == Round.Stage.SWISS:
+        if tour_round.stage_value == Round.Stage.SWISS.value:
             # Compute the whole field's ratings once and pass the map down the
             # ranking chain, so the sort does not recompute it once per player
             # (~players x opponents times) - costly under wagering scoring.
             ratings = self.field_ratings(tour_round)
+            scoring_logic = self.get_scoring_logic(self.config.scoring_logic)
             standings = sorted(
                 self.players,
-                key=lambda x: self.config.ranking(x, tour_round, ratings),
+                key=lambda x: scoring_logic.ranking(x, tour_round, ratings),
                 reverse=True,
             )
         else:
@@ -3255,31 +3197,22 @@ class Round(IRound):
     """
 
     class Stage(Enum):
+        """The only stage core.py knows about; every playoff stage is a
+        plain int instead (see stage_value below), owned by whichever
+        game's CUT_STAGES table names it - see Tournament.cut_stages."""
+
         SWISS = 0
-        TOP_4 = 4
-        TOP_7 = 7
-        TOP_10 = 10
-        TOP_13 = 13
-        TOP_16 = 16
-        TOP_40 = 40
 
         @staticmethod
-        def is_playoff(stage: Stage) -> bool:
-            return stage in [
-                Round.Stage.TOP_4,
-                Round.Stage.TOP_7,
-                Round.Stage.TOP_10,
-                Round.Stage.TOP_13,
-                Round.Stage.TOP_16,
-                Round.Stage.TOP_40,
-            ]
+        def is_playoff(stage_value: int) -> bool:
+            return stage_value != Round.Stage.SWISS.value
 
     def __init__(
         self,
         # Required
         tour: Tournament,
         seq: int,
-        stage: Stage,
+        stage: Stage | int,
         pairing_logic: IPairingLogic,
         # Optional
         uid: UUID | None = None,
@@ -3293,7 +3226,9 @@ class Round(IRound):
         Args:
             tour: The tournament the round belongs to.
             seq: The sequence number of the round.
-            stage: The stage of the round (e.g., Swiss, Top 4).
+            stage: The stage of the round: Round.Stage.SWISS, or a plain int
+                naming a playoff stage from the active game's CUT_STAGES
+                table (see Tournament.cut_stages).
             pairing_logic: The logic used for pairing players in this round.
             uid: Optional UUID.
             dropped: Optional set of dropped player UUIDs.
@@ -3305,7 +3240,7 @@ class Round(IRound):
         super().__init__(uid=uid)
         self.tour.ROUND_CACHE[self.uid] = self
         self.seq: int = seq
-        self.stage: Round.Stage = stage
+        self.stage: Round.Stage | int = stage
 
         self._pods: list[UUID] = list()
         self._players: list[UUID] = list()
@@ -3359,6 +3294,30 @@ class Round(IRound):
     @logic.setter
     def logic(self, logic: IPairingLogic):
         self._logic = logic.name
+
+    @property
+    @override
+    def stage_value(self) -> int:
+        """This round's stage normalized to a plain int (SWISS = 0).
+
+        self.stage is Round.Stage.SWISS (the enum member) for a Swiss round,
+        or a plain int naming a playoff stage from the active game's
+        CUT_STAGES table for any other round - this normalizes either into
+        the raw int so callers never need to special-case which one they got.
+        """
+        return (
+            self.stage.value if isinstance(self.stage, Round.Stage) else self.stage
+        )
+
+    def _cut_stage_entry(self) -> tuple[int, int, str] | None:
+        """This round's own (stage_value, n_players, logic_name) entry from
+        the active game's CUT_STAGES[config.top_cut] table, or None for a
+        Swiss round (or a stage that table no longer lists)."""
+        stages = self.tour.cut_stages(self.tour.config.game).get(
+            self.tour.config.top_cut, []
+        )
+        stage_value = self.stage_value
+        return next((entry for entry in stages if entry[0] == stage_value), None)
 
     @property
     def games_to_win(self) -> int:
@@ -3483,7 +3442,7 @@ class Round(IRound):
         # Create index map for O(1) standings lookup instead of O(n) index() calls
         standings_index = {player: idx for idx, player in enumerate(standings)}
 
-        if self.stage == Round.Stage.SWISS:
+        if self.stage_value == Round.Stage.SWISS.value:
             return sorted(
                 self.active_players,
                 key=lambda x: standings_index.get(x, len(standings)),
@@ -3528,6 +3487,17 @@ class Round(IRound):
                 ):
                     processed_draw_pods.add(pod)
                     if pod.result:
+                        # A 2-player pod has no defined "who advances" answer
+                        # for a draw in single elimination (MTR §2.3) - unlike
+                        # a Commander multi-way pod, where the drawers form a
+                        # real subset and picking one to advance is a defined
+                        # convention. Raise instead of silently picking one.
+                        if len(pod.players) == 2:
+                            raise ValueError(
+                                f"Pod {pod.table}'s match ended in a draw; MTR "
+                                "requires a decisive result in single "
+                                "elimination - report an additional game."
+                            )
                         # Filter to only active players in the draw result
                         active_in_draw = [
                             p for p in pod.result if p in active_players_set
@@ -3639,8 +3609,13 @@ class Round(IRound):
         They remain in the tournament but won't participate in top cut rounds."""
         standings = self.tour.get_standings(self.tour.previous_round(self))
 
-        # Disable players from bottom of standings until we reach top_cut size
-        for p in standings[self.stage.value : :]:
+        # Disable players from the bottom of standings until we reach this
+        # stage's player count - the matched CUT_STAGES entry's n_players,
+        # not the raw stage value, so numerically overlapping stage values
+        # across games (see Tournament.cut_stages) never mis-slice.
+        entry = self._cut_stage_entry()
+        n_players = entry[1] if entry else 0
+        for p in standings[n_players:]:
             self.disable_player(p, set_disabled=True)
 
     def create_pairings(self) -> None:
@@ -3649,7 +3624,7 @@ class Round(IRound):
         This method uses the round's `pairing_logic` to determine match-ups and assigns
         players to the pods created by `create_pods`.
         """
-        if self.stage != Round.Stage.SWISS:
+        if self.stage_value != Round.Stage.SWISS.value:
             # Reset disabled set to the previous round's baseline so that re-pairing
             # after reset_pods() + config change doesn't keep stale topcut entries.
             prev_round = self.tour.previous_round(self)
@@ -3657,14 +3632,11 @@ class Round(IRound):
                 self._disabled = set(prev_round._disabled)
             standings = self.tour.get_standings(prev_round)
             self.disable_topcut(standings)
-            if self.stage in [
-                Round.Stage.TOP_7,
-                Round.Stage.TOP_10,
-                Round.Stage.TOP_13,
-                Round.Stage.TOP_16,
-                Round.Stage.TOP_40,
-            ]:
-                self.logic.advance_topcut(self, cast(list[IPlayer], standings))
+            # Every top-cut pairing class (Commander's and 1v1's) must
+            # implement advance_topcut meaningfully - a no-op where a stage
+            # awards no mid-cut byes - rather than inheriting CommonPairing's
+            # raising default.
+            self.logic.advance_topcut(self, cast(list[IPlayer], standings))
 
         self.create_pods()
         pods = [p for p in self.pods if all([not p.done, len(p) < p.cap])]
@@ -3824,7 +3796,7 @@ class Round(IRound):
         return {
             "tour": str(self._tour),
             "seq": self.seq,
-            "stage": self.stage.value,
+            "stage": self.stage_value,
             "logic": self._logic,
             "uid": str(self.uid),
             "dropped": [str(p) for p in self._dropped],
@@ -3838,7 +3810,10 @@ class Round(IRound):
     def inflate(cls, tour: Tournament, data: dict[str, Any]) -> Round:
         assert tour.uid == UUID(data["tour"])
         tour.discover_pairing_logic()
-        stage = Round.Stage(data["stage"])
+        stage_value = data["stage"]
+        stage: Round.Stage | int = (
+            Round.Stage.SWISS if stage_value == Round.Stage.SWISS.value else stage_value
+        )
         logic = tour.get_pairing_logic(data["logic"])
         uid = UUID(data["uid"])
 

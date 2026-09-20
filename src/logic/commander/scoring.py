@@ -2,13 +2,15 @@ from __future__ import annotations
 import itertools
 import random
 from abc import ABC
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from typing import Any
+
+import numpy as np
 
 from ...interface import IPlayer, IRound, IScoringLogic, ITournament
 
 class CommonScoring(IScoringLogic, ABC):
-    _SWISS = 0  # Round.Stage.SWISS / TournamentConfiguration.TopCut.NONE value
+    _SWISS = 0  # Round.Stage.SWISS.value / TournamentConfiguration.top_cut's NONE value
 
     def __init__(self, name: str):
         self.name = name
@@ -24,7 +26,7 @@ class CommonScoring(IScoringLogic, ABC):
         Tournament.rating() behavior this replaces.
         """
         for i_tour_round in tour.rounds:
-            if i_tour_round.stage.value != self._SWISS:
+            if i_tour_round.stage_value != self._SWISS:
                 break
             yield i_tour_round
             if i_tour_round == tour_round:
@@ -50,6 +52,29 @@ class CommonScoring(IScoringLogic, ABC):
         """Single-param lookup with no allocation - for the rating/pointrate hot path."""
         config = tour.config  # type: ignore[attr-defined]
         return config.scoring_params.get(key, self.DEFAULT_PARAMS[key])
+
+    def ranking(
+        self,
+        x: IPlayer,
+        tour_round: IRound,
+        ratings: Mapping[Any, float] | None = None,
+    ) -> tuple[int | float | str, ...]:
+        """Commander's standings tiebreaker order.
+
+        Match points, then opponents' pointrate, then players beaten, then
+        average seat position, then a deterministic tiebreak - unchanged
+        from the pre-relocation TournamentConfiguration.ranking staticmethod
+        this replaces (see docs/tournament-log-spec.md, Reference
+        implementation, for what each term means).
+        """
+        return (
+            x.rating(tour_round, ratings),
+            len(x.games(tour_round)),
+            np.round(x.opponent_pointrate(tour_round, ratings), 10),
+            len(x.players_beaten(tour_round)),  # type: ignore[attr-defined]
+            -x.average_seat([r for r in x.tour.rounds if r.seq <= tour_round.seq]),  # type: ignore[attr-defined]
+            -x.uid if isinstance(x.uid, int) else -int(x.uid.int),
+        )
 
 
 class ScoringDefault(CommonScoring):

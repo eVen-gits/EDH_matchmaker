@@ -1240,14 +1240,17 @@ class TournamentConfigDialog(QDialog):
         self._rebuild_pairing_rows()
         self.sb_max_byes.setValue(self.core.config.max_byes)
         self.ui.cb_auto_export.setChecked(self.core.config.auto_export)
-        # Populte cb_topCut
-        self.ui.cb_topCut.addItem("None", TournamentConfiguration.TopCut.NONE)
-        self.ui.cb_topCut.addItem("Top 4", TournamentConfiguration.TopCut.TOP_4)
-        self.ui.cb_topCut.addItem("Top 7", TournamentConfiguration.TopCut.TOP_7)
-        self.ui.cb_topCut.addItem("Top 10", TournamentConfiguration.TopCut.TOP_10)
-        self.ui.cb_topCut.addItem("Top 13", TournamentConfiguration.TopCut.TOP_13)
-        self.ui.cb_topCut.addItem("Top 16", TournamentConfiguration.TopCut.TOP_16)
-        self.ui.cb_topCut.addItem("Top 40", TournamentConfiguration.TopCut.TOP_40)
+        # Populate cb_topCut. Commander-only for now: these are
+        # TournamentConfiguration.top_cut's Commander cut sizes (see
+        # src/logic/commander/matching.py's CUT_STAGES) - GUI wiring for
+        # picking a game/cut from the active game's own table is deferred.
+        self.ui.cb_topCut.addItem("None", 0)
+        self.ui.cb_topCut.addItem("Top 4", 4)
+        self.ui.cb_topCut.addItem("Top 7", 7)
+        self.ui.cb_topCut.addItem("Top 10", 10)
+        self.ui.cb_topCut.addItem("Top 13", 13)
+        self.ui.cb_topCut.addItem("Top 16", 16)
+        self.ui.cb_topCut.addItem("Top 40", 40)
         self.ui.cb_topCut.setCurrentIndex(
             self.ui.cb_topCut.findData(self.core.config.top_cut)
         )

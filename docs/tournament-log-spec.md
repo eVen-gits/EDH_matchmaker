@@ -171,7 +171,8 @@ draw, or a pending game).
 | `auto_export` | bool | If `true`, the writer also produces the plain-text exports described in [Adjacent outputs](#adjacent-outputs-not-part-of-this-format). Does not affect this JSON format. |
 | `standings_export` | object | See below. |
 | `global_wr_seats` | array of float | Seat-position win-rate adjustment, one value per seat, most-advantaged seat first. |
-| `top_cut` | int | The playoff cut size. See [`top_cut` and `stage` values](#top_cut-and-stage-values). `0` means no playoff cut (Swiss only). |
+| `top_cut` | int | The playoff cut size. Its meaning is owned by `game` - see [`top_cut` and `stage` values](#top_cut-and-stage-values). `0` means no playoff cut (Swiss only). |
+| `game` | string | optional, default `"commander"`. Which ruleset's top-cut stage table and standings tiebreaker formula apply - see [`top_cut` and `stage` values](#top_cut-and-stage-values) and [Scoring logic](#scoring-logic). Absent in files written before this field existed, which are all implicitly Commander. |
 | `scoring_logic` | string | optional, default `"ScoringDefault"`. Which formula computes player points. See [Scoring logic](#scoring-logic). |
 | `scoring_params` | object | optional, default `{}`. Parameters for whichever algorithm `scoring_logic` names - field names, types, and defaults are owned by that algorithm, not by this format. See [Scoring logic](#scoring-logic) for the fields each shipped algorithm reads. |
 | `pairing_rounds` | array of object | optional, default `[]`. The pairing configuration per Swiss round, one object per round: `{"logic": <name or null>, "params": {<field>: value}}`. `logic` is the pairing-logic name (or `null` / a missing/short list to use the adaptive default: round 1 Random, round 2 Snake when `snake_pods`, later rounds Default). `params` holds that logic's overrides; a missing field uses the logic's default. A configured `logic` should support the tournament's `pod_sizes` - see [Pairing logic](#pairing-logic). Top-cut rounds ignore this. |
@@ -274,18 +275,49 @@ that requires a new `format_version`.
 
 ### `top_cut` and `stage` values
 
-`config.top_cut` and `rounds[].stage` share one value set. `top_cut`
-names its zero value `NONE`; `stage` names the same value `SWISS`.
+`config.top_cut` and `rounds[].stage` share one value set **per `config.game`**
+(see [The `config` object](#the-config-object)). A reader must branch on
+`game` before interpreting either field - the two games' tables below are
+disjoint by design, so adding `mtg` is additive, not a renumbering:
+existing Commander files keep meaning exactly what they meant, and
+`0`/`SWISS` (no playoff cut / a Swiss round) is the only value every game
+shares.
+
+`game: "commander"` (the default):
 
 | Value | `top_cut` name | `stage` name | Meaning |
 |---|---|---|---|
 | 0 | `NONE` | `SWISS` | No playoff cut / a Swiss round. |
-| 4 | `TOP_4` | `TOP_4` | Top-4 playoff. |
-| 7 | `TOP_7` | `TOP_7` | Top-7 playoff. |
-| 10 | `TOP_10` | `TOP_10` | Top-10 playoff. |
-| 13 | `TOP_13` | `TOP_13` | Top-13 playoff. |
-| 16 | `TOP_16` | `TOP_16` | Top-16 playoff. |
-| 40 | `TOP_40` | `TOP_40` | Top-40 playoff. |
+| 4 | `TOP_4` | `TOP_4` | Top-4 playoff (single 4-player pod). |
+| 7 | `TOP_7` | `TOP_7` | Top-7 playoff, then `TOP_4`. |
+| 10 | `TOP_10` | `TOP_10` | Top-10 playoff, then `TOP_4`. |
+| 13 | `TOP_13` | `TOP_13` | Top-13 playoff, then `TOP_4`. |
+| 16 | `TOP_16` | `TOP_16` | Top-16 playoff, then `TOP_4`. |
+| 40 | `TOP_40` | `TOP_40` | Top-40 playoff, then `TOP_16`, then `TOP_4`. |
+
+`game: "mtg"` (1v1): a standard power-of-2 single-elimination bracket, seeded
+once from the final Swiss standings and never reseeded. Values are offset by
+`100` from the bracket's player count so they never collide with the
+Commander table above:
+
+| Value | `top_cut` name | `stage` name | Meaning |
+|---|---|---|---|
+| 0 | `NONE` | `SWISS` | No playoff cut / a Swiss round. |
+| 2 | `BRACKET_2` | `BRACKET_2` | Best of 2 (single final match). |
+| 4 | `BRACKET_4` | — | A 4-player bracket cut: rounds `104`, then `102`. |
+| 8 | `BRACKET_8` | — | An 8-player bracket cut: rounds `108`, `104`, then `102`. |
+| 16 | `BRACKET_16` | — | A 16-player bracket cut: rounds `116`, `108`, `104`, then `102`. |
+| 32 | `BRACKET_32` | — | A 32-player bracket cut: rounds `132`, `116`, `108`, `104`, then `102`. |
+| 102 | — | `BRACKET_2` | Final (2 players). |
+| 104 | — | `BRACKET_4` | Semifinal (4 players). |
+| 108 | — | `BRACKET_8` | Quarterfinal (8 players). |
+| 116 | — | `BRACKET_16` | Round of 16. |
+| 132 | — | `BRACKET_32` | Round of 32. |
+
+`config.top_cut` for `mtg` names the bracket's *starting* size (the value a
+TO picks), while `rounds[].stage` names *that round's* size within the
+bracket - so a `top_cut: 8` tournament writes rounds with `stage` `108`,
+then `104`, then `102` in turn, never `8` itself as a stage value.
 
 ### `StandingsExport.Field` values
 
@@ -537,6 +569,35 @@ implementation choice, not a requirement of this format.
 
 This variant uses the same `scoring_params` fields as `ScoringHareruya`. It
 shares the same `pointrate` approximation.
+
+### Standings tiebreakers
+
+Every scoring algorithm also owns a `ranking` formula: the tuple standings
+are sorted by (highest first), used to break ties within a match-points
+score. This is not part of the JSON schema - a reader that only replays
+match points doesn't need it - but it does differ by `config.game`
+(see [The `config` object](#the-config-object)), so a reader that
+reconstructs standings must pick the formula that matches `game`, not
+assume Commander's.
+
+`ScoringDefault` and `ScoringHareruya` (and `ScoringModifiedHareruya`, which
+inherits it) share one Commander-specific formula: match points, then
+opponents' match-win % (`pointrate`, no floor), then the number of distinct
+opponents beaten, then average seat position (best-seat pods weighted
+higher - see `global_wr_seats` above), then a deterministic tiebreak by
+player UID. `players_beaten` and average seat are meaningful only for a
+3-4-player pod.
+
+`Scoring1v1` uses a different, MTR Appendix C-faithful formula instead:
+match points, then Opponents' Match-Win % floored at `1/3` per opponent (an
+opponent's own match-win % never counts for less than `1/3`, so one
+blown-out opponent can't tank your tiebreakers), then your own Game-Win %
+(games won / games played, a bye counting as an automatic 2-0), then
+Opponents' Game-Win % likewise floored at `1/3` per opponent, then the same
+deterministic UID tiebreak. It drops `players_beaten`/average seat
+entirely - both degenerate to noise for a 2-player pod. A bye is excluded
+from anyone's opponents' percentages, since it has no real opponent to
+average in.
 
 ### Where parameter definitions live (implementation note)
 

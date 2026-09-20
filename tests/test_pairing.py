@@ -284,7 +284,7 @@ class TestResetPodsConfigChange(unittest.TestCase):
             t.random_results()
             t.new_round()
 
-    def _make_config(self, top_cut=TournamentConfiguration.TopCut.TOP_4) -> TournamentConfiguration:
+    def _make_config(self, top_cut=4) -> TournamentConfiguration:
         return TournamentConfiguration(
             pod_sizes=[4, 3],
             n_rounds=5,
@@ -294,39 +294,39 @@ class TestResetPodsConfigChange(unittest.TestCase):
 
     def test_config_change_before_reset(self) -> None:
         """Scenario 1: edit config → reset pods → create pairings picks up new config."""
-        t = Tournament(self._make_config(TournamentConfiguration.TopCut.TOP_4))
+        t = Tournament(self._make_config(4))
         t.add_player([f"P{i}" for i in range(16)])
         self._run_swiss(t, 5)
 
         t.create_pairings()
-        self.assertEqual(t.tour_round.stage, Round.Stage.TOP_4)
+        self.assertEqual(t.tour_round.stage, 4)
 
-        t.config = self._make_config(TournamentConfiguration.TopCut.TOP_7)
+        t.config = self._make_config(7)
         t.reset_pods()
 
         ok = t.create_pairings()
         self.assertTrue(ok)
-        self.assertEqual(t.tour_round.stage, Round.Stage.TOP_7)
+        self.assertEqual(t.tour_round.stage, 7)
 
     def test_config_change_after_reset(self) -> None:
         """Scenario 2: reset pods → edit config → create pairings picks up new config."""
-        t = Tournament(self._make_config(TournamentConfiguration.TopCut.TOP_4))
+        t = Tournament(self._make_config(4))
         t.add_player([f"P{i}" for i in range(16)])
         self._run_swiss(t, 5)
 
         t.create_pairings()
-        self.assertEqual(t.tour_round.stage, Round.Stage.TOP_4)
+        self.assertEqual(t.tour_round.stage, 4)
 
         t.reset_pods()
-        t.config = self._make_config(TournamentConfiguration.TopCut.TOP_7)
+        t.config = self._make_config(7)
 
         ok = t.create_pairings()
         self.assertTrue(ok)
-        self.assertEqual(t.tour_round.stage, Round.Stage.TOP_7)
+        self.assertEqual(t.tour_round.stage, 7)
 
     def test_swiss_stage_unchanged_after_reset(self) -> None:
         """reset_pods() on a Swiss round without config change keeps SWISS stage."""
-        t = Tournament(self._make_config(TournamentConfiguration.TopCut.NONE))
+        t = Tournament(self._make_config(0))
         t.add_player([f"P{i}" for i in range(16)])
         t.create_pairings()
         self.assertEqual(t.tour_round.stage, Round.Stage.SWISS)
@@ -343,7 +343,7 @@ class TestPairingLogicsConfig(unittest.TestCase):
 
     def _swiss_tournament(self, pairing_logics=None):
         cfg = TournamentConfiguration(
-            pod_sizes=[4], n_rounds=5, top_cut=TournamentConfiguration.TopCut.TOP_4,
+            pod_sizes=[4], n_rounds=5, top_cut=4,
             allow_bye=True, auto_export=False,
             pairing_logics=pairing_logics or [],
         )
@@ -386,7 +386,7 @@ class TestPairingLogicsConfig(unittest.TestCase):
             t.random_results()
             t.new_round()
         t.create_pairings()  # next round is the TOP_4 cut
-        self.assertEqual(t.tour_round.stage, Round.Stage.TOP_4)
+        self.assertEqual(t.tour_round.stage, 4)
         self.assertEqual(t.tour_round.logic.name, "PairingTop4")
 
     def test_serialize_roundtrip_and_backward_compat(self):

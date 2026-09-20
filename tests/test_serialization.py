@@ -192,7 +192,7 @@ class TestSerializationTopCut(unittest.TestCase):
 
     def _make_tournament(
         self,
-        top_cut: TournamentConfiguration.TopCut,
+        top_cut: int,
         n_players: int = 16,
         n_rounds: int = 2,
     ) -> Tournament:
@@ -223,15 +223,15 @@ class TestSerializationTopCut(unittest.TestCase):
     # ------------------------------------------------------------------ config
 
     def test_top_cut_config_preserved_for_all_values(self) -> None:
-        """config.top_cut survives serialize/inflate for every TopCut variant."""
-        for tc in TournamentConfiguration.TopCut:
+        """config.top_cut survives serialize/inflate for every Commander cut size."""
+        for tc in (0, 4, 7, 10, 13, 16, 40):
             with self.subTest(top_cut=tc):
                 t = self._make_tournament(tc)
                 t2 = self._reload(t)
                 self.assertEqual(t2.config.top_cut, tc)
 
     def test_n_rounds_preserved(self) -> None:
-        t = self._make_tournament(TournamentConfiguration.TopCut.TOP_4, n_rounds=5)
+        t = self._make_tournament(4, n_rounds=5)
         t2 = self._reload(t)
         self.assertEqual(t2.config.n_rounds, 5)
 
@@ -239,17 +239,17 @@ class TestSerializationTopCut(unittest.TestCase):
 
     def test_round_stage_preserved_before_results(self) -> None:
         """Round.stage survives inflate when top-cut round has no results yet."""
-        t = self._make_tournament(TournamentConfiguration.TopCut.TOP_4)
+        t = self._make_tournament(4)
         self._run_swiss(t, 2)
         t.create_pairings()
-        self.assertEqual(t.tour_round.stage, Round.Stage.TOP_4)
+        self.assertEqual(t.tour_round.stage, 4)
 
         t2 = self._reload(t)
-        self.assertEqual(t2.tour_round.stage, Round.Stage.TOP_4)
+        self.assertEqual(t2.tour_round.stage, 4)
 
     def test_round_logic_name_preserved(self) -> None:
         """Round._logic (pairing logic name) survives inflate."""
-        t = self._make_tournament(TournamentConfiguration.TopCut.TOP_4)
+        t = self._make_tournament(4)
         self._run_swiss(t, 2)
         t.create_pairings()
         logic_name = t.tour_round._logic
@@ -259,7 +259,7 @@ class TestSerializationTopCut(unittest.TestCase):
 
     def test_disabled_players_preserved(self) -> None:
         """Non-advancing players remain disabled after reload."""
-        t = self._make_tournament(TournamentConfiguration.TopCut.TOP_4)
+        t = self._make_tournament(4)
         self._run_swiss(t, 2)
         t.create_pairings()
         disabled_before = {p.uid for p in t.tour_round.disabled_players}
@@ -271,7 +271,7 @@ class TestSerializationTopCut(unittest.TestCase):
 
     def test_byes_preserved_in_top7_round(self) -> None:
         """Bye assignments in a TOP_7 round survive reload."""
-        t = self._make_tournament(TournamentConfiguration.TopCut.TOP_7)
+        t = self._make_tournament(7)
         self._run_swiss(t, 2)
         t.create_pairings()
         byes_before = {p.uid for p in t.tour_round.byes}
@@ -285,7 +285,7 @@ class TestSerializationTopCut(unittest.TestCase):
 
     def test_top4_completable_after_reload(self) -> None:
         """TOP_4 tournament reloaded mid-top-cut round can be completed."""
-        t = self._make_tournament(TournamentConfiguration.TopCut.TOP_4)
+        t = self._make_tournament(4)
         self._run_swiss(t, 2)
         t.create_pairings()  # TOP_4 round, no results yet
 
@@ -299,7 +299,7 @@ class TestSerializationTopCut(unittest.TestCase):
 
     def test_top7_reload_between_stages(self) -> None:
         """TOP_7 tournament reloaded after TOP_7 results can advance to TOP_4."""
-        t = self._make_tournament(TournamentConfiguration.TopCut.TOP_7)
+        t = self._make_tournament(7)
         self._run_swiss(t, 2)
         t.create_pairings()  # TOP_7 stage
         t.random_results()
@@ -308,7 +308,7 @@ class TestSerializationTopCut(unittest.TestCase):
         # TOP_7 round is done; next create_pairings should open TOP_4
         ok = t2.create_pairings()
         self.assertTrue(ok)
-        self.assertEqual(t2.tour_round.stage, Round.Stage.TOP_4)
+        self.assertEqual(t2.tour_round.stage, 4)
         self.assertEqual(len(t2.tour_round.active_players), 4)
 
         t2.random_results()
@@ -317,7 +317,7 @@ class TestSerializationTopCut(unittest.TestCase):
 
     def test_top16_reload_between_stages(self) -> None:
         """TOP_16 tournament reloaded after TOP_16 results can advance to TOP_4."""
-        t = self._make_tournament(TournamentConfiguration.TopCut.TOP_16)
+        t = self._make_tournament(16)
         self._run_swiss(t, 2)
         t.create_pairings()  # TOP_16 stage
         t.random_results()
@@ -325,11 +325,11 @@ class TestSerializationTopCut(unittest.TestCase):
         t2 = self._reload(t)
         ok = t2.create_pairings()
         self.assertTrue(ok)
-        self.assertEqual(t2.tour_round.stage, Round.Stage.TOP_4)
+        self.assertEqual(t2.tour_round.stage, 4)
 
     def test_tournament_complete_flag_preserved(self) -> None:
         """A fully completed tournament cannot create new rounds after reload."""
-        t = self._make_tournament(TournamentConfiguration.TopCut.TOP_4)
+        t = self._make_tournament(4)
         self._run_swiss(t, 2)
         t.create_pairings()
         t.random_results()  # finish TOP_4
@@ -342,7 +342,7 @@ class TestSerializationTopCut(unittest.TestCase):
 
     def test_standings_order_preserved(self) -> None:
         """Player standings (order + ratings) after Swiss are identical after reload."""
-        t = self._make_tournament(TournamentConfiguration.TopCut.TOP_4)
+        t = self._make_tournament(4)
         self._run_swiss(t, 2)
         final_swiss = t.last_round
         standings_before = t.get_standings(final_swiss)
@@ -360,7 +360,7 @@ class TestSerializationTopCut(unittest.TestCase):
 
     def test_top4_active_players_match_standings_leaders(self) -> None:
         """After reload, the 4 active players in TOP_4 are still the top 4 from Swiss."""
-        t = self._make_tournament(TournamentConfiguration.TopCut.TOP_4)
+        t = self._make_tournament(4)
         self._run_swiss(t, 2)
         final_swiss = t.last_round
         top4_uids = {p.uid for p in t.get_standings(final_swiss)[:4]}
@@ -375,12 +375,12 @@ class TestSerializationTopCut(unittest.TestCase):
 
     def test_reset_and_config_change_after_reload(self) -> None:
         """reset_pods() + config change on a reloaded tournament picks up the new config."""
-        t = self._make_tournament(TournamentConfiguration.TopCut.TOP_4)
+        t = self._make_tournament(4)
         self._run_swiss(t, 2)
         t.create_pairings()  # TOP_4 round created
 
         t2 = self._reload(t)
-        self.assertEqual(t2.tour_round.stage, Round.Stage.TOP_4)
+        self.assertEqual(t2.tour_round.stage, 4)
 
         # Change to TOP_7 after reload, then reset and repairq
         t2.config = TournamentConfiguration(
@@ -388,10 +388,10 @@ class TestSerializationTopCut(unittest.TestCase):
             allow_bye=False,
             auto_export=False,
             n_rounds=2,
-            top_cut=TournamentConfiguration.TopCut.TOP_7,
+            top_cut=7,
         )
         t2.reset_pods()
         ok = t2.create_pairings()
         self.assertTrue(ok)
-        self.assertEqual(t2.tour_round.stage, Round.Stage.TOP_7)
+        self.assertEqual(t2.tour_round.stage, 7)
         self.assertEqual(len(t2.tour_round.active_players), 7)

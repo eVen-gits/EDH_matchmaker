@@ -145,6 +145,74 @@ Whether a pairing-logic class is offered as a user choice in the config GUI.
 the user, even though `IS_COMPLETE = True`. Don't add a top-cut algorithm to
 a user-facing picker; that's the tournament stage's job.
 
+## `TournamentConfiguration.game`
+
+Which ruleset a tournament follows (`"commander"` or `"mtg"`) - selects the
+`src/logic/<game>/` module whose `CUT_STAGES` table and `IScoringLogic.
+ranking()` apply.
+
+**Lives in:** `src/core.py` (`TournamentConfiguration.game`,
+`Tournament.cut_stages`)
+**Invariant:** Defaults to `"commander"` for backward file-compatibility -
+every tournament log written before this field existed is implicitly
+Commander. Adding a third game means adding its own `CUT_STAGES` table and
+`ranking()` override in a new `src/logic/<game>/` module, not another
+branch anywhere in `core.py`.
+
+## `Round.Stage` / `stage_value` / `CUT_STAGES`
+
+`Round.Stage` has exactly one member, `SWISS = 0` - every other stage value
+is a plain `int`, not an enum member. `Round.stage` is `Round.Stage.SWISS`
+for a Swiss round, or one of those plain ints for a playoff round.
+`Round.stage_value` normalizes either into the raw int, so comparisons
+should use `round.stage_value == Round.Stage.SWISS.value` (or `!=`), never
+compare `round.stage` to a non-SWISS `Round.Stage` member - there isn't one.
+
+Each game's `src/logic/<game>/matching.py` defines a module-level
+`CUT_STAGES: dict[int, list[tuple[int, int, str]]]`, keyed by
+`config.top_cut`, each entry a `(stage_value, n_players,
+pairing_logic_name)` triple in play order (see
+`src/logic/commander/matching.py` and `src/logic/mtg/matching.py` for the
+two shipped tables). `Tournament.__compute_stage_and_logic` walks this
+table to pick the next round's stage/logic; `Round.disable_topcut` walks it
+to find the current round's `n_players`.
+
+**Lives in:** `src/core.py` (`Round.Stage`, `Round.stage_value`,
+`Round._cut_stage_entry`, `Tournament.cut_stages`,
+`Tournament.__compute_stage_and_logic`), `src/logic/<game>/matching.py`
+(`CUT_STAGES`)
+**Invariant:** Stage values are only unique *within* one game's table, not
+globally - Commander's `4` (a single 4-player pod) and `mtg`'s `104` (a
+4-player bracket semifinal) are unrelated numbers that happen to both
+exist. A reader (in code or on the wire, see
+`docs/tournament-log-spec.md`'s `top_cut`/`stage` value tables) must know
+`config.game` before a raw stage int means anything. `mtg`'s cut stages are
+deliberately offset by `100` from Commander's `{0, 4, 7, 10, 13, 16, 40}` so
+the two tables never collide by raw value even though a reader ignoring
+`game` could otherwise misread one game's stage as the other's.
+
+## 1v1 bracket seeding (`PairingBracketN`)
+
+1v1's top cut is a standard power-of-2 single-elimination bracket (MTR
+10.4), not Commander's cascading multiplayer-pod funnel. Seeding is fixed
+once, from `tour.get_standings(final_swiss_round)`, when the cut starts;
+results inside the cut never reseed it. Each round re-derives that round's
+matchups by filtering the *same* fixed seed-order list (from
+`_bracket_seed_order()`) down to survivors (whoever `Round.disable_topcut`
+left in `players`/`active_players`), preserving the fixed list's relative
+order, then pairing adjacent entries - not by re-sorting current standings
+and pairing adjacent ranks, which would let seed 1 and 2 meet before the
+final.
+
+**Lives in:** `src/logic/mtg/matching.py` (`PairingBracketCommon`,
+`_bracket_seed_order`)
+**Invariant:** A pod's drawn result inside a bracket round has no defined
+"who advances" answer (MTR disallows draws in single elimination) -
+`Round.advancing_players` (`src/core.py`) raises for a drawn pod with
+exactly 2 players rather than picking one, before any `PairingBracketN`
+class runs. Don't add draw-tolerance to the bracket pairing classes; the
+correct behavior is to raise, and it already happens one layer up.
+
 ## `<ClassName>.params.yaml` sidecar
 
 The YAML file next to a scoring/pairing class that is the source of truth

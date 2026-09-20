@@ -196,6 +196,18 @@ class IRound(IHashable, ABC):
 
     @property
     @abstractmethod
+    def stage_value(self) -> int:
+        """This round's stage normalized to a plain int (SWISS = 0).
+
+        `stage` itself may be the `Round.Stage.SWISS` enum member (Swiss
+        rounds) or a plain int naming a per-game cut stage (playoff
+        rounds) - this property normalizes either into the raw int so
+        callers never need to special-case which one they got.
+        """
+        ...
+
+    @property
+    @abstractmethod
     def active_players(self) -> set[IPlayer]: ...
 
     @property
@@ -328,6 +340,27 @@ class IScoringLogic(ABC):
         """
         ...
 
+    @abstractmethod
+    def ranking(
+        self,
+        x: IPlayer,
+        tour_round: IRound,
+        ratings: Mapping[Any, float] | None = None,
+    ) -> tuple[int | float | str, ...]:
+        """Computes the standings sort key for a player (highest ranks first).
+
+        Args:
+            x: The player.
+            tour_round: The current round.
+            ratings: Optional precomputed full-field rating map. get_standings
+                computes it once and passes it so the sort does not recompute
+                the whole field once per player.
+
+        Returns:
+            A tuple of ranking criteria, compared lexicographically.
+        """
+        ...
+
 
 class IStandingsExport(ABC):
     """Interface for standings export configuration."""
@@ -358,6 +391,11 @@ class ITournamentConfiguration(ABC):
         0.1458,
     )
     top_cut: int = 0
+    # Which ruleset this tournament follows - selects the src/logic/<game>/
+    # module whose CUT_STAGES table and scoring ranking() apply. Default
+    # "commander" for backward file-compatibility: every log written before
+    # this field existed implicitly meant Commander.
+    game: str = "commander"
     scoring_logic: str = "ScoringDefault"
     # Owned by whichever class scoring_logic names - see
     # IScoringLogic.DEFAULT_PARAMS.
@@ -378,11 +416,3 @@ class ITournamentConfiguration(ABC):
     @property
     @abstractmethod
     def min_pod_size(self) -> int: ...
-
-    @staticmethod
-    @abstractmethod
-    def ranking(
-        x: IPlayer,
-        tour_round: IRound,
-        ratings: Mapping[Any, float] | None = None,
-    ) -> tuple[int | float | str, ...]: ...

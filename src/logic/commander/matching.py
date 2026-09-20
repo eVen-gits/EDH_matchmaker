@@ -9,6 +9,20 @@ from typing_extensions import override
 import random
 import sys
 
+# Commander's top-cut stages: keyed by config.top_cut, each entry a list of
+# (stage_value, n_players, pairing_logic_name) triples in play order. A pure
+# data move of the if-chain Tournament.__compute_stage_and_logic used to
+# hardcode - zero behavior change. See Tournament.__compute_stage_and_logic
+# and Round.disable_topcut in src/core.py for how this table is read.
+CUT_STAGES: dict[int, list[tuple[int, int, str]]] = {
+    4: [(4, 4, "PairingTop4")],
+    7: [(7, 7, "PairingTop7"), (4, 4, "PairingTop4")],
+    10: [(10, 10, "PairingTop10"), (4, 4, "PairingTop4")],
+    13: [(13, 13, "PairingTop13"), (4, 4, "PairingTop4")],
+    16: [(16, 16, "PairingTop16"), (4, 4, "PairingTop4")],
+    40: [(40, 40, "PairingTop40"), (16, 16, "PairingTop16"), (4, 4, "PairingTop4")],
+}
+
 
 class CommonPairing(IPairingLogic, ABC):
 
@@ -379,6 +393,10 @@ class PairingDefault(CommonPairing):
 class PairingTop4(CommonPairing):
     IS_COMPLETE = True
     SELECTABLE = False  # top-cut pairing, chosen automatically by stage
+
+    @override
+    def advance_topcut(self, tour_round: IRound, standings: list[IPlayer]) -> None:
+        """No-op: TOP_4 is a single terminal pod, nothing advances past it."""
 
     @override
     def make_pairings(
