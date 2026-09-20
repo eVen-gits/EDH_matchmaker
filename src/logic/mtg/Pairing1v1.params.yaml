@@ -1,0 +1,41 @@
+# Parameters for Pairing1v1. This file is the source of truth for the
+# algorithm's parameter names, defaults, ranges, and descriptions.
+#
+# Pairing1v1 reuses PairingDefault's sort/scoring logic as-is (see
+# matching.py), but the sidecar lookup in param_spec.py stops at the first
+# ancestor with a sidecar rather than merging across ancestors, so this file
+# must re-declare every parameter from PairingDefault.params.yaml, not just
+# the one that differs. Only games_to_win's default changes: the Magic
+# Tournament Rules make constructed 1v1 best-of-3 (games_to_win: 2), unlike
+# Commander's single-game convention.
+rematch_penalty_exponent:
+  default: 2
+  type: int
+  min: 1
+  max: 4
+  label: Rematch penalty exponent
+  description: >
+    Exponent on the repeat-opponent count when scoring how well a player fits a
+    pod. A higher value pushes harder against seating players who already met.
+
+small_pod_penalty:
+  default: 10
+  type: int
+  min: 0
+  max: 100
+  label: Small pod penalty
+  description: >
+    Penalty for seating a player in a pod smaller than the preferred pod size
+    (for example a 3-player pod), when the player already sat in a small pod. A
+    higher value spreads the small pods across more players.
+
+games_to_win:
+  default: 2
+  type: int
+  min: 1
+  label: Games to win a match
+  description: >
+    Games a player must win to win a match at this round (Magic Tournament
+    Rules §2.1). 1 means a single game decides the round - Commander's
+    convention. 2 (the default here) is best-of-3, the Magic Tournament Rules
+    norm for constructed 1v1 events.
