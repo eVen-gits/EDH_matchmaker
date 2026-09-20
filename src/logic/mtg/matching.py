@@ -2,6 +2,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing_extensions import override
 
+from ...core import Pod
 from ...interface import IPlayer, IPod, IRound
 from ..commander import matching as _commander_matching
 
@@ -104,10 +105,10 @@ class PairingBracketCommon(_commander_matching.CommonPairing):
         assert final_swiss is not None, "Bracket pairing requires a completed Swiss stage."
 
         # Validate no 2-player pod ended in a draw (MTR §2.3 requires decisive result)
-        previous_round = tour_round.previous_round()
+        previous_round = tour_round.tour.rounds[tour_round.seq - 1] if tour_round.seq > 0 else None
         if previous_round is not None:
             for pod in previous_round.pods:
-                if pod.done and pod.result_type == pod.EResult.DRAW and len(pod.players) == 2:
+                if isinstance(pod, Pod) and pod.done and pod.result_type == Pod.EResult.DRAW and len(pod.players) == 2:
                     raise ValueError(
                         f"Pod {pod.table}'s match ended in a draw; MTR "
                         "requires a decisive result in single "
