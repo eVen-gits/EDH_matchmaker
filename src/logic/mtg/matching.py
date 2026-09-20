@@ -84,9 +84,8 @@ class PairingBracketCommon(_commander_matching.CommonPairing):
     final) with no persisted bracket-tree data structure.
 
     No mid-bracket byes: advance_topcut is a no-op. A pod that ended in a
-    draw would have no defined "who advances" answer - Round.advancing_players
-    (src/core.py) already raises for a 2-player drawn pod before this class's
-    make_pairings ever runs, so a draw never reaches here silently.
+    draw would have no defined "who advances" answer - make_pairings validates
+    for 2-player drawn pods and raises before creating pairings.
     """
 
     SELECTABLE = False  # top-cut pairing, chosen automatically by stage
@@ -103,6 +102,18 @@ class PairingBracketCommon(_commander_matching.CommonPairing):
         top_cut = tour.config.top_cut
         final_swiss = tour.final_swiss_round  # type: ignore[attr-defined]
         assert final_swiss is not None, "Bracket pairing requires a completed Swiss stage."
+
+        # Validate no 2-player pod ended in a draw (MTR §2.3 requires decisive result)
+        previous_round = tour_round.previous_round()
+        if previous_round is not None:
+            for pod in previous_round.pods:
+                if pod.done and pod.result_type == pod.EResult.DRAW and len(pod.players) == 2:
+                    raise ValueError(
+                        f"Pod {pod.table}'s match ended in a draw; MTR "
+                        "requires a decisive result in single "
+                        "elimination - report an additional game."
+                    )
+
         seeds = tour.get_standings(final_swiss)[:top_cut]
         fixed_order = [seeds[s - 1] for s in _bracket_seed_order(len(seeds))]
 

@@ -3491,13 +3491,10 @@ class Round(IRound):
                         # for a draw in single elimination (MTR §2.3) - unlike
                         # a Commander multi-way pod, where the drawers form a
                         # real subset and picking one to advance is a defined
-                        # convention. Raise instead of silently picking one.
+                        # convention. Skip (no one advances); validation happens
+                        # at the bracket-pairing call site.
                         if len(pod.players) == 2:
-                            raise ValueError(
-                                f"Pod {pod.table}'s match ended in a draw; MTR "
-                                "requires a decisive result in single "
-                                "elimination - report an additional game."
-                            )
+                            continue
                         # Filter to only active players in the draw result
                         active_in_draw = [
                             p for p in pod.result if p in active_players_set
