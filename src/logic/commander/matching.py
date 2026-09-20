@@ -1,9 +1,9 @@
 from __future__ import annotations
 from abc import ABC
-from typing import Any, Callable, final
+from typing import Any, Callable
 from collections.abc import Mapping, Sequence
 
-from ...interface import IPlayer, IPod, IRound, IPairingLogic, ITournament
+from ...interface import IPlayer, IPod, IRound, IPairingLogic
 
 from typing_extensions import override
 import random

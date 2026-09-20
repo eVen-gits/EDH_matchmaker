@@ -1724,8 +1724,7 @@ class Tournament(ITournament):
         if self.tour_round:
             if not isinstance(players, list):
                 players = [players]
-            for p in players:
-                self.tour_round.set_result(p, Player.EResult.WIN)
+            self.tour_round.set_result(players, Player.EResult.WIN)
 
     @TournamentAction.action
     def report_draw(self, players: list[Player] | Player):
@@ -1737,8 +1736,7 @@ class Tournament(ITournament):
         if self.tour_round:
             if not isinstance(players, list):
                 players = [players]
-            for p in players:
-                self.tour_round.set_result(p, Player.EResult.DRAW)
+            self.tour_round.set_result(players, Player.EResult.DRAW)
 
     @TournamentAction.action
     def random_results(self):
@@ -1775,8 +1773,7 @@ class Tournament(ITournament):
                     players = pod.players
                     # Log.log('draw {}'.format(
                     #    ' '.join(['"{}"'.format(p.name) for p in players])))
-                    for p in players:
-                        self.tour_round.set_result(p, Player.EResult.DRAW)
+                    self.tour_round.set_result(players, Player.EResult.DRAW)
                 pass
         pass
 
@@ -2904,7 +2901,11 @@ class Pod(IPod):
         super().__init__(uid=uid)
         self.cap: int = cap
         self._players: list[UUID] = list()
-        self._result: set[UUID] = set()
+        # One entry per completed game, same win/draw cardinality encoding
+        # as the old single _result: one UID = that player won the game,
+        # two-or-more = that game was drawn among them. See _result below
+        # for the derived match-level (i.e. this pod's reported) outcome.
+        self._games: list[set[UUID]] = list()
         # self._players: list[UUID] = list() #TODO: make references to players
 
     @property
@@ -2925,19 +2926,50 @@ class Pod(IPod):
     def get(tour: Tournament, uid: UUID) -> Pod:
         return tour.POD_CACHE[uid]
 
-    def set_result(self, player: Player, result: IPlayer.EResult):
-        if player.uid not in self._players:
-            raise ValueError("Player {} not in pod {}".format(player.name, self.name))
+    def set_result(
+        self, players: Player | list[Player], result: IPlayer.EResult
+    ) -> None:
+        """Appends one game's outcome to the match.
+
+        Args:
+            players: The game's winner (a single Player), or every player
+                the game was drawn among (a list).
+            result: WIN or DRAW.
+
+        Raises:
+            ValueError: If any player isn't seated in this pod, the match is
+                already decided (reset the result first to correct a
+                mistake), or result is neither WIN nor DRAW.
+        """
+        if not isinstance(players, list):
+            players = [players]
+        for player in players:
+            if player.uid not in self._players:
+                raise ValueError(
+                    "Player {} not in pod {}".format(player.name, self.name)
+                )
+        if self.done:
+            raise ValueError(
+                "Pod {}'s match is already decided; reset the result before "
+                "reporting a new game.".format(self.name)
+            )
         if result == IPlayer.EResult.WIN:
-            self._result.clear()
-        self._result.add(player.uid)
+            self._games.append({players[0].uid})
+        elif result == IPlayer.EResult.DRAW:
+            self._games.append({p.uid for p in players})
+        else:
+            raise ValueError("Pod.set_result only accepts WIN or DRAW, got {}".format(result))
 
     def remove_result(self, player: Player):
-        if player.uid in self._result:
-            self._result.remove(player.uid)
+        """Strips a player from every recorded game; drops any game entry
+        that becomes empty as a result."""
+        for game in self._games:
+            game.discard(player.uid)
+        self._games[:] = [g for g in self._games if g]
 
     def reset_result(self):
-        self._result.clear()
+        """Clears the pod's entire game history, reopening the match."""
+        self._games.clear()
 
     @property
     def result(self) -> set[Player]:
@@ -2949,16 +2981,63 @@ class Pod(IPod):
         return {Player.get(self.tour, x) for x in self._result}
 
     @property
+    def game_wins(self) -> dict[UUID, int]:
+        """Per-player tally of games won. A drawn game (2+ UIDs) counts
+        toward neither player's tally, per the Magic Tournament Rules."""
+        tally = {p: 0 for p in self._players}
+        for game in self._games:
+            if len(game) == 1:
+                (winner,) = game
+                tally[winner] = tally.get(winner, 0) + 1
+        return tally
+
+    @property
+    def games_to_win(self) -> int:
+        """Games needed to win the match, from this pod's round."""
+        return self.tour_round.games_to_win
+
+    @property
+    def max_games(self) -> int:
+        """Best-of-(2n-1): a 1-game threshold is 1 game, a 2-game threshold
+        (best-of-3) is 3 games, etc."""
+        return 2 * self.games_to_win - 1
+
+    @property
+    def _result(self) -> set[UUID]:
+        """Derived match-level outcome, in the pre-multi-game wire encoding
+        (empty=pending, one UID=won, two-or-more=drew) - kept so every
+        existing reader of pod._result keeps working unchanged."""
+        if not self.done:
+            return set()
+        if self.max_games == 1:
+            # Single-game case (Commander's default, and any games_to_win
+            # == 1 round): the match result IS that one game's outcome,
+            # including a partial multi-way draw that doesn't include
+            # every pod player.
+            return set(self._games[0])
+        tally = self.game_wins
+        top = max(tally.values())
+        return {p for p, w in tally.items() if w == top}
+
+    @property
     def result_type(self) -> Pod.EResult:
-        if self._result:
-            if len(self._result) == 1:
-                return Pod.EResult.WIN
-            return Pod.EResult.DRAW
-        return Pod.EResult.PENDING
+        if not self._games:
+            return Pod.EResult.PENDING
+        tally = self.game_wins
+        top = max(tally.values(), default=0)
+        if top >= self.games_to_win:
+            return Pod.EResult.WIN
+        if len(self._games) < self.max_games:
+            return Pod.EResult.PENDING
+        # Max games played without reaching the threshold (Magic Tournament
+        # Rules §2.1): whoever won more games wins the match; an equal
+        # games-won tally is a drawn match.
+        leaders = [p for p, w in tally.items() if w == top]
+        return Pod.EResult.WIN if len(leaders) == 1 else Pod.EResult.DRAW
 
     @property
     def done(self) -> bool:
-        return len(self._result) > 0
+        return self.result_type != Pod.EResult.PENDING
 
     @property
     def tour(self) -> Tournament:
@@ -3138,6 +3217,7 @@ class Pod(IPod):
             "table": self.table,
             "cap": self.cap,
             "result": sorted([str(p) for p in self._result]),
+            "games": [sorted([str(p) for p in g]) for g in self._games],
             "players": [str(p) for p in self._players],
         }
 
@@ -3150,7 +3230,16 @@ class Pod(IPod):
         else:
             pod = cls(tour_round, data["table"], data["cap"], uid)
         pod._players = [UUID(x) for x in data["players"]]
-        pod._result = {UUID(x) for x in data["result"]}
+        games = data.get("games")
+        if games is not None:
+            pod._games = [{UUID(x) for x in g} for g in games]
+        else:
+            # Pre-"games" files: treat the legacy single "result" as this
+            # pod's one game - reproduces old files' behavior exactly,
+            # since games_to_win also defaults to 1 for a round absent from
+            # the (also new, also absent in old files) games_to_win_rounds.
+            legacy = {UUID(x) for x in data["result"]}
+            pod._games = [legacy] if legacy else []
         return pod
 
 
@@ -3270,6 +3359,19 @@ class Round(IRound):
     @logic.setter
     def logic(self, logic: IPairingLogic):
         self._logic = logic.name
+
+    @property
+    def games_to_win(self) -> int:
+        """Games needed to win a match at this round (MTR §2.1).
+
+        A parameter of this round's own pairing logic (see
+        CommonPairing.params.yaml / PairingDefault.params.yaml), not a core
+        config field - so it follows the same per-round override mechanism
+        as any other pairing param (config.pairing_rounds[seq].params).
+        Defaults to 1 everywhere, Commander's one-game-is-the-whole-match
+        convention; a 1v1 tournament overrides it per round.
+        """
+        return self.logic._param(self, "games_to_win")  # type: ignore[attr-defined]
 
     @property
     def players(self) -> set[Player]:
@@ -3659,27 +3761,35 @@ class Round(IRound):
 
         return any_swapped
 
-    def set_result(self, player: Player, result: IPlayer.EResult) -> None:
-        if result == IPlayer.EResult.BYE:
-            self._byes.add(player.uid)
-        else:
-            self._byes.discard(player.uid)
+    def set_result(
+        self, players: Player | list[Player], result: IPlayer.EResult
+    ) -> None:
+        if not isinstance(players, list):
+            players = [players]
 
-        if result == IPlayer.EResult.LOSS:
-            self._game_loss.add(player.uid)
-        else:
-            self._game_loss.discard(player.uid)
+        for player in players:
+            if result == IPlayer.EResult.BYE:
+                self._byes.add(player.uid)
+            else:
+                self._byes.discard(player.uid)
 
-        if result == IPlayer.EResult.WIN:
-            if pod := player.pod(self):
-                pod.set_result(player, result)
+            if result == IPlayer.EResult.LOSS:
+                self._game_loss.add(player.uid)
             else:
-                raise ValueError("Player {} not in any pod".format(player.name))
-        elif result == IPlayer.EResult.DRAW:
-            if pod := player.pod(self):
-                pod.set_result(player, result)
-            else:
-                raise ValueError("Player {} not in any pod".format(player.name))
+                self._game_loss.discard(player.uid)
+
+        if result in (IPlayer.EResult.WIN, IPlayer.EResult.DRAW):
+            # Group by pod so a report spanning multiple pods (e.g. two
+            # separate winners in one report_win call) still appends
+            # exactly one game entry per pod, not one per player.
+            by_pod: dict[Pod, list[Player]] = {}
+            for player in players:
+                if pod := player.pod(self):
+                    by_pod.setdefault(pod, []).append(player)
+                else:
+                    raise ValueError("Player {} not in any pod".format(player.name))
+            for pod, pod_players in by_pod.items():
+                pod.set_result(pod_players, result)
 
     def remove_result(self, player: Player):
         if pod := player.pod(self):

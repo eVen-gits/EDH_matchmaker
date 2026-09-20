@@ -157,7 +157,7 @@ class IPod(IHashable, ABC):
     _round: UUID
     _players: list[UUID]
     cap: int
-    _result: set[UUID]
+    _games: list[set[UUID]]
 
     @property
     @abstractmethod

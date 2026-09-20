@@ -134,6 +134,10 @@
         "table": { "type": "integer" },
         "cap": { "type": "integer", "minimum": 1 },
         "result": { "$ref": "#/$defs/uidArray" },
+        "games": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/uidArray" }
+        },
         "players": { "$ref": "#/$defs/uidArray" }
       }
     }
