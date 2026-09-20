@@ -11,13 +11,46 @@ genuine trap get an entry.
 
 ## Pod
 
-A group of players (3 or 4) paired to play one game together in a given
-round.
+A group of players (2 for 1v1, 3 or 4 for Commander) paired to play a match
+together in a given round. A match is one or more games — see the "Game vs.
+match" entry below — collapsing to exactly one game by default, which is why
+Commander never needed to distinguish the two.
 
 **Lives in:** `src/core.py` (`Pod`), `src/interface.py` (`IPod`)
 **Invariant:** Pod size is 4 by default, 3 only as a fallback when player
-count doesn't divide evenly. A pairing algorithm must declare which sizes it
-supports via `SUPPORTED_POD_SIZES` — see that entry below.
+count doesn't divide evenly; 2 for 1v1 tournaments. A pairing algorithm must
+declare which sizes it supports via `SUPPORTED_POD_SIZES` — see that entry
+below.
+
+## Game vs. match
+
+A **match** is a round's pod-level outcome — what standings, pairing, and
+scoring see (`Pod.result_type`/`Pod.done`). A **game** is one hand played to
+a single win/draw/loss, recorded in `Pod._games`; a match is decided once
+one player's game-win tally reaches `Round.games_to_win`.
+
+`games_to_win` is a parameter of whichever pairing logic built that round
+(`src/logic/commander/CommonPairing.params.yaml`, inherited by every
+pairing class with no sidecar of its own; `PairingDefault.params.yaml`,
+inherited by `mtg.Pairing1v1` since it subclasses commander's
+`PairingDefault` directly — see the `IPairingLogic` / `IScoringLogic`
+entry below) — not a bespoke tournament-config field. It follows the
+existing per-round pairing-param override mechanism
+(`config.pairing_rounds[seq].params`), same as any other pairing
+parameter. It defaults to `1` everywhere, so Commander's
+one-game-per-pod convention is unchanged unless a round's config
+explicitly overrides it (a 1v1 tournament typically sets it to `2`,
+best-of-3, on the rounds that need it).
+
+Do not confuse this with `Round._game_loss` (also spelled "game_loss" in
+the JSON format's `rounds[].game_loss`) — that's an unrelated, round-level
+*match*-loss penalty (e.g. a no-show) with zero games played, despite the
+name.
+
+**Lives in:** `src/core.py` (`Pod._games`, `Pod.game_wins`,
+`Round.games_to_win`, `Round._game_loss`),
+`src/logic/commander/CommonPairing.params.yaml`,
+`src/logic/commander/PairingDefault.params.yaml`
 
 ## Round
 
@@ -75,6 +108,19 @@ without touching core or GUI code.
 **Invariant:** A new implementation is *not* offered to the config GUI
 unless `IS_COMPLETE = True` is set — an in-progress algorithm left at the
 default `IS_COMPLETE = False` stays invisible rather than half-working.
+**Invariant:** One game's `matching.py`/`scoring.py` may subclass another
+game's class directly (`mtg.Pairing1v1` subclasses
+`commander.matching.PairingDefault`, for example) to reuse a Swiss-pairing
+or scoring formula that isn't actually game-specific. Doing this safely
+requires importing the *module*, not the class
+(`from ..commander import matching as _commander_matching`, then
+`class Pairing1v1(_commander_matching.PairingDefault)`) — importing the
+class by name also binds it in the subclassing module's namespace, and
+since the discovery scan (`Tournament._discover_logic`) keys registered
+classes by `obj.__name__` (not the import alias), an already-`IS_COMPLETE`
+parent class showing up in two modules' `__dict__` collides and silently
+drops that whole module from discovery (caught, logged as a warning, easy
+to miss).
 
 ## `SUPPORTED_POD_SIZES`
 

@@ -1,0 +1,15 @@
+# Shared parameter(s) for every pairing logic that doesn't ship its own
+# sidecar (PairingRandom, PairingSnake, the top-cut PairingTopN family) -
+# param_spec.py's MRO walk finds this file for any CommonPairing subclass
+# with no more specific sidecar of its own (PairingDefault/Pairing1v1 have
+# their own, see PairingDefault.params.yaml, so this file doesn't apply to
+# them).
+games_to_win:
+  default: 1
+  type: int
+  min: 1
+  label: Games to win a match
+  description: >
+    Games a player must win to win a match at this round (Magic Tournament
+    Rules §2.1). 1 (the default) means a single game decides the round -
+    Commander's convention. 2 is best-of-3, the common 1v1 setting.

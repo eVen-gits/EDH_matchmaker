@@ -1,0 +1,28 @@
+# Parameters for Scoring1v1. This file is the source of truth for the
+# algorithm's parameter names, defaults, ranges, and descriptions.
+#
+# Defaults match the Magic Tournament Rules' match points (Appendix C),
+# unlike commander/ScoringDefault.params.yaml's defaults.
+win_points:
+  default: 3
+  type: int
+  min: 0
+  label: Win points
+  description: Points added for a round (match) the player won.
+
+draw_points:
+  default: 1
+  type: int
+  min: 0
+  label: Draw points
+  description: Points added for a round (match) the player drew.
+
+bye_points:
+  default: 3
+  type: int
+  min: 0
+  label: Bye points
+  description: >
+    Points added for a round the player received a bye. A bye is an
+    automatic 2-0 match win under the Magic Tournament Rules, so this
+    matches win_points by default.

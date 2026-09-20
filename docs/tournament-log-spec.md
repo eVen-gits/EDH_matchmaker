@@ -233,14 +233,35 @@ Each entry in a round's `pods` array:
 | `tour_round` | string (UUID) | The parent round's `uid`. |
 | `table` | int | Table number, for display and seating. |
 | `cap` | int | Maximum number of players this pod holds. |
-| `result` | array of string (UUID) | See below. |
+| `result` | array of string (UUID) | The pod's *match* outcome, derived from `games`. See below. |
+| `games` | array of array of string (UUID) | optional, default `[]`. One entry per completed game, in play order, each using the same UID-cardinality encoding as `result` below. See below. |
 | `players` | array of string (UUID) | Players seated at this pod, in seat order. |
 
-`result` encodes the pod's outcome by how many player UIDs it holds:
+Each entry of `games` (and `result` itself) encodes one outcome by how many
+player UIDs it holds:
 
-- **Empty array** — the pod has no result yet. The game is pending.
-- **One UID** — that player won the pod.
-- **Two or more UIDs** — the pod ended in a draw among those players.
+- **Empty array** — no result yet. Pending.
+- **One UID** — that player won.
+- **Two or more UIDs** — a draw among those players.
+
+`result` is the pod's *match* outcome — what standings, pairing, and
+scoring read — derived from `games` and the round's `games_to_win` (a
+parameter of whichever pairing logic built that round, read from
+`rounds[].logic` and `config.pairing_rounds[rounds[].seq].params` - see
+[`games_to_win`](#games_to_win) under [Pairing logic](#pairing-logic),
+default `1`): the match is won by
+whichever player's count of single-UID (i.e. non-drawn) entries in `games`
+first reaches `games_to_win`; drawn games count toward neither player. If
+`games` runs out (`2 * games_to_win - 1` games played) before either player
+reaches that count, `result` holds whoever has the higher game-win tally,
+or every tied leader if equal (a drawn match). For the default
+`games_to_win` of `1`, this collapses to exactly `games`' one entry -
+Commander's convention, where a pod's match is always exactly one game. A
+reader that ignores `games` and every pairing logic's `games_to_win`
+param entirely still reads a correct final `result` for every pod, since
+both are optional/additive and default to the single-game behavior; it
+only loses the interim per-game history and any in-progress (not-yet-
+decided) multi-game pod's state.
 
 A player UID listed in the round's `byes` array does not need to appear
 in any pod that round.
@@ -389,6 +410,19 @@ including the round in question, of:
 
 This is independent per player: no player's score affects any other
 player's.
+
+### `Scoring1v1`
+
+Identical formula to `ScoringDefault` (`Scoring1v1` subclasses it directly,
+`src/logic/mtg/scoring.py`) - the pod win/draw/bye a round's rating sums
+over are unchanged. Only the `scoring_params` defaults differ, matching the
+Magic Tournament Rules' match points (Appendix C) instead of Commander's:
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `win_points` | int | `3` | Points awarded for a pod (match) win. |
+| `bye_points` | int | `3` | Points awarded for a bye (an automatic match win). |
+| `draw_points` | int | `1` | Points awarded to each player in a draw. |
 
 ### `ScoringHareruya`
 
@@ -549,26 +583,38 @@ how a file was produced, not how a stored result is read back.
 `config.pod_sizes` sets the tournament's pod sizes (ordered, preference first).
 Each pairing algorithm declares which sizes it supports; an algorithm is offered
 for a round only if it supports every size in `config.pod_sizes`. `PairingDefault`
-and `PairingSnake` support `3`, `4`, and `5`; `PairingRandom` supports any size.
-So a tournament with pod sizes `[2]` can only use `PairingRandom`. This is a
-constraint the writer applies; the format itself does not enforce it.
+and `PairingSnake` support `3`, `4`, and `5`; `Pairing1v1` supports `2`;
+`PairingRandom` supports any size. So a tournament with pod sizes `[2]` can use
+`Pairing1v1` or `PairingRandom`. This is a constraint the writer applies; the
+format itself does not enforce it.
 
 A "small" pod, for the `small_pod_penalty` below, is one smaller than the
 preferred (first) size in `config.pod_sizes`. So with `[4, 3]` the 3-player pod
 is small; with `[5, 4, 3]` the 4-player and 3-player pods are both smaller than
 the preferred `5`.
 
+### `games_to_win`
+
+Every pairing logic reads one shared parameter, `games_to_win` (int, default
+`1`, minimum `1`) - games a player must win to win a match at that round (see
+[Pod objects](#pod-objects) for how this decides `pods[].result` from
+`pods[].games`). `1` means a single game decides the round (Commander's
+convention); `2` is best-of-3, the common 1v1 setting. It lives in the same
+`params` object as any other override for that round's logic, for example
+`{"logic": "Pairing1v1", "params": {"games_to_win": 2}}`.
+
 ### `PairingDefault`
 
-Fields in the `params` object for a round that uses `PairingDefault`:
+Additional fields in the `params` object for a round that uses `PairingDefault`
+(or `Pairing1v1`, which shares the same parameters):
 
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `rematch_penalty_exponent` | int | `2` | Exponent on the repeat-opponent count when scoring how well a player fits a pod. A higher value pushes harder against seating players who already met. |
 | `small_pod_penalty` | int | `10` | Penalty for seating a player in a pod smaller than the preferred (first) pod size, for example a 3-player pod, when the player already sat in a small pod. A higher value spreads the small pods across more players. |
 
-`PairingRandom`, `PairingSnake`, and the top-cut pairings read no parameters.
-Their `params` object is empty.
+`PairingRandom`, `PairingSnake`, and the top-cut pairings read no parameters
+beyond `games_to_win`.
 
 ## Adjacent outputs (not part of this format)
 
@@ -637,10 +683,11 @@ wants working code to compare against:
 | `TournamentAction` | `store()` writes the file | `load()` reads the file | `src/core.py` |
 
 `ScoringDefault`, `ScoringHareruya`, and `ScoringModifiedHareruya` (all
-in `src/logic/commander/scoring.py`) implement the formulas from
-[Scoring logic](#scoring-logic); they are not part of the JSON schema
-themselves, only the `config.scoring_logic` string that names one of
-them.
+in `src/logic/commander/scoring.py`), and `Scoring1v1`
+(`src/logic/mtg/scoring.py`, subclassing `ScoringDefault`) implement the
+formulas from [Scoring logic](#scoring-logic); they are not part of the
+JSON schema themselves, only the `config.scoring_logic` string that names
+one of them.
 
 `tests/test_serialization.py` holds round-trip tests that double as
 executable proof of this contract, including a test that loads a real
