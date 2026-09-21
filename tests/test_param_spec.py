@@ -12,12 +12,11 @@ class TestShippedParamSpecs(unittest.TestCase):
     """The sidecar YAML files shipped with each algorithm load and validate."""
 
     def test_default_params_derived_from_sidecar(self):
-        # Derived defaults must be byte-identical to the pre-sidecar literals,
-        # so no scoring behavior changes.
+        # Derived defaults must match docs/tournament-log-spec.md.
         logic = Tournament.get_scoring_logic("ScoringDefault")
         self.assertEqual(
             logic.DEFAULT_PARAMS,
-            {"win_points": 7, "draw_points": 1, "bye_points": 7},
+            {"win_points": 5, "draw_points": 1, "bye_points": 4},
         )
         # Types matter: these feed StandingsExport's "{:d}" formatting.
         for value in logic.DEFAULT_PARAMS.values():
