@@ -1,0 +1,65 @@
+{
+  "format_version": "1.1",
+  "generator": {"name": "EDH_matchmaker"},
+  "created_at": "2026-08-21T10:00:00+00:00",
+  "updated_at": "2026-08-21T10:05:00+00:00",
+  "uid": "33333333-3333-3333-3333-333333333333",
+  "config": {
+    "pod_sizes": [4],
+    "allow_bye": false,
+    "snake_pods": true,
+    "n_rounds": 1,
+    "max_byes": 2,
+    "auto_export": false,
+    "standings_export": {
+      "fields": [0, 2, 4],
+      "format": 0,
+      "dir": "./logs/standings.txt"
+    },
+    "global_wr_seats": [0.2470, 0.1928, 0.1672, 0.1458],
+    "top_cut": 0,
+    "scoring_logic": "ScoringHareruya",
+    "scoring_params": {
+      "wager_percent": 0.1,
+      "wagering_starting_points": 100,
+      "draw_redistribution_fraction": 1.0,
+      "draw_distribution_shape": 1.0,
+      "redistribute_discarded_draw_points": false,
+      "draw_discard_pod_fraction": 1.0
+    }
+  },
+  "players": [
+    {"uid": "aaaaaaaa-0000-0000-0000-000000000001", "name": "P1", "decklist": null},
+    {"uid": "aaaaaaaa-0000-0000-0000-000000000002", "name": "P2", "decklist": null},
+    {"uid": "aaaaaaaa-0000-0000-0000-000000000003", "name": "P3", "decklist": null},
+    {"uid": "aaaaaaaa-0000-0000-0000-000000000004", "name": "P4", "decklist": null}
+  ],
+  "rounds": [
+    {
+      "tour": "33333333-3333-3333-3333-333333333333",
+      "seq": 0,
+      "stage": 0,
+      "logic": "PairingRandom",
+      "uid": "bbbbbbbb-0000-0000-0000-000000000001",
+      "dropped": [],
+      "disabled": [],
+      "byes": [],
+      "game_loss": [],
+      "pods": [
+        {
+          "uid": "cccccccc-0000-0000-0000-000000000001",
+          "tour_round": "bbbbbbbb-0000-0000-0000-000000000001",
+          "table": 1,
+          "cap": 4,
+          "result": ["aaaaaaaa-0000-0000-0000-000000000001"],
+          "players": [
+            "aaaaaaaa-0000-0000-0000-000000000001",
+            "aaaaaaaa-0000-0000-0000-000000000002",
+            "aaaaaaaa-0000-0000-0000-000000000003",
+            "aaaaaaaa-0000-0000-0000-000000000004"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://even.github.io/EDH_matchmaker/tournament-log.schema.json",
+  "title": "EDH_matchmaker tournament log",
+  "description": "Formal schema for the format described in docs/tournament-log-spec.md. Unknown top-level and nested fields are tolerated (additionalProperties: true) to match the spec's stated forward-compatibility stance.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["uid", "config", "players", "rounds"],
+  "properties": {
+    "format_version": {
+      "type": "string",
+      "description": "Absent means \"1.0\"."
+    },
+    "generator": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["name"],
+      "properties": {
+        "name": { "type": "string" },
+        "version": { "type": "string" }
+      }
+    },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "uid": { "$ref": "#/$defs/uid" },
+    "config": { "$ref": "#/$defs/config" },
+    "players": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/player" }
+    },
+    "rounds": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/round" }
+    }
+  },
+  "$defs": {
+    "uid": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
+    "uidArray": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/uid" },
+      "uniqueItems": true
+    },
+    "stageOrTopCut": {
+      "type": "integer",
+      "enum": [0, 4, 7, 10, 13, 16, 40]
+    },
+    "config": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "pod_sizes", "allow_bye", "snake_pods", "n_rounds", "max_byes",
+        "auto_export", "standings_export", "global_wr_seats", "top_cut"
+      ],
+      "properties": {
+        "pod_sizes": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 1 },
+          "minItems": 1
+        },
+        "allow_bye": { "type": "boolean" },
+        "snake_pods": { "type": "boolean" },
+        "n_rounds": { "type": "integer", "minimum": 0 },
+        "max_byes": { "type": "integer", "minimum": 0 },
+        "auto_export": { "type": "boolean" },
+        "standings_export": { "$ref": "#/$defs/standingsExport" },
+        "global_wr_seats": {
+          "type": "array",
+          "items": { "type": "number" }
+        },
+        "top_cut": { "$ref": "#/$defs/stageOrTopCut" },
+        "scoring_logic": { "type": "string" },
+        "scoring_params": {
+          "type": "object",
+          "description": "Field names and defaults are owned by whichever class scoring_logic names - see the Scoring logic section of tournament-log-spec.md. Deliberately schema-free: a new scoring algorithm's params don't require a schema change here."
+        }
+      }
+    },
+    "standingsExport": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["fields", "format", "dir"],
+      "properties": {
+        "fields": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 0, "maximum": 12 }
+        },
+        "format": { "type": "integer", "enum": [0, 2, 3] },
+        "dir": { "type": "string" }
+      }
+    },
+    "player": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["uid", "name", "decklist"],
+      "properties": {
+        "uid": { "$ref": "#/$defs/uid" },
+        "name": { "type": "string" },
+        "decklist": { "type": ["string", "null"] }
+      }
+    },
+    "round": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "tour", "seq", "stage", "logic", "uid",
+        "dropped", "disabled", "byes", "game_loss", "pods"
+      ],
+      "properties": {
+        "tour": { "$ref": "#/$defs/uid" },
+        "seq": { "type": "integer", "minimum": 0 },
+        "stage": { "$ref": "#/$defs/stageOrTopCut" },
+        "logic": { "type": "string" },
+        "uid": { "$ref": "#/$defs/uid" },
+        "dropped": { "$ref": "#/$defs/uidArray" },
+        "disabled": { "$ref": "#/$defs/uidArray" },
+        "byes": { "$ref": "#/$defs/uidArray" },
+        "game_loss": { "$ref": "#/$defs/uidArray" },
+        "pods": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/pod" }
+        }
+      }
+    },
+    "pod": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["uid", "tour_round", "table", "cap", "result", "players"],
+      "properties": {
+        "uid": { "$ref": "#/$defs/uid" },
+        "tour_round": { "$ref": "#/$defs/uid" },
+        "table": { "type": "integer" },
+        "cap": { "type": "integer", "minimum": 1 },
+        "result": { "$ref": "#/$defs/uidArray" },
+        "players": { "$ref": "#/$defs/uidArray" }
+      }
+    }
+  }
+}
