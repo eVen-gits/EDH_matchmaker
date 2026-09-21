@@ -2732,7 +2732,7 @@ class Player(IPlayer):
 
     def motc(self, tour_round: Round | None = None) -> float:
         """Match Opponents' Total Combined score.
-        
+
         Sum of match points of all opponents faced.
         """
         if tour_round is None:
