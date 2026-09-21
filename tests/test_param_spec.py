@@ -61,7 +61,11 @@ class TestShippedParamSpecs(unittest.TestCase):
         logic = Tournament.get_pairing_logic("PairingDefault")
         self.assertEqual(
             logic.DEFAULT_PARAMS,
-            {"rematch_penalty_exponent": 2, "small_pod_penalty": 10},
+            {
+                "rematch_penalty_exponent": 2,
+                "small_pod_penalty": 10,
+                "games_to_win": 1,
+            },
         )
         for value in logic.DEFAULT_PARAMS.values():
             self.assertIs(type(value), int)
@@ -72,9 +76,12 @@ class TestShippedParamSpecs(unittest.TestCase):
         self.assertEqual((spec.min, spec.max), (1, 4))
 
     def test_pairing_logic_without_sidecar_has_empty_spec(self):
+        # PairingRandom ships no sidecar of its own, but inherits
+        # games_to_win from commander/CommonPairing.params.yaml (shared by
+        # every pairing logic with no more specific sidecar).
         logic = Tournament.get_pairing_logic("PairingRandom")
-        self.assertEqual(logic.PARAM_SPEC, {})
-        self.assertEqual(logic.DEFAULT_PARAMS, {})
+        self.assertEqual(logic.PARAM_SPEC.keys(), {"games_to_win"})
+        self.assertEqual(logic.DEFAULT_PARAMS, {"games_to_win": 1})
 
 
 class TestLoaderValidation(unittest.TestCase):

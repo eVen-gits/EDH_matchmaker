@@ -90,8 +90,7 @@ class TestSerialization(unittest.TestCase):
 
         assert self.t.tour_round is not None
         for pod in self.t.tour_round.pods:
-            self.t.report_win(pod.players[0])
-            self.t.report_draw([pod.players[1], pod.players[2]])
+            self.t.report_draw([pod.players[0], pod.players[1], pod.players[2]])
 
         player_to_drop = self.t.tour_round.pods[0].players[3]
         self.t.drop_player(player_to_drop)

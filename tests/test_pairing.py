@@ -467,6 +467,7 @@ class TestPairingParams(unittest.TestCase):
         self.assertEqual(logic._param(r0, "rematch_penalty_exponent"), 3)
         self.assertEqual(logic.params(r0), {
             "rematch_penalty_exponent": 3, "small_pod_penalty": 5,
+            "games_to_win": 1,
         })
         t.random_results()
         t.new_round()
@@ -520,10 +521,13 @@ class TestPodSizeCompatibility(unittest.TestCase):
             Tournament.selectable_pairing_logics([5, 4, 3]),
             ["PairingDefault", "PairingRandom", "PairingSnake"],
         )
-        # Only Random supports 2-player pods among current algorithms.
+        # Random and 1v1 (mtg, 2-player pods) support 2-player pods.
         self.assertEqual(
-            Tournament.selectable_pairing_logics([2]), ["PairingRandom"]
+            Tournament.selectable_pairing_logics([2]),
+            ["Pairing1v1", "PairingRandom"],
         )
+        # A mixed size list including a non-2 size excludes 1v1 (it only
+        # supports pod size 2).
         self.assertEqual(
             Tournament.selectable_pairing_logics([4, 3, 2]), ["PairingRandom"]
         )
@@ -531,7 +535,7 @@ class TestPodSizeCompatibility(unittest.TestCase):
     def test_selectable_without_pod_sizes_returns_all(self):
         self.assertEqual(
             Tournament.selectable_pairing_logics(),
-            ["PairingDefault", "PairingRandom", "PairingSnake"],
+            ["Pairing1v1", "PairingDefault", "PairingRandom", "PairingSnake"],
         )
 
     def test_supported_pod_sizes_are_valid(self):
