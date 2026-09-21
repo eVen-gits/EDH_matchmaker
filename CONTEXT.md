@@ -208,10 +208,13 @@ final.
 `_bracket_seed_order`)
 **Invariant:** A pod's drawn result inside a bracket round has no defined
 "who advances" answer (MTR disallows draws in single elimination) -
-`Round.advancing_players` (`src/core.py`) raises for a drawn pod with
-exactly 2 players rather than picking one, before any `PairingBracketN`
-class runs. Don't add draw-tolerance to the bracket pairing classes; the
-correct behavior is to raise, and it already happens one layer up.
+`PairingBracketCommon.make_pairings` (`src/logic/mtg/matching.py`) raises
+for a drawn 2-player pod from the previous *bracket* round (a Swiss-round
+draw is legitimate and doesn't affect cut membership, so it's not checked).
+This lives at the pairing call site rather than in `Round.advancing_players`
+because the latter placement broke `Tournament.get_standings()`/standings
+exports on a tournament containing a drawn match. Don't add draw-tolerance
+to the bracket pairing classes; the correct behavior is to raise.
 
 ## `<ClassName>.params.yaml` sidecar
 
