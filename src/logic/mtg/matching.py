@@ -104,11 +104,20 @@ class PairingBracketCommon(_commander_matching.CommonPairing):
         final_swiss = tour.final_swiss_round  # type: ignore[attr-defined]
         assert final_swiss is not None, "Bracket pairing requires a completed Swiss stage."
 
-        # Validate no 2-player pod ended in a draw (MTR §2.3 requires decisive result)
+        # Validate no 2-player pod ended in a draw (MTR §2.3 requires decisive result).
+        # Only pods entirely within this round's survivors are relevant - the
+        # previous round may be the full final Swiss round, which also covers
+        # players who did not make the cut.
         previous_round = tour_round.tour.rounds[tour_round.seq - 1] if tour_round.seq > 0 else None
         if previous_round is not None:
             for pod in previous_round.pods:
-                if isinstance(pod, Pod) and pod.done and pod.result_type == Pod.EResult.DRAW and len(pod.players) == 2:
+                if (
+                    isinstance(pod, Pod)
+                    and pod.done
+                    and pod.result_type == Pod.EResult.DRAW
+                    and len(pod.players) == 2
+                    and all(p in players for p in pod.players)
+                ):
                     raise ValueError(
                         f"Pod {pod.table}'s match ended in a draw; MTR "
                         "requires a decisive result in single "
