@@ -2,7 +2,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing_extensions import override
 
-from ...core import Pod
+from ...core import Pod, Round
 from ...interface import IPlayer, IPod, IRound
 from ..commander import matching as _commander_matching
 
@@ -105,18 +105,19 @@ class PairingBracketCommon(_commander_matching.CommonPairing):
         assert final_swiss is not None, "Bracket pairing requires a completed Swiss stage."
 
         # Validate no 2-player pod ended in a draw (MTR §2.3 requires decisive result).
-        # Only pods entirely within this round's survivors are relevant - the
-        # previous round may be the full final Swiss round, which also covers
-        # players who did not make the cut.
+        # A Swiss-round draw is legitimate and doesn't affect who enters the cut
+        # (membership is by standings rank, not pod outcome), so only bracket
+        # rounds are checked here - and unconditionally, since disable_topcut's
+        # standings-based cut may arbitrarily keep only one of a drawn pod's two
+        # players active by the time this runs.
         previous_round = tour_round.tour.rounds[tour_round.seq - 1] if tour_round.seq > 0 else None
-        if previous_round is not None:
+        if previous_round is not None and previous_round.stage_value != Round.Stage.SWISS.value:
             for pod in previous_round.pods:
                 if (
                     isinstance(pod, Pod)
                     and pod.done
                     and pod.result_type == Pod.EResult.DRAW
                     and len(pod.players) == 2
-                    and all(p in players for p in pod.players)
                 ):
                     raise ValueError(
                         f"Pod {pod.table}'s match ended in a draw; MTR "
