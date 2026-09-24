@@ -18,6 +18,24 @@ TournamentAction.LOGF = False  # type: ignore
 
 
 @pytest.mark.performance
+class TestMtg1v1PairingPerformance(unittest.TestCase):
+    def test_256_players_pair_under_5s(self):
+        t = Tournament(
+            TournamentConfiguration(
+                ruleset="Mtg1v1Ruleset", auto_export=False, n_rounds=5
+            )
+        )
+        t.add_player([f"{i}:{fkr.name()}" for i in range(256)])
+        for _ in tqdm(range(t.config.n_rounds), desc="Pairing1v1 speed, 256 players"):
+            time_start = time.time()
+            t.create_pairings()
+            delta_time = time.time() - time_start
+            self.assertLess(delta_time, 5)
+            t.random_results()
+            t.new_round()
+
+
+@pytest.mark.performance
 class TestPerformance(unittest.TestCase):
     def test_new_round_speed(self):
         t = Tournament(
