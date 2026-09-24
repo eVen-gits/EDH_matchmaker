@@ -234,6 +234,29 @@ class TestTopCutNone(unittest.TestCase):
         self.assertFalse(ok)
 
 
+class TestTopCutEligibility(unittest.TestCase):
+    """disable_topcut draws the top-N line against active players only, at
+    the first playoff round - a player who dropped before the cut must not
+    still occupy a top-N slot (spec 5: no one replaces a post-cut drop, but
+    that implies the next player DOES advance when someone drops before
+    it)."""
+
+    def test_drop_after_last_swiss_round_lets_5th_place_advance(self):
+        t = _make_tournament(TournamentConfiguration.TopCut.TOP_4)
+        _run_swiss(t, 2)
+
+        standings = t.get_standings(t.tour_round)
+        top4_before_drop = standings[:4]
+        fifth_place = standings[4]
+
+        t.drop_player(top4_before_drop[0])
+
+        t.create_pairings()
+        self.assertEqual(len(t.tour_round.active_players), 4)
+        self.assertIn(fifth_place, t.tour_round.active_players)
+        self.assertNotIn(top4_before_drop[0], t.tour_round.active_players)
+
+
 class TestTopCutStandings(unittest.TestCase):
     """Playoff standings correctly rank advancing and eliminated players."""
 

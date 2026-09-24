@@ -223,8 +223,14 @@ class TestSerializationTopCut(unittest.TestCase):
     # ------------------------------------------------------------------ config
 
     def test_top_cut_config_preserved_for_all_values(self) -> None:
-        """config.top_cut survives serialize/inflate for every TopCut variant."""
+        """config.top_cut survives serialize/inflate for every TopCut variant
+        CommanderRuleset accepts (some TopCut values, e.g. TOP_2/TOP_8, are
+        MTG-only - see CommanderRuleset.PLAYOFFS)."""
         for tc in TournamentConfiguration.TopCut:
+            if tc != TournamentConfiguration.TopCut.NONE and int(tc) not in (
+                Tournament.get_ruleset("CommanderRuleset").PLAYOFFS
+            ):
+                continue
             with self.subTest(top_cut=tc):
                 t = self._make_tournament(tc)
                 t2 = self._reload(t)

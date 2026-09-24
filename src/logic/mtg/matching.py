@@ -156,3 +156,108 @@ class Pairing1v1(_commander_matching.CommonPairing):
             pod.add_player(worse)
 
         return players
+
+
+def bracket_seed_order(n: int) -> list[int]:
+    """Seeds in bracket order, e.g. 8 -> [1, 8, 4, 5, 2, 7, 3, 6] (MTR 10.4).
+
+    Adjacent pairs at every power-of-two sub-block are the correct
+    matchups for a standard single-elimination bracket: slots[0:2] is the
+    first-round match "highest seed vs lowest seed" of the top half,
+    slots[0:4] is that whole quarter's eventual final, and so on.
+    """
+    order = [1]
+    while len(order) < n:
+        m = 2 * len(order)
+        order = [x for s in order for x in (s, m + 1 - s)]
+    return order
+
+
+class PairingBracket(_commander_matching.CommonPairing):
+    """Single-elimination playoff bracket (spec 4, MTR 10.4).
+
+    Chosen automatically per playoff stage by Mtg1v1Ruleset.PLAYOFFS, never
+    offered to the user (SELECTABLE = False) - so it ships no sidecar. The
+    bracket is seeded once, at the cut, and never reseeded: every stage
+    recomputes the same seed list from the final Swiss standings, filtered
+    to players who were still active when the first playoff round was
+    created (a player who dropped or was disabled before the cut does not
+    occupy a bracket slot - see Round.disable_topcut).
+    """
+
+    IS_COMPLETE = True
+    SELECTABLE = False
+    SUPPORTED_POD_SIZES = (2,)
+
+    def make_pairings(
+        self, tour_round: IRound, players: set[IPlayer], pods: list[IPod]
+    ) -> set[IPlayer]:
+        tour = tour_round.tour
+        n = int(tour.config.top_cut)  # pyright: ignore[reportAttributeAccessIssue]
+        s = tour_round.stage.value  # pyright: ignore[reportAttributeAccessIssue]
+
+        final_swiss = tour.final_swiss_round  # pyright: ignore[reportAttributeAccessIssue]
+        assert final_swiss is not None  # a playoff round always follows Swiss
+        # final_swiss.active_players, not the first playoff round's: once
+        # playoffs begin, final_swiss is never t.tour_round again, so
+        # nothing can add a later drop to its _dropped set - it stays a
+        # true snapshot of who was still active right when the cut was
+        # made. The first playoff round's own _dropped, by contrast, keeps
+        # growing every time someone drops while it is the current round
+        # (e.g. after the QF is paired but before the SF), which would
+        # otherwise shrink the seed list on a later PairingBracket call and
+        # break the fixed bracket.
+        eligible_at_cut = final_swiss.active_players  # pyright: ignore[reportAttributeAccessIssue]
+        full_standings = tour.get_standings(final_swiss)  # pyright: ignore[reportAttributeAccessIssue]
+        seeds = [p for p in full_standings if p in eligible_at_cut][:n]
+        slots = [seeds[i - 1] for i in bracket_seed_order(n)]
+        seed_rank = {p: i for i, p in enumerate(seeds)}
+
+        block = 2 * n // s
+        half = block // 2
+        matches: list[tuple[IPlayer, IPlayer] | IPlayer] = []
+        for block_start in range(0, n, block):
+            left = [
+                p for p in slots[block_start : block_start + half] if p in players
+            ]
+            right = [
+                p
+                for p in slots[block_start + half : block_start + block]
+                if p in players
+            ]
+            if len(left) > 1 or len(right) > 1:
+                raise ValueError(
+                    "No valid bracket pairing: more than one surviving "
+                    "player on one side of a bracket block."
+                )
+            if left and right:
+                a, b = left[0], right[0]
+                # Higher seed (lower seed_rank) first - seat order is
+                # informational only (spec 4: who chooses play/draw).
+                matches.append((a, b) if seed_rank[a] < seed_rank[b] else (b, a))
+            elif left or right:
+                matches.append(left[0] if left else right[0])
+            # Neither present (both eliminated or dropped): no match.
+
+        pod_iter = iter(pods)
+        used_pods: list[IPod] = []
+        for match in matches:
+            if isinstance(match, tuple):
+                try:
+                    pod = next(pod_iter)
+                except StopIteration:
+                    raise ValueError(
+                        "No valid bracket pairing: more matches than pods."
+                    ) from None
+                used_pods.append(pod)
+                a, b = match
+                pod.add_player(a)
+                pod.add_player(b)
+            else:
+                match.set_result(tour_round, IPlayer.EResult.BYE)
+
+        for pod in pods:
+            if pod not in used_pods:
+                tour_round.remove_pod(pod)
+
+        return players
