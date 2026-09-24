@@ -288,6 +288,30 @@ the exact tuple; this page does not restate it since it would only drift
 (see [Where parameter definitions live](#where-parameter-definitions-live-implementation-note)
 for the same rationale applied to scoring parameters).
 
+### `Mtg1v1Ruleset`
+
+Rules for 1v1 Magic tournaments (`config.ruleset: "Mtg1v1Ruleset"`), pod
+size `2` only. `games_to_win` (default `2`, best of three) is a
+`ruleset_params` field for this ruleset - see the `config` table and
+`src/logic/mtg/Mtg1v1Ruleset.params.yaml` for its default, range, and
+description; it can be overridden per Swiss round
+(`pairing_rounds[i].ruleset_params`) or per playoff stage
+(`playoff_rounds[stage].ruleset_params`).
+
+A pod's `games` is that match's whole report: each game's `winners` holds
+one UID (that player won the game) or both seated UIDs (a draw). A valid
+report has at least one game, no player's single-game win count exceeding
+`games_to_win`, and not both players reaching it - a report may end below
+`games_to_win` when a round's time limit is called (a `1-0` at the time
+limit is valid; a `2-2` tied outcome at `games_to_win: 2` is not, and
+neither is an over-cap `3-0`). The match `result` is derived by tallying
+single-winner games: the sole leader is the match winner; a tied leader
+count (including an all-drawn report) is a match draw.
+
+`src/logic/mtg/mtr-1v1-spec.md` has the full Magic Tournament Rules
+citations this implements; this page states only what changes the wire
+format's validity, not the rules text itself.
+
 ## Enum reference
 
 The fields below carry integer values over the wire. A reader must
@@ -705,9 +729,10 @@ formulas from [Scoring logic](#scoring-logic); they are not part of the
 JSON schema themselves, only the `config.scoring_logic` string that names
 one of them.
 
-`CommanderRuleset` (`src/logic/commander/rules.py`) implements
-[Rulesets](#rulesets); like the scoring logics above, it is not part of the
-JSON schema itself, only the `config.ruleset` string that names it.
+`CommanderRuleset` (`src/logic/commander/rules.py`) and `Mtg1v1Ruleset`
+(`src/logic/mtg/rules.py`) implement [Rulesets](#rulesets); like the
+scoring logics above, neither is part of the JSON schema itself, only the
+`config.ruleset` string that names one of them.
 
 `tests/test_serialization.py` holds round-trip tests that double as
 executable proof of this contract, including a test that loads a real
