@@ -75,6 +75,33 @@
         "scoring_params": {
           "type": "object",
           "description": "Field names and defaults are owned by whichever class scoring_logic names - see the Scoring logic section of tournament-log-spec.md. Deliberately schema-free: a new scoring algorithm's params don't require a schema change here."
+        },
+        "ruleset": {
+          "type": "string",
+          "description": "Class name of the IRuleset owning this tournament's game rules - see the Rulesets section of tournament-log-spec.md."
+        },
+        "pairing_rounds": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/pairingRound" }
+        },
+        "playoff_rounds": {
+          "type": "object",
+          "description": "Ruleset param overrides per playoff stage, keyed by stage value as a string (see stageOrTopCut). Deliberately schema-free per key: {\"ruleset_params\": {...}}."
+        }
+      }
+    },
+    "pairingRound": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "logic": { "type": ["string", "null"] },
+        "params": {
+          "type": "object",
+          "description": "Field names and defaults are owned by whichever pairing class `logic` names - deliberately schema-free."
+        },
+        "ruleset_params": {
+          "type": "object",
+          "description": "Field names and defaults are owned by the tournament's ruleset - deliberately schema-free."
         }
       }
     },
@@ -136,9 +163,22 @@
         "result": { "$ref": "#/$defs/uidArray" },
         "games": {
           "type": "array",
-          "items": { "$ref": "#/$defs/uidArray" }
+          "items": { "$ref": "#/$defs/game" }
         },
         "players": { "$ref": "#/$defs/uidArray" }
+      }
+    },
+    "game": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["winners"],
+      "properties": {
+        "winners": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/uid" },
+          "uniqueItems": true,
+          "minItems": 1
+        }
       }
     }
   }

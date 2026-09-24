@@ -116,14 +116,6 @@ class CommonPairing(IPairingLogic, ABC):
 
         return byes
 
-    @override
-    def advance_topcut(self, tour_round: IRound, standings: list[IPlayer]) -> None:
-        """
-        This should only be implemented in topcut pairing logic
-        """
-        raise ValueError("Not implemented")
-
-
 class PairingRandom(CommonPairing):
     IS_COMPLETE: bool = True
     # Random shuffles players into pods of any cap, so it supports any size.

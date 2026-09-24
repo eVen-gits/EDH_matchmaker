@@ -9,8 +9,7 @@ class Pairing1v1(_commander_matching.PairingDefault):
     opponents, rating, opponent pointrate) and greedy pod-fit scoring are
     generic Swiss-pairing logic, not multiplayer-specific, so 1v1 reuses it
     as-is - only the supported pod size differs. Ships no sidecar of its
-    own, so it inherits commander/PairingDefault.params.yaml's parameters
-    (including games_to_win, see commander/CommonPairing.params.yaml).
+    own, so it inherits commander/PairingDefault.params.yaml's parameters.
     """
 
     IS_COMPLETE = True

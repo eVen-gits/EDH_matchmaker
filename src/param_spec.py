@@ -24,6 +24,7 @@ there is no per-call file I/O.
 from __future__ import annotations
 
 import sys
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -132,6 +133,48 @@ def load_param_spec(cls: type) -> dict[str, ParamSpec]:
                 f"unknown parameter '{spec.visible_when[0]}'."
             )
     return specs
+
+
+def validate_values(
+    specs: Mapping[str, ParamSpec], values: Mapping[str, Any], where: str
+) -> None:
+    """Validates a {param_name: value} mapping against a loaded param spec.
+
+    Used to check a tournament-config override (e.g. a round's
+    ``ruleset_params``) against the owning algorithm's ``PARAM_SPEC``, since
+    such overrides bypass the sidecar-loading validation in `_build_spec`.
+
+    Args:
+        specs: The algorithm's parameter spec (its ``PARAM_SPEC``).
+        values: The values to validate, keyed by parameter name.
+        where: Human-readable location, used in the raised message.
+
+    Raises:
+        ValueError: On an unknown parameter name, a value of the wrong
+            type, a value outside its declared min/max, or a value not in
+            its declared choices.
+    """
+    for name, value in values.items():
+        if name not in specs:
+            raise ValueError(f"{where}: unknown parameter '{name}'.")
+        spec = specs[name]
+        if spec.type == "float":
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(f"{where}: '{name}' must be a float, got {value!r}.")
+        else:
+            expected = _TYPES[spec.type]
+            if type(value) is not expected:
+                raise ValueError(
+                    f"{where}: '{name}' must be a {spec.type}, got {value!r}."
+                )
+        if spec.min is not None and value < spec.min:
+            raise ValueError(f"{where}: '{name}'={value!r} is below min {spec.min}.")
+        if spec.max is not None and value > spec.max:
+            raise ValueError(f"{where}: '{name}'={value!r} is above max {spec.max}.")
+        if spec.choices is not None and value not in spec.choices:
+            raise ValueError(
+                f"{where}: '{name}'={value!r} is not one of {spec.choices}."
+            )
 
 
 def _build_spec(path: Path, name: str, descriptor: Any) -> ParamSpec:

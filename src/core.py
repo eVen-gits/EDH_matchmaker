@@ -23,16 +23,19 @@ from tqdm import tqdm
 from typing_extensions import override
 
 from .interface import (
+    IGameResult,
     IHashable,
     IPairingLogic,
     IPlayer,
     IPod,
     IRound,
+    IRuleset,
     IScoringLogic,
     IStandingsExport,
     ITournament,
     ITournamentConfiguration,
 )
+from .param_spec import validate_values
 
 _F = TypeVar("_F", bound=Callable[..., Any])
 
@@ -628,7 +631,16 @@ class TournamentConfiguration(ITournamentConfiguration):
         Args:
             **kwargs: Arbitrary keyword arguments using the configuration.
         """
-        self.pod_sizes: Sequence[int] = kwargs.get("pod_sizes", [4, 3])
+        # Class name of the IRuleset that owns this tournament's game rules
+        # (src/logic/<game>/rules.py) - see IRuleset. Resolved first: it
+        # also supplies the defaults of pod_sizes, scoring_logic and
+        # standings_export.fields below when the caller does not pass them.
+        self.ruleset: str = kwargs.get("ruleset", "CommanderRuleset")
+        ruleset_cls = Tournament.get_ruleset(self.ruleset)
+
+        self.pod_sizes: Sequence[int] = kwargs.get(
+            "pod_sizes", list(ruleset_cls.DEFAULT_POD_SIZES)
+        )
         self.allow_bye: bool = kwargs.get("allow_bye", True)
         self.snake_pods: bool = kwargs.get("snake_pods", True)
         self.n_rounds: int = kwargs.get("n_rounds", 5)
@@ -647,7 +659,13 @@ class TournamentConfiguration(ITournamentConfiguration):
         self.max_byes: int = kwargs.get("max_byes", 2)
         self.auto_export: bool = kwargs.get("auto_export", True)
         self.standings_export: IStandingsExport = kwargs.get(
-            "standings_export", StandingsExport()
+            "standings_export",
+            StandingsExport(
+                fields=[
+                    StandingsExport.Field[f]
+                    for f in ruleset_cls.DEFAULT_STANDINGS_FIELDS
+                ]
+            ),
         )
         self.global_wr_seats: Sequence[float] = kwargs.get(
             "global_wr_seats",
@@ -668,15 +686,25 @@ class TournamentConfiguration(ITournamentConfiguration):
         # whichever IScoringLogic class scoring_logic names (its
         # DEFAULT_PARAMS), not to TournamentConfiguration - see
         # IScoringLogic.params()/._param().
-        self.scoring_logic: str = kwargs.get("scoring_logic", "ScoringDefault")
+        self.scoring_logic: str = kwargs.get(
+            "scoring_logic", ruleset_cls.DEFAULT_SCORING_LOGIC
+        )
         self.scoring_params: dict[str, Any] = dict(kwargs.get("scoring_params", {}))
         # Per Swiss round, the pairing configuration: one dict per round,
-        # {"logic": <name or None>, "params": {<param>: value}}. logic None (or
-        # a missing/short list) falls back to the adaptive default in
-        # Tournament.__compute_stage_and_logic. Top-cut rounds ignore this.
-        # params are opaque here - field names and defaults belong to each
-        # pairing class (its DEFAULT_PARAMS), see CommonPairing.params().
+        # {"logic": <name or None>, "params": {<param>: value}, "ruleset_params":
+        # {<param>: value}}. logic None (or a missing/short list) falls back to
+        # the adaptive default in Tournament.__compute_stage_and_logic.
+        # Top-cut rounds ignore this. params/ruleset_params are opaque here -
+        # field names and defaults belong to each pairing class / the
+        # ruleset (their DEFAULT_PARAMS), see CommonPairing.params() /
+        # IRuleset.params().
         self.pairing_rounds: list[dict[str, Any]] = self._build_pairing_rounds(kwargs)
+        # Ruleset param overrides per playoff stage: {stage_value:
+        # {"ruleset_params": {...}}}. Stages not in the current playoff plan
+        # are ignored. See ruleset_overrides.
+        self.playoff_rounds: dict[int, dict[str, Any]] = {
+            int(k): dict(v) for k, v in kwargs.get("playoff_rounds", {}).items()
+        }
 
     @staticmethod
     def _build_pairing_rounds(kwargs: dict) -> list[dict[str, Any]]:
@@ -689,7 +717,11 @@ class TournamentConfiguration(ITournamentConfiguration):
         rounds = kwargs.get("pairing_rounds")
         if rounds is not None:
             return [
-                {"logic": r.get("logic"), "params": dict(r.get("params", {}))}
+                {
+                    "logic": r.get("logic"),
+                    "params": dict(r.get("params", {})),
+                    "ruleset_params": dict(r.get("ruleset_params", {})),
+                }
                 for r in rounds
             ]
         logics = list(kwargs.get("pairing_logics", []))
@@ -698,9 +730,20 @@ class TournamentConfiguration(ITournamentConfiguration):
             {
                 "logic": logics[i] if i < len(logics) else None,
                 "params": dict(params[i]) if i < len(params) else {},
+                "ruleset_params": {},
             }
             for i in range(max(len(logics), len(params)))
         ]
+
+    def ruleset_overrides(self, tour_round: IRound) -> Mapping[str, Any]:
+        """This round's ruleset param overrides (see IRuleset.params())."""
+        if tour_round.stage == Round.Stage.SWISS:
+            seq = tour_round.seq
+            rounds = self.pairing_rounds
+            return rounds[seq].get("ruleset_params", {}) if seq < len(rounds) else {}
+        return self.playoff_rounds.get(tour_round.stage.value, {}).get(
+            "ruleset_params", {}
+        )
 
     @property
     def pairing_logics(self) -> list[str | None]:
@@ -732,34 +775,6 @@ class TournamentConfiguration(ITournamentConfiguration):
         """
         return max(self.pod_sizes)
 
-    @staticmethod
-    @override
-    def ranking(
-        x: IPlayer,
-        tour_round: IRound,
-        ratings: Mapping[Any, float] | None = None,
-    ) -> tuple[int | float | str, ...]:
-        """Calculates the ranking score for a player.
-
-        Args:
-            x: The player.
-            tour_round: The current round.
-            ratings: Optional precomputed full-field rating map. get_standings
-                computes it once and passes it so the sort does not recompute
-                the whole field once per player.
-
-        Returns:
-            A tuple of ranking criteria.
-        """
-        return (
-            x.rating(tour_round, ratings),
-            len(x.games(tour_round)),
-            np.round(x.opponent_pointrate(tour_round, ratings), 10),
-            len(x.players_beaten(tour_round)),
-            -x.average_seat([r for r in x.tour.rounds if r.seq <= tour_round.seq]),
-            -x.uid if isinstance(x.uid, int) else -int(x.uid.int),
-        )
-
     @override
     def __repr__(self):
         return "Tour. cfg:" + "|".join(
@@ -780,6 +795,8 @@ class TournamentConfiguration(ITournamentConfiguration):
             "scoring_logic": self.scoring_logic,
             "scoring_params": self.scoring_params,
             "pairing_rounds": self.pairing_rounds,
+            "ruleset": self.ruleset,
+            "playoff_rounds": {str(k): v for k, v in self.playoff_rounds.items()},
         }
 
     @classmethod
@@ -818,6 +835,11 @@ class TournamentConfiguration(ITournamentConfiguration):
             # consolidated "pairing_rounds"; else zip the never-released separate
             # "pairing_logics"/"pairing_params" lists (params may be a stale {}).
             **cls._inflate_pairing(data),
+            # Additive fields - absent in files written before this version.
+            ruleset=data.get("ruleset", "CommanderRuleset"),
+            playoff_rounds={
+                int(k): v for k, v in data.get("playoff_rounds", {}).items()
+            },
         )
 
     @staticmethod
@@ -852,6 +874,7 @@ class Tournament(ITournament):
 
     _pairing_logic_cache: dict[str, type[IPairingLogic]] = {}
     _scoring_logic_cache: dict[str, type[IScoringLogic]] = {}
+    _ruleset_cache: dict[str, IRuleset] = {}
 
     # Version of the tournament-log JSON format written by TournamentAction.store.
     # Bump this, and add a matching format_version branch in inflate(),
@@ -960,6 +983,37 @@ class Tournament(ITournament):
 
         return cls._scoring_logic_cache[logic_name]
 
+    @classmethod
+    def discover_ruleset(cls) -> None:
+        """Discover and cache all ruleset implementations from src/logic/*/rules.py."""
+        if cls._ruleset_cache:
+            return
+        cls._discover_logic("rules.py", IRuleset, cls._ruleset_cache)
+
+    @classmethod
+    def get_ruleset(cls, name: str) -> IRuleset:
+        """Get a ruleset instance by name.
+
+        Args:
+            name: The name of the ruleset class.
+
+        Returns:
+            The ruleset instance.
+
+        Raises:
+            ValueError: If no ruleset by that name is discoverable.
+        """
+        cls.discover_ruleset()
+
+        if name not in cls._ruleset_cache:
+            raise ValueError(f"Unknown ruleset: {name}")
+
+        return cls._ruleset_cache[name]
+
+    @property
+    def ruleset(self) -> IRuleset:
+        return self.get_ruleset(self.config.ruleset)
+
     def __init__(
         self,
         config: TournamentConfiguration | None = None,
@@ -987,6 +1041,13 @@ class Tournament(ITournament):
         # self._disabled: list[UUID] = list()  # Players disabled from top cut (but still in tournament)
         self._round: UUID | None = None
         self.created_at: datetime = datetime.now(timezone.utc)
+
+        # Validates ruleset/pod_sizes/top_cut/ruleset_params on construction
+        # (including inflate(), which constructs via this __init__ before
+        # attaching players/rounds) - self.config is this same config
+        # object, so the "ruleset changed after results exist" rule never
+        # fires here, only via the config setter.
+        self.__validate_config(config)
 
         # Direct setting - don't want to overwrite old log file
         # self.new_round()
@@ -1154,18 +1215,71 @@ class Tournament(ITournament):
         """
         Validates the tournament configuration.
 
+        Called from the config setter (before the new config replaces the
+        old one - self.config below still returns the old config) and from
+        __init__ (where self.config already IS config, so rule 6 below can
+        never fire there - it only guards a change on a running tournament).
+
         Args:
             config: The tournament configuration.
 
         Returns:
-            bool:
-                - True if the configuration is valid.
-                - False if the configuration is invalid.
+            bool: True if the configuration is valid.
+
+        Raises:
+            ValueError: If any rule below is violated.
         """
         if len(self.swiss_rounds) > config.n_rounds:
             raise ValueError(
                 "Tournament has already reached the maximum number of rounds."
             )
+
+        # Unknown ruleset name.
+        ruleset = self.get_ruleset(config.ruleset)
+
+        # pod_sizes must be non-empty and a subset of the ruleset's allowed sizes.
+        if not config.pod_sizes:
+            raise ValueError("pod_sizes must not be empty.")
+        if ruleset.ALLOWED_POD_SIZES is not None and not set(
+            config.pod_sizes
+        ).issubset(ruleset.ALLOWED_POD_SIZES):
+            raise ValueError(
+                f"pod_sizes {list(config.pod_sizes)} not allowed for "
+                f"{config.ruleset} (allowed: {list(ruleset.ALLOWED_POD_SIZES)})."
+            )
+
+        # top_cut must be 0 or a key of the ruleset's playoff plan.
+        top_cut = int(config.top_cut)
+        if top_cut != 0 and top_cut not in ruleset.PLAYOFFS:
+            raise ValueError(f"top_cut {top_cut} is not valid for {config.ruleset}.")
+
+        # ruleset_params overrides (Swiss and playoff) must validate against
+        # the ruleset's own PARAM_SPEC.
+        for seq, pairing_round in enumerate(config.pairing_rounds):
+            overrides = pairing_round.get("ruleset_params")
+            if overrides:
+                validate_values(
+                    ruleset.PARAM_SPEC,
+                    overrides,
+                    where=f"pairing_rounds[{seq}].ruleset_params",
+                )
+        for stage, playoff_round in config.playoff_rounds.items():
+            overrides = playoff_round.get("ruleset_params")
+            if overrides:
+                validate_values(
+                    ruleset.PARAM_SPEC,
+                    overrides,
+                    where=f"playoff_rounds[{stage}].ruleset_params",
+                )
+
+        # A result must never be re-read under another game's rules.
+        has_results = any(r._pods or r._byes or r._game_loss for r in self.rounds)
+        if has_results and config.ruleset != self.config.ruleset:
+            raise ValueError(
+                "Cannot change ruleset after the tournament has pods, byes, "
+                "or game losses."
+            )
+
         return True
 
     @property
@@ -1442,17 +1556,14 @@ class Tournament(ITournament):
     def _adaptive_pairing_logic(self, seq: int) -> IPairingLogic:
         """The default pairing logic for a Swiss round with no explicit choice.
 
-        Round 0 uses Random, round 1 Snake (when snake_pods), later rounds
-        Default. If that pick does not support the tournament's pod sizes, it
-        falls back to the first compatible selectable logic (Random supports
-        any size), so the adaptive default never violates the pod-size limit.
+        The base name comes from the ruleset (IRuleset.swiss_pairing_logic).
+        If that pick does not support the tournament's pod sizes, this falls
+        back to the first compatible selectable logic (PairingRandom
+        supports any size), so the adaptive default never violates the
+        pod-size limit - that fallback stays here, in core, since it isn't
+        game-specific.
         """
-        if seq == 0:
-            name = "PairingRandom"
-        elif seq == 1 and self.config.snake_pods:
-            name = "PairingSnake"
-        else:
-            name = "PairingDefault"
+        name = self.ruleset.swiss_pairing_logic(self, seq)
         logic = self.get_pairing_logic(name)
         if not logic.supports_pod_sizes(self.config.pod_sizes):
             compatible = self.selectable_pairing_logics(self.config.pod_sizes)
@@ -1467,8 +1578,10 @@ class Tournament(ITournament):
 
         For a Swiss round, the pairing logic comes from config.pairing_logics
         (one name per Swiss round) when that seq is configured; otherwise it
-        falls back to the adaptive default (round 1 Random, round 2 Snake when
-        snake_pods, later rounds Default). Top-cut rounds are fixed by stage.
+        falls back to the adaptive default (see _adaptive_pairing_logic).
+        Top-cut rounds follow the ruleset's playoff plan
+        (IRuleset.PLAYOFFS[top_cut]): the previous round's stage decides
+        which entry of the plan comes next.
 
         Args:
             seq: The 0-indexed sequence number of the round.
@@ -1480,71 +1593,29 @@ class Tournament(ITournament):
         stage = Round.Stage.SWISS
         logic: IPairingLogic | None = None
         if seq >= self.config.n_rounds and prev_stage is not None:
-            if self.config.top_cut == TournamentConfiguration.TopCut.NONE:
+            top_cut = int(self.config.top_cut)
+            if top_cut == 0:
                 Log.log("Maximum number of rounds reached.", level=Log.Level.WARNING)
                 return None
-            if self.config.top_cut == TournamentConfiguration.TopCut.TOP_4:
-                if prev_stage == Round.Stage.SWISS:
-                    logic = self.get_pairing_logic("PairingTop4")
-                    stage = Round.Stage.TOP_4
-                else:
-                    Log.log("Tournament completed.")
-                    return None
-            elif self.config.top_cut == TournamentConfiguration.TopCut.TOP_7:
-                if prev_stage == Round.Stage.SWISS:
-                    stage = Round.Stage.TOP_7
-                    logic = self.get_pairing_logic("PairingTop7")
-                elif prev_stage == Round.Stage.TOP_7:
-                    stage = Round.Stage.TOP_4
-                    logic = self.get_pairing_logic("PairingTop4")
-                else:
-                    Log.log("Tournament completed.")
-                    return None
-            elif self.config.top_cut == TournamentConfiguration.TopCut.TOP_10:
-                if prev_stage == Round.Stage.SWISS:
-                    stage = Round.Stage.TOP_10
-                    logic = self.get_pairing_logic("PairingTop10")
-                elif prev_stage == Round.Stage.TOP_10:
-                    stage = Round.Stage.TOP_4
-                    logic = self.get_pairing_logic("PairingTop4")
-                else:
-                    Log.log("Tournament completed.")
-                    return None
-            elif self.config.top_cut == TournamentConfiguration.TopCut.TOP_13:
-                if prev_stage == Round.Stage.SWISS:
-                    stage = Round.Stage.TOP_13
-                    logic = self.get_pairing_logic("PairingTop13")
-                elif prev_stage == Round.Stage.TOP_13:
-                    stage = Round.Stage.TOP_4
-                    logic = self.get_pairing_logic("PairingTop4")
-                else:
-                    Log.log("Tournament completed.")
-                    return None
-            elif self.config.top_cut == TournamentConfiguration.TopCut.TOP_16:
-                if prev_stage == Round.Stage.SWISS:
-                    stage = Round.Stage.TOP_16
-                    logic = self.get_pairing_logic("PairingTop16")
-                elif prev_stage == Round.Stage.TOP_16:
-                    stage = Round.Stage.TOP_4
-                    logic = self.get_pairing_logic("PairingTop4")
-                else:
-                    Log.log("Tournament completed.")
-                    return None
-            elif self.config.top_cut == TournamentConfiguration.TopCut.TOP_40:
-                if prev_stage == Round.Stage.SWISS:
-                    stage = Round.Stage.TOP_40
-                    logic = self.get_pairing_logic("PairingTop40")
-                elif prev_stage == Round.Stage.TOP_40:
-                    stage = Round.Stage.TOP_16
-                    logic = self.get_pairing_logic("PairingTop16")
-                elif prev_stage == Round.Stage.TOP_16:
-                    stage = Round.Stage.TOP_4
-                    logic = self.get_pairing_logic("PairingTop4")
-                else:
-                    Log.log("Tournament completed.")
-                    return None
-            else:
+            plan = self.ruleset.PLAYOFFS.get(top_cut)
+            if plan is None:
                 raise ValueError(f"Unknown top cut: {self.config.top_cut}")
+            if prev_stage == Round.Stage.SWISS:
+                entry = plan[0]
+            else:
+                stage_values = [value for value, _ in plan]
+                try:
+                    idx = stage_values.index(prev_stage.value)
+                except ValueError:
+                    Log.log("Tournament completed.")
+                    return None
+                if idx + 1 >= len(plan):
+                    Log.log("Tournament completed.")
+                    return None
+                entry = plan[idx + 1]
+            stage_value, logic_name = entry
+            stage = Round.Stage(stage_value)
+            logic = self.get_pairing_logic(logic_name)
         else:
             configured = self.config.pairing_logics
             name = configured[seq] if seq < len(configured) else None
@@ -1739,6 +1810,28 @@ class Tournament(ITournament):
             self.tour_round.set_result(players, Player.EResult.DRAW)
 
     @TournamentAction.action
+    def report_match(self, pod: Pod, games: list[IGameResult]) -> None:
+        """Reports a pod's whole match, replacing any earlier report.
+
+        Args:
+            pod: The pod being reported.
+            games: The match's complete list of games, in play order - see
+                IRuleset.validate_report for what makes a report valid for
+                this tournament's ruleset.
+        """
+        assert self.tour_round is not None
+        self.tour_round.record_result(pod, games)
+
+    @TournamentAction.action
+    def reset_result(self, pod: Pod) -> None:
+        """Clears a pod's match report, reopening it for a new report.
+
+        Args:
+            pod: The pod to reset.
+        """
+        pod.reset_result()
+
+    @TournamentAction.action
     def random_results(self):
         """Generates random results for all incomplete pods in the current round."""
         if not self.tour_round:
@@ -1748,34 +1841,8 @@ class Tournament(ITournament):
             # )
             return
         if self.tour_round.pods:
-            draw_rate = 1 - sum(self.config.global_wr_seats)
-            # for each pod
-            # generate a random result based on global_winrates_by_seat
-            # each value corresponds to the pointrate of the player in that seat
-            # the sum of percentages is less than 1, so there is a chance of a draw (1-sum(winrates))
-
             for pod in [x for x in self.tour_round.pods if not x.done]:
-                # generate a random result
-                result = random.random()
-                rates = np.array(
-                    self.config.global_wr_seats[0 : len(pod.players)] + [draw_rate]
-                )
-                rates = np.cumsum(rates / sum(rates))
-                draw = result > rates[-2]
-                if not draw:
-                    win = np.argmax([result < x for x in rates])
-                    # Log.log('won "{}"'.format(pod.players[win].name))
-                    self.tour_round.set_result(pod.players[win], Player.EResult.WIN)
-                    # player = random.sample(pod.players, 1)[0]
-                    # Log.log('won "{}"'.format(player.name))
-                    # self.tour_round.won([player])
-                else:
-                    players = pod.players
-                    # Log.log('draw {}'.format(
-                    #    ' '.join(['"{}"'.format(p.name) for p in players])))
-                    self.tour_round.set_result(players, Player.EResult.DRAW)
-                pass
-        pass
+                self.tour_round.record_result(pod, self.ruleset.random_report(pod))
 
     @TournamentAction.action
     def move_player_to_pod(
@@ -1980,9 +2047,10 @@ class Tournament(ITournament):
             # ranking chain, so the sort does not recompute it once per player
             # (~players x opponents times) - costly under wagering scoring.
             ratings = self.field_ratings(tour_round)
+            keys = self.ruleset.standings_keys(self, tour_round, ratings)
             standings = sorted(
                 self.players,
-                key=lambda x: self.config.ranking(x, tour_round, ratings),
+                key=lambda x: keys[x.uid],
                 reverse=True,
             )
         else:
@@ -2839,9 +2907,9 @@ class Player(IPlayer):
         if args.w:
             fields.append("w: {}".format(self.wins(tour_round)))
         if args.ow:
-            fields.append("o.wr.: {:.2f}".format(self.opponent_pointrate))
+            fields.append("o.wr.: {:.2f}".format(self.opponent_pointrate(tour_round)))
         if args.u:
-            fields.append("uniq: {}".format(self.played))
+            fields.append("uniq: {}".format(len(self.played(tour_round))))
         if args.s:
             fields.append(
                 "seat: {:02.00f}%".format(
@@ -2901,11 +2969,9 @@ class Pod(IPod):
         super().__init__(uid=uid)
         self.cap: int = cap
         self._players: list[UUID] = list()
-        # One entry per completed game, same win/draw cardinality encoding
-        # as the old single _result: one UID = that player won the game,
-        # two-or-more = that game was drawn among them. See _result below
-        # for the derived match-level (i.e. this pod's reported) outcome.
-        self._games: list[set[UUID]] = list()
+        # The pod's whole-match report, in play order. Validated and
+        # replaced as a unit by record_result - see IRuleset.validate_report.
+        self._games: list[IGameResult] = list()
         # self._players: list[UUID] = list() #TODO: make references to players
 
     @property
@@ -2926,46 +2992,37 @@ class Pod(IPod):
     def get(tour: Tournament, uid: UUID) -> Pod:
         return tour.POD_CACHE[uid]
 
-    def set_result(
-        self, players: Player | list[Player], result: IPlayer.EResult
-    ) -> None:
-        """Appends one game's outcome to the match.
+    @property
+    def games(self) -> tuple[IGameResult, ...]:
+        """This pod's whole-match report, in play order."""
+        return tuple(self._games)
+
+    def record_result(self, games: list[IGameResult]) -> None:
+        """Validates and replaces this pod's whole match report.
+
+        A new report always replaces any earlier one - see
+        IRuleset.validate_report and docs/tournament-log-spec.md, "Match
+        report".
 
         Args:
-            players: The game's winner (a single Player), or every player
-                the game was drawn among (a list).
-            result: WIN or DRAW.
+            games: The match's complete list of games, in play order.
 
         Raises:
-            ValueError: If any player isn't seated in this pod, the match is
-                already decided (reset the result first to correct a
-                mistake), or result is neither WIN nor DRAW.
+            ValueError: If games is not a valid report for this pod, per
+                this tournament's ruleset.
         """
-        if not isinstance(players, list):
-            players = [players]
-        for player in players:
-            if player.uid not in self._players:
-                raise ValueError(
-                    "Player {} not in pod {}".format(player.name, self.name)
-                )
-        if self.done:
-            raise ValueError(
-                "Pod {}'s match is already decided; reset the result before "
-                "reporting a new game.".format(self.name)
-            )
-        if result == IPlayer.EResult.WIN:
-            self._games.append({players[0].uid})
-        elif result == IPlayer.EResult.DRAW:
-            self._games.append({p.uid for p in players})
-        else:
-            raise ValueError("Pod.set_result only accepts WIN or DRAW, got {}".format(result))
+        self.tour.ruleset.validate_report(self, games)
+        self._games = list(games)
 
     def remove_result(self, player: Player):
         """Strips a player from every recorded game; drops any game entry
         that becomes empty as a result."""
+        new_games: list[IGameResult] = []
         for game in self._games:
-            game.discard(player.uid)
-        self._games[:] = [g for g in self._games if g]
+            winners = game.winners - {player.uid}
+            if winners:
+                new_games.append(IGameResult(winners))
+        self._games = new_games
 
     def reset_result(self):
         """Clears the pod's entire game history, reopening the match."""
@@ -2981,59 +3038,22 @@ class Pod(IPod):
         return {Player.get(self.tour, x) for x in self._result}
 
     @property
-    def game_wins(self) -> dict[UUID, int]:
-        """Per-player tally of games won. A drawn game (2+ UIDs) counts
-        toward neither player's tally, per the Magic Tournament Rules."""
-        tally = {p: 0 for p in self._players}
-        for game in self._games:
-            if len(game) == 1:
-                (winner,) = game
-                tally[winner] = tally.get(winner, 0) + 1
-        return tally
-
-    @property
-    def games_to_win(self) -> int:
-        """Games needed to win the match, from this pod's round."""
-        return self.tour_round.games_to_win
-
-    @property
-    def max_games(self) -> int:
-        """Best-of-(2n-1): a 1-game threshold is 1 game, a 2-game threshold
-        (best-of-3) is 3 games, etc."""
-        return 2 * self.games_to_win - 1
-
-    @property
-    def _result(self) -> set[UUID]:
-        """Derived match-level outcome, in the pre-multi-game wire encoding
-        (empty=pending, one UID=won, two-or-more=drew) - kept so every
-        existing reader of pod._result keeps working unchanged."""
-        if not self.done:
-            return set()
-        if self.max_games == 1:
-            # Single-game case (Commander's default, and any games_to_win
-            # == 1 round): the match result IS that one game's outcome,
-            # including a partial multi-way draw that doesn't include
-            # every pod player.
-            return set(self._games[0])
-        tally = self.game_wins
-        top = max(tally.values())
-        return {p for p, w in tally.items() if w == top}
+    def _result(self) -> frozenset[UUID]:
+        """Derived match-level outcome (empty=pending, one UID=won, two-or-
+        more=drew), computed by the ruleset from the whole-match report -
+        kept so every existing reader of pod._result keeps working
+        unchanged. Only calls into the ruleset once games exist - see
+        IRuleset.match_winners."""
+        if not self._games:
+            return frozenset()
+        return self.tour.ruleset.match_winners(self)
 
     @property
     def result_type(self) -> Pod.EResult:
-        if not self._games:
+        winners = self._result
+        if not winners:
             return Pod.EResult.PENDING
-        tally = self.game_wins
-        top = max(tally.values(), default=0)
-        if top >= self.games_to_win:
-            return Pod.EResult.WIN
-        if len(self._games) < self.max_games:
-            return Pod.EResult.PENDING
-        # Max games played without reaching the threshold (Magic Tournament
-        # Rules §2.1): whoever won more games wins the match; an equal
-        # games-won tally is a drawn match.
-        leaders = [p for p, w in tally.items() if w == top]
-        return Pod.EResult.WIN if len(leaders) == 1 else Pod.EResult.DRAW
+        return Pod.EResult.WIN if len(winners) == 1 else Pod.EResult.DRAW
 
     @property
     def done(self) -> bool:
@@ -3217,7 +3237,9 @@ class Pod(IPod):
             "table": self.table,
             "cap": self.cap,
             "result": sorted([str(p) for p in self._result]),
-            "games": [sorted([str(p) for p in g]) for g in self._games],
+            "games": [
+                {"winners": sorted(str(u) for u in g.winners)} for g in self._games
+            ],
             "players": [str(p) for p in self._players],
         }
 
@@ -3232,14 +3254,23 @@ class Pod(IPod):
         pod._players = [UUID(x) for x in data["players"]]
         games = data.get("games")
         if games is not None:
-            pod._games = [{UUID(x) for x in g} for g in games]
+            # A game entry is either {"winners": [...]} (this format) or a
+            # bare UID array (an unreleased branch's format) - accept both.
+            pod._games = [
+                IGameResult(
+                    frozenset(
+                        UUID(x) for x in (g["winners"] if isinstance(g, dict) else g)
+                    )
+                )
+                for g in games
+            ]
         else:
             # Pre-"games" files: treat the legacy single "result" as this
-            # pod's one game - reproduces old files' behavior exactly,
-            # since games_to_win also defaults to 1 for a round absent from
-            # the (also new, also absent in old files) games_to_win_rounds.
-            legacy = {UUID(x) for x in data["result"]}
-            pod._games = [legacy] if legacy else []
+            # pod's one game - reproduces old files' behavior exactly, since
+            # this ruleset's report is always a single game absent
+            # per-round overrides (never present in a pre-"games" file).
+            legacy = frozenset(UUID(x) for x in data["result"])
+            pod._games = [IGameResult(legacy)] if legacy else []
         return pod
 
 
@@ -3359,19 +3390,6 @@ class Round(IRound):
     @logic.setter
     def logic(self, logic: IPairingLogic):
         self._logic = logic.name
-
-    @property
-    def games_to_win(self) -> int:
-        """Games needed to win a match at this round (MTR §2.1).
-
-        A parameter of this round's own pairing logic (see
-        CommonPairing.params.yaml / PairingDefault.params.yaml), not a core
-        config field - so it follows the same per-round override mechanism
-        as any other pairing param (config.pairing_rounds[seq].params).
-        Defaults to 1 everywhere, Commander's one-game-is-the-whole-match
-        convention; a 1v1 tournament overrides it per round.
-        """
-        return self.logic._param(self, "games_to_win")  # type: ignore[attr-defined]
 
     @property
     def players(self) -> set[Player]:
@@ -3657,21 +3675,17 @@ class Round(IRound):
                 self._disabled = set(prev_round._disabled)
             standings = self.tour.get_standings(prev_round)
             self.disable_topcut(standings)
-            if self.stage in [
-                Round.Stage.TOP_7,
-                Round.Stage.TOP_10,
-                Round.Stage.TOP_13,
-                Round.Stage.TOP_16,
-                Round.Stage.TOP_40,
-            ]:
-                self.logic.advance_topcut(self, cast(list[IPlayer], standings))
+            # Called for every playoff round, not just a hard-coded subset:
+            # the base IPairingLogic.advance_topcut is a no-op, so a stage
+            # whose pairing logic doesn't give seeded byes is unaffected.
+            self.logic.advance_topcut(self, cast(list[IPlayer], standings))
 
         self.create_pods()
         pods = [p for p in self.pods if all([not p.done, len(p) < p.cap])]
 
         self.logic.make_pairings(self, cast(set[IPlayer], self.unassigned), pods)
 
-        if self.seq < self.tour.config.n_rounds:
+        if self.seq < self.tour.config.n_rounds and self.tour.ruleset.SEAT_BALANCING:
             for pod in self.pods:
                 pod.auto_assign_seats()
 
@@ -3761,6 +3775,15 @@ class Round(IRound):
 
         return any_swapped
 
+    def record_result(self, pod: Pod, games: list[IGameResult]) -> None:
+        """Validates and records pod's whole match report, replacing any
+        earlier one, then clears bye/game-loss flags for the winners (the
+        side effect today's set_result has on reported players)."""
+        pod.record_result(games)
+        for uid in pod._result:
+            self._byes.discard(uid)
+            self._game_loss.discard(uid)
+
     def set_result(
         self, players: Player | list[Player], result: IPlayer.EResult
     ) -> None:
@@ -3780,16 +3803,34 @@ class Round(IRound):
 
         if result in (IPlayer.EResult.WIN, IPlayer.EResult.DRAW):
             # Group by pod so a report spanning multiple pods (e.g. two
-            # separate winners in one report_win call) still appends
-            # exactly one game entry per pod, not one per player.
+            # separate winners in one report_win call) still builds exactly
+            # one report per pod, not one per player.
             by_pod: dict[Pod, list[Player]] = {}
             for player in players:
                 if pod := player.pod(self):
                     by_pod.setdefault(pod, []).append(player)
                 else:
                     raise ValueError("Player {} not in any pod".format(player.name))
-            for pod, pod_players in by_pod.items():
-                pod.set_result(pod_players, result)
+            if result == IPlayer.EResult.WIN:
+                for pod, pod_players in by_pod.items():
+                    if len(pod_players) != 1:
+                        raise ValueError(
+                            "WIN must report exactly one winner per pod, got "
+                            "{} for {}".format(len(pod_players), pod.name)
+                        )
+            ruleset = self.tour.ruleset
+            reports = {
+                pod: ruleset.report_from_winners(
+                    pod, frozenset(p.uid for p in pod_players)
+                )
+                for pod, pod_players in by_pod.items()
+            }
+            # Validate every pod's report before recording any of them, so a
+            # multi-pod call never leaves a half-applied result.
+            for pod, games in reports.items():
+                ruleset.validate_report(pod, games)
+            for pod, games in reports.items():
+                self.record_result(pod, games)
 
     def remove_result(self, player: Player):
         if pod := player.pod(self):

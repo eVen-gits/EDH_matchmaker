@@ -174,7 +174,9 @@ draw, or a pending game).
 | `top_cut` | int | The playoff cut size. See [`top_cut` and `stage` values](#top_cut-and-stage-values). `0` means no playoff cut (Swiss only). |
 | `scoring_logic` | string | optional, default `"ScoringDefault"`. Which formula computes player points. See [Scoring logic](#scoring-logic). |
 | `scoring_params` | object | optional, default `{}`. Parameters for whichever algorithm `scoring_logic` names - field names, types, and defaults are owned by that algorithm, not by this format. See [Scoring logic](#scoring-logic) for the fields each shipped algorithm reads. |
-| `pairing_rounds` | array of object | optional, default `[]`. The pairing configuration per Swiss round, one object per round: `{"logic": <name or null>, "params": {<field>: value}}`. `logic` is the pairing-logic name (or `null` / a missing/short list to use the adaptive default: round 1 Random, round 2 Snake when `snake_pods`, later rounds Default). `params` holds that logic's overrides; a missing field uses the logic's default. A configured `logic` should support the tournament's `pod_sizes` - see [Pairing logic](#pairing-logic). Top-cut rounds ignore this. |
+| `pairing_rounds` | array of object | optional, default `[]`. The pairing configuration per Swiss round, one object per round: `{"logic": <name or null>, "params": {<field>: value}, "ruleset_params": {<field>: value}}`. `logic` is the pairing-logic name (or `null` / a missing/short list to use the ruleset's adaptive default - see [Rulesets](#rulesets)). `params` holds that pairing logic's overrides; a missing field uses the logic's default. `ruleset_params` holds the tournament's ruleset's overrides for this round (for example a per-round match format); a missing field uses the ruleset's default. A configured `logic` should support the tournament's `pod_sizes` - see [Pairing logic](#pairing-logic). Top-cut rounds ignore `logic`/`params`, but not `ruleset_params` - see `playoff_rounds`. |
+| `ruleset` | string | optional, default `"CommanderRuleset"`. Which class owns this tournament's game rules: match-report validation, standings tiebreakers, and the playoff plan. See [Rulesets](#rulesets). |
+| `playoff_rounds` | object | optional, default `{}`. Ruleset param overrides per playoff stage, keyed by stage value as a string (see [`top_cut` and `stage` values](#top_cut-and-stage-values)): `{"<stage>": {"ruleset_params": {<field>: value}}}`. A stage not in the ruleset's current playoff plan is ignored. |
 
 `standings_export` fields:
 
@@ -234,37 +236,57 @@ Each entry in a round's `pods` array:
 | `table` | int | Table number, for display and seating. |
 | `cap` | int | Maximum number of players this pod holds. |
 | `result` | array of string (UUID) | The pod's *match* outcome, derived from `games`. See below. |
-| `games` | array of array of string (UUID) | optional, default `[]`. One entry per completed game, in play order, each using the same UID-cardinality encoding as `result` below. See below. |
+| `games` | array of object | optional, default `[]`. The pod's whole match report: one object per completed game, in play order, `{"winners": [<uid>, ...]}`. A new report always **replaces** the previous one - see [Match report](#match-report) below. |
 | `players` | array of string (UUID) | Players seated at this pod, in seat order. |
 
-Each entry of `games` (and `result` itself) encodes one outcome by how many
-player UIDs it holds:
+Each game object's `winners` array encodes that game's outcome by how many
+player UIDs it holds (`minItems: 1` - an empty array is not a valid game;
+"no game played yet" is simply an empty `games` array):
 
-- **Empty array** — no result yet. Pending.
-- **One UID** — that player won.
+- **One UID** — that player won the game.
 - **Two or more UIDs** — a draw among those players.
 
 `result` is the pod's *match* outcome — what standings, pairing, and
-scoring read — derived from `games` and the round's `games_to_win` (a
-parameter of whichever pairing logic built that round, read from
-`rounds[].logic` and `config.pairing_rounds[rounds[].seq].params` - see
-[`games_to_win`](#games_to_win) under [Pairing logic](#pairing-logic),
-default `1`): the match is won by
-whichever player's count of single-UID (i.e. non-drawn) entries in `games`
-first reaches `games_to_win`; drawn games count toward neither player. If
-`games` runs out (`2 * games_to_win - 1` games played) before either player
-reaches that count, `result` holds whoever has the higher game-win tally,
-or every tied leader if equal (a drawn match). For the default
-`games_to_win` of `1`, this collapses to exactly `games`' one entry -
-Commander's convention, where a pod's match is always exactly one game. A
-reader that ignores `games` and every pairing logic's `games_to_win`
-param entirely still reads a correct final `result` for every pod, since
-both are optional/additive and default to the single-game behavior; it
-only loses the interim per-game history and any in-progress (not-yet-
-decided) multi-game pod's state.
+scoring read — derived from `games` by the tournament's ruleset (see
+[Rulesets](#rulesets)): under `CommanderRuleset`, `games` always holds
+exactly one game and `result` is simply that game's `winners`. An empty
+`games` array means the match is pending, and `result` is empty. A reader
+that only needs the final outcome can read `result` directly and ignore
+`games` entirely, since `result` is always kept consistent with it.
+
+#### Match report
+
+A **match report** is the complete, whole-match content of `games` set in
+one write. Reporting a match again (correcting a mistake, or replacing an
+in-progress report) **replaces** `games` outright - this format does not
+support appending one game to an existing report. Game order within one
+report carries no meaning beyond what the ruleset assigns it.
 
 A player UID listed in the round's `byes` array does not need to appear
 in any pod that round.
+
+## Rulesets
+
+`config.ruleset` names the class (a `src/logic/<game>/rules.py` `IRuleset`
+implementation) that owns this tournament's game-specific rules: which
+match reports are valid for a pod (`games`, see [Pod objects](#pod-objects)
+above), how a match's winners are derived from a report, the Swiss
+tiebreaker order beyond raw points, and the playoff plan for a given
+`top_cut`. A reader that only needs to display `pods[].result` and
+`rounds[].byes`/`game_loss` does not need to know the ruleset; recomputing
+Swiss standings order (beyond primary points) or replaying a playoff plan
+does depend on it.
+
+### `CommanderRuleset`
+
+The default (`config.ruleset` absent or `"CommanderRuleset"`). Every pod's
+`games` holds exactly one game; that game's `winners` is the match `result`
+directly. Standings order beyond points follows this implementation's
+existing tiebreaker chain (opponent point rate, games played, opponents
+beaten, average seat, then UID) - see `src/logic/commander/rules.py` for
+the exact tuple; this page does not restate it since it would only drift
+(see [Where parameter definitions live](#where-parameter-definitions-live-implementation-note)
+for the same rationale applied to scoring parameters).
 
 ## Enum reference
 
@@ -571,9 +593,11 @@ An algorithm with no parameters needs no sidecar file.
 
 Pairing logic decides how players are grouped into pods each round.
 `config.pairing_rounds` holds one object per round (see the `config` table),
-`{"logic": <name>, "params": {...}}`. Entry `[i]` sets the logic and its
-overrides for round `i`. The per-round list differs from the flat
-`scoring_params`, because pairing logic and its settings can differ per round.
+`{"logic": <name>, "params": {...}, "ruleset_params": {...}}`. Entry `[i]`
+sets the logic and its overrides for round `i`. The per-round list differs
+from the flat `scoring_params`, because pairing logic and its settings can
+differ per round. `ruleset_params` is a ruleset concern, not a pairing-logic
+one - see [Rulesets](#rulesets).
 
 A reader that does not re-pair rounds can ignore this section. Pairing affects
 how a file was produced, not how a stored result is read back.
@@ -593,16 +617,6 @@ preferred (first) size in `config.pod_sizes`. So with `[4, 3]` the 3-player pod
 is small; with `[5, 4, 3]` the 4-player and 3-player pods are both smaller than
 the preferred `5`.
 
-### `games_to_win`
-
-Every pairing logic reads one shared parameter, `games_to_win` (int, default
-`1`, minimum `1`) - games a player must win to win a match at that round (see
-[Pod objects](#pod-objects) for how this decides `pods[].result` from
-`pods[].games`). `1` means a single game decides the round (Commander's
-convention); `2` is best-of-3, the common 1v1 setting. It lives in the same
-`params` object as any other override for that round's logic, for example
-`{"logic": "Pairing1v1", "params": {"games_to_win": 2}}`.
-
 ### `PairingDefault`
 
 Additional fields in the `params` object for a round that uses `PairingDefault`
@@ -613,8 +627,10 @@ Additional fields in the `params` object for a round that uses `PairingDefault`
 | `rematch_penalty_exponent` | int | `2` | Exponent on the repeat-opponent count when scoring how well a player fits a pod. A higher value pushes harder against seating players who already met. |
 | `small_pod_penalty` | int | `10` | Penalty for seating a player in a pod smaller than the preferred (first) pod size, for example a 3-player pod, when the player already sat in a small pod. A higher value spreads the small pods across more players. |
 
-`PairingRandom`, `PairingSnake`, and the top-cut pairings read no parameters
-beyond `games_to_win`.
+`PairingRandom`, `PairingSnake`, and the top-cut pairings read no
+parameters. A per-round match format (such as games needed to win a match)
+is a ruleset concern, not a pairing-logic parameter - see `ruleset_params`
+in the `config` table and [Rulesets](#rulesets).
 
 ## Adjacent outputs (not part of this format)
 
@@ -688,6 +704,10 @@ in `src/logic/commander/scoring.py`), and `Scoring1v1`
 formulas from [Scoring logic](#scoring-logic); they are not part of the
 JSON schema themselves, only the `config.scoring_logic` string that names
 one of them.
+
+`CommanderRuleset` (`src/logic/commander/rules.py`) implements
+[Rulesets](#rulesets); like the scoring logics above, it is not part of the
+JSON schema itself, only the `config.ruleset` string that names it.
 
 `tests/test_serialization.py` holds round-trip tests that double as
 executable proof of this contract, including a test that loads a real
