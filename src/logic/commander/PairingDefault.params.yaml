@@ -20,13 +20,3 @@ small_pod_penalty:
     Penalty for seating a player in a pod smaller than the preferred pod size
     (for example a 3-player pod), when the player already sat in a small pod. A
     higher value spreads the small pods across more players.
-
-games_to_win:
-  default: 1
-  type: int
-  min: 1
-  label: Games to win a match
-  description: >
-    Games a player must win to win a match at this round (Magic Tournament
-    Rules §2.1). 1 (the default) means a single game decides the round -
-    Commander's convention. 2 is best-of-3, the common 1v1 setting.
