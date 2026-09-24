@@ -447,5 +447,154 @@ class TestStandingsStr(unittest.TestCase):
         self.assertNotIn("record", header)
 
 
+class TestPairing1v1(unittest.TestCase):
+    """Pairing1v1's networkx max-weight-matching Swiss algorithm (spec 4.1)."""
+
+    def _tournament(self, n_players, n_rounds):
+        cfg = TournamentConfiguration(
+            ruleset="Mtg1v1Ruleset", auto_export=False, n_rounds=n_rounds
+        )
+        t = Tournament(cfg)
+        t.add_player([f"P{i}" for i in range(n_players)])
+        return t
+
+    def test_round_1_seats_everyone_no_bye_with_even_count(self):
+        for seed in range(5):
+            with self.subTest(seed=seed):
+                random.seed(seed)
+                t = self._tournament(8, 3)
+                t.create_pairings()
+                seated = sum(len(pod.players) for pod in t.tour_round.pods)
+                self.assertEqual(seated, 8)
+                self.assertEqual(len(t.tour_round.byes), 0)
+
+    def _play_and_check_no_rematches(self, n_players, n_rounds):
+        t = self._tournament(n_players, n_rounds)
+        seen_pairs: set[frozenset] = set()
+        for _ in range(n_rounds):
+            t.create_pairings()
+            for pod in t.tour_round.pods:
+                pair = frozenset(p.uid for p in pod.players)
+                self.assertNotIn(pair, seen_pairs, "rematch occurred")
+                seen_pairs.add(pair)
+            t.random_results()
+            t.new_round()
+
+    def test_8_players_3_rounds_no_rematches(self):
+        for seed in range(5):
+            with self.subTest(seed=seed):
+                random.seed(seed)
+                self._play_and_check_no_rematches(8, 3)
+
+    def test_16_players_5_rounds_no_rematches(self):
+        for seed in range(3):
+            with self.subTest(seed=seed):
+                random.seed(seed)
+                self._play_and_check_no_rematches(16, 5)
+
+    def test_4_players_3_rounds_perfect_round_robin(self):
+        random.seed(1)
+        t = self._tournament(4, 3)
+        seen_pairs: set[frozenset] = set()
+        for _ in range(3):
+            t.create_pairings()
+            for pod in t.tour_round.pods:
+                seen_pairs.add(frozenset(p.uid for p in pod.players))
+            t.random_results()
+            t.new_round()
+        players = list(t.players)
+        all_pairs = {
+            frozenset({players[i].uid, players[j].uid})
+            for i in range(4)
+            for j in range(i + 1, 4)
+        }
+        self.assertEqual(seen_pairs, all_pairs)
+
+    def test_4_players_4_rounds_fewest_possible_rematches(self):
+        random.seed(2)
+        t = self._tournament(4, 4)
+        pair_counts: dict[frozenset, int] = {}
+        for _ in range(4):
+            t.create_pairings()
+            for pod in t.tour_round.pods:
+                pair = frozenset(p.uid for p in pod.players)
+                pair_counts[pair] = pair_counts.get(pair, 0) + 1
+            t.random_results()
+            t.new_round()
+        # 4 rounds x 2 pods = 8 pairings over only 6 distinct possible pairs
+        # among 4 players - at least 2 must repeat, and no repeat should
+        # exceed that unavoidable minimum.
+        extra = sum(c - 1 for c in pair_counts.values())
+        self.assertEqual(extra, 2)
+        self.assertLessEqual(max(pair_counts.values()), 2)
+
+    def test_round_2_stays_within_score_group_after_split(self):
+        random.seed(3)
+        t = self._tournament(8, 3)
+        t.create_pairings()
+        winner_uids = set()
+        for pod in t.tour_round.pods:
+            winner, _ = pod.players
+            t.report_win(winner)
+            winner_uids.add(winner.uid)
+        t.new_round()
+        t.create_pairings()
+        for pod in t.tour_round.pods:
+            a, b = pod.players
+            self.assertEqual(a.uid in winner_uids, b.uid in winner_uids)
+
+    def test_6_players_odd_score_group_gives_one_pair_down(self):
+        random.seed(4)
+        t = self._tournament(6, 3)
+        t.create_pairings()
+        winner_uids = set()
+        for pod in t.tour_round.pods:
+            winner, _ = pod.players
+            t.report_win(winner)
+            winner_uids.add(winner.uid)
+        t.new_round()
+        t.create_pairings()
+        cross_group = sum(
+            1
+            for pod in t.tour_round.pods
+            for a, b in [pod.players]
+            if (a.uid in winner_uids) != (b.uid in winner_uids)
+        )
+        self.assertEqual(cross_group, 1)
+
+    def test_5_players_bye_never_repeats_before_everyone_has_one(self):
+        random.seed(5)
+        t = self._tournament(5, 5)
+        bye_recipients = []
+        for _ in range(5):
+            t.create_pairings()
+            byes = list(t.tour_round.byes)
+            self.assertEqual(len(byes), 1)
+            bye_recipients.append(byes[0].uid)
+            t.random_results()
+            t.new_round()
+        self.assertEqual(len(set(bye_recipients)), 5)
+
+    def test_anchored_pod_gets_filled(self):
+        random.seed(6)
+        t = self._tournament(6, 2)
+        anchor = next(iter(t.players))
+        t.manual_pod([anchor])
+        self.assertEqual(len(t.tour_round.pods[0].players), 1)
+        t.create_pairings()
+        pod = t.tour_round.pods[0]
+        self.assertEqual(len(pod.players), 2)
+        self.assertIn(anchor, pod.players)
+
+    def test_adaptive_default_uses_pairing1v1_every_swiss_round(self):
+        random.seed(7)
+        t = self._tournament(8, 3)
+        for _ in range(3):
+            t.create_pairings()
+            self.assertEqual(t.tour_round.logic.name, "Pairing1v1")
+            t.random_results()
+            t.new_round()
+
+
 if __name__ == "__main__":
     unittest.main()
