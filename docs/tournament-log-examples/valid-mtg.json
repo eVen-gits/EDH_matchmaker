@@ -1,0 +1,163 @@
+{
+  "format_version": "1.2",
+  "generator": {"name": "EDH_matchmaker"},
+  "created_at": "2026-09-01T10:00:00+00:00",
+  "updated_at": "2026-09-01T11:45:00+00:00",
+  "uid": "33333333-3333-3333-3333-333333333333",
+  "config": {
+    "pod_sizes": [2],
+    "allow_bye": true,
+    "snake_pods": true,
+    "n_rounds": 1,
+    "max_byes": 2,
+    "auto_export": false,
+    "standings_export": {
+      "fields": [0, 2, 4, 3],
+      "format": 0,
+      "dir": "./logs/standings.txt"
+    },
+    "global_wr_seats": [0.2470, 0.1928, 0.1672, 0.1458],
+    "top_cut": 4,
+    "ruleset": "Mtg1v1Ruleset",
+    "scoring_logic": "Scoring1v1",
+    "scoring_params": {
+      "win_points": 3,
+      "bye_points": 3,
+      "draw_points": 1
+    },
+    "pairing_rounds": [],
+    "playoff_rounds": {
+      "2": {"ruleset_params": {"games_to_win": 3}}
+    }
+  },
+  "players": [
+    {"uid": "aaaaaaaa-0000-0000-0000-000000000001", "name": "P1", "decklist": null},
+    {"uid": "aaaaaaaa-0000-0000-0000-000000000002", "name": "P2", "decklist": null},
+    {"uid": "aaaaaaaa-0000-0000-0000-000000000003", "name": "P3", "decklist": null},
+    {"uid": "aaaaaaaa-0000-0000-0000-000000000004", "name": "P4", "decklist": null},
+    {"uid": "aaaaaaaa-0000-0000-0000-000000000005", "name": "P5", "decklist": "https://example.com/decks/p5"}
+  ],
+  "rounds": [
+    {
+      "tour": "33333333-3333-3333-3333-333333333333",
+      "seq": 0,
+      "stage": 0,
+      "logic": "Pairing1v1",
+      "uid": "bbbbbbbb-0000-0000-0000-000000000001",
+      "dropped": [],
+      "disabled": [],
+      "byes": ["aaaaaaaa-0000-0000-0000-000000000005"],
+      "game_loss": [],
+      "pods": [
+        {
+          "uid": "cccccccc-0000-0000-0000-000000000001",
+          "tour_round": "bbbbbbbb-0000-0000-0000-000000000001",
+          "table": 1,
+          "cap": 2,
+          "result": ["aaaaaaaa-0000-0000-0000-000000000001"],
+          "games": [
+            {"winners": ["aaaaaaaa-0000-0000-0000-000000000001"]},
+            {"winners": ["aaaaaaaa-0000-0000-0000-000000000001"]},
+            {"winners": ["aaaaaaaa-0000-0000-0000-000000000001", "aaaaaaaa-0000-0000-0000-000000000002"]}
+          ],
+          "players": [
+            "aaaaaaaa-0000-0000-0000-000000000001",
+            "aaaaaaaa-0000-0000-0000-000000000002"
+          ]
+        },
+        {
+          "uid": "cccccccc-0000-0000-0000-000000000002",
+          "tour_round": "bbbbbbbb-0000-0000-0000-000000000001",
+          "table": 2,
+          "cap": 2,
+          "result": ["aaaaaaaa-0000-0000-0000-000000000003", "aaaaaaaa-0000-0000-0000-000000000004"],
+          "games": [
+            {"winners": ["aaaaaaaa-0000-0000-0000-000000000003", "aaaaaaaa-0000-0000-0000-000000000004"]},
+            {"winners": ["aaaaaaaa-0000-0000-0000-000000000003", "aaaaaaaa-0000-0000-0000-000000000004"]},
+            {"winners": ["aaaaaaaa-0000-0000-0000-000000000003", "aaaaaaaa-0000-0000-0000-000000000004"]}
+          ],
+          "players": [
+            "aaaaaaaa-0000-0000-0000-000000000003",
+            "aaaaaaaa-0000-0000-0000-000000000004"
+          ]
+        }
+      ]
+    },
+    {
+      "tour": "33333333-3333-3333-3333-333333333333",
+      "seq": 1,
+      "stage": 4,
+      "logic": "PairingBracket",
+      "uid": "bbbbbbbb-0000-0000-0000-000000000002",
+      "dropped": [],
+      "disabled": ["aaaaaaaa-0000-0000-0000-000000000002"],
+      "byes": [],
+      "game_loss": [],
+      "pods": [
+        {
+          "uid": "cccccccc-0000-0000-0000-000000000003",
+          "tour_round": "bbbbbbbb-0000-0000-0000-000000000002",
+          "table": 1,
+          "cap": 2,
+          "result": ["aaaaaaaa-0000-0000-0000-000000000001"],
+          "games": [
+            {"winners": ["aaaaaaaa-0000-0000-0000-000000000001"]}
+          ],
+          "players": [
+            "aaaaaaaa-0000-0000-0000-000000000001",
+            "aaaaaaaa-0000-0000-0000-000000000005"
+          ]
+        },
+        {
+          "uid": "cccccccc-0000-0000-0000-000000000004",
+          "tour_round": "bbbbbbbb-0000-0000-0000-000000000002",
+          "table": 2,
+          "cap": 2,
+          "result": ["aaaaaaaa-0000-0000-0000-000000000003"],
+          "games": [
+            {"winners": ["aaaaaaaa-0000-0000-0000-000000000003"]},
+            {"winners": ["aaaaaaaa-0000-0000-0000-000000000003"]}
+          ],
+          "players": [
+            "aaaaaaaa-0000-0000-0000-000000000003",
+            "aaaaaaaa-0000-0000-0000-000000000004"
+          ]
+        }
+      ]
+    },
+    {
+      "tour": "33333333-3333-3333-3333-333333333333",
+      "seq": 2,
+      "stage": 2,
+      "logic": "PairingBracket",
+      "uid": "bbbbbbbb-0000-0000-0000-000000000003",
+      "dropped": [],
+      "disabled": [
+        "aaaaaaaa-0000-0000-0000-000000000002",
+        "aaaaaaaa-0000-0000-0000-000000000004",
+        "aaaaaaaa-0000-0000-0000-000000000005"
+      ],
+      "byes": [],
+      "game_loss": [],
+      "pods": [
+        {
+          "uid": "cccccccc-0000-0000-0000-000000000005",
+          "tour_round": "bbbbbbbb-0000-0000-0000-000000000003",
+          "table": 1,
+          "cap": 2,
+          "result": ["aaaaaaaa-0000-0000-0000-000000000001"],
+          "games": [
+            {"winners": ["aaaaaaaa-0000-0000-0000-000000000001"]},
+            {"winners": ["aaaaaaaa-0000-0000-0000-000000000001"]},
+            {"winners": ["aaaaaaaa-0000-0000-0000-000000000003"]},
+            {"winners": ["aaaaaaaa-0000-0000-0000-000000000001"]}
+          ],
+          "players": [
+            "aaaaaaaa-0000-0000-0000-000000000001",
+            "aaaaaaaa-0000-0000-0000-000000000003"
+          ]
+        }
+      ]
+    }
+  ]
+}

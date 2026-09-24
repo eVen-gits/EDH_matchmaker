@@ -5,13 +5,22 @@ description: Use this skill whenever adding a new pairing algorithm (IPairingLog
 
 # Adding a pairing or scoring algorithm
 
-This repo auto-discovers pairing and scoring algorithms by filename — there
-is no registry to edit. `Tournament.discover_pairing_logic()` /
-`discover_scoring_logic()` (in `src/core.py`) scan every
-`src/logic/*/matching.py` and `src/logic/*/scoring.py`, import them, and
-register any class with `IS_COMPLETE = True`. **If your plan touches
-`src/core.py` or GUI code to "register" the new algorithm, stop — that's not
-how this works, and you've likely misunderstood the task.**
+This repo auto-discovers pairing, scoring, and ruleset algorithms by
+filename — there is no registry to edit. `Tournament.discover_pairing_logic()`
+/ `discover_scoring_logic()` / `discover_ruleset()` (in `src/core.py`) scan
+every `src/logic/*/matching.py`, `src/logic/*/scoring.py`, and
+`src/logic/*/rules.py`, import them, and register any class with
+`IS_COMPLETE = True`. **If your plan touches `src/core.py` or GUI code to
+"register" the new algorithm, stop — that's not how this works, and you've
+likely misunderstood the task.**
+
+**A brand-new game needs a `rules.py` with an `IRuleset`** (`IS_COMPLETE =
+True`), not just a `matching.py`/`scoring.py` — the ruleset is what decides
+whether a reported match result is valid, who won it, and the Swiss
+standings tiebreaker order beyond raw points. Do not put tiebreakers on a
+scoring algorithm or on `Player`; that's ruleset work, even if it feels
+like a scoring concern — see `Mtg1v1Ruleset.standings_keys`
+(`src/logic/mtg/rules.py`) for the pattern.
 
 Use `src/logic/commander/matching.py` and `src/logic/commander/scoring.py`
 as the reference implementations throughout — they show the established
@@ -39,7 +48,7 @@ shape for this repo.
    config GUI even if fully implemented and otherwise correct — an easy
    thing to forget and a silent failure mode.
 
-4. **Set `SUPPORTED_POD_SIZES` deliberately.** This is a tuple like `(3, 4)`
+4. **Set `SUPPORTED_POD_SIZES` deliberately.** This is a tuple like `(4, 3)`
    or `None`. `None` means "works for any pod size" — only use it if that's
    actually true. The adaptive default pairing logic relies on this value
    to decide fallback behavior, so an inaccurate `None` is a correctness
@@ -54,8 +63,8 @@ shape for this repo.
 6. **Implement the abstract methods.**
    - Pairing: `make_pairings(self, tour_round, players, pods) ->
      set[IPlayer]`. Only top-cut-style pairing logic meaningfully
-     implements `advance_topcut(...)` — the base raises `ValueError("Not
-     implemented")`, which is correct for ordinary Swiss pairing.
+     implements `advance_topcut(...)` — the base is a no-op, which is
+     correct for ordinary Swiss pairing.
    - Scoring: `compute_ratings(self, tour, tour_round) -> Mapping[UUID,
      float]`, and typically `pointrate_denominator(tour_round)`.
 

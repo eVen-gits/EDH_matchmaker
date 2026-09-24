@@ -464,8 +464,8 @@ The default. `scoring_params` fields:
 
 | Field | Type | Default | Description |
 |---|---|---|---|
-| `win_points` | int | `5` | Points awarded for a pod win. |
-| `bye_points` | int | `4` | Points awarded for a bye. |
+| `win_points` | int | `7` | Points awarded for a pod win. |
+| `bye_points` | int | `7` | Points awarded for a bye. |
 | `draw_points` | int | `1` | Points awarded to each player in a draw. |
 
 A player's rating is the sum, over every Swiss round up to and
@@ -665,8 +665,8 @@ the preferred `5`.
 
 ### `PairingDefault`
 
-Additional fields in the `params` object for a round that uses `PairingDefault`
-(or `Pairing1v1`, which shares the same parameters):
+Additional fields in the `params` object for a round that uses
+`PairingDefault`:
 
 | Field | Type | Default | Description |
 |---|---|---|---|
@@ -677,6 +677,33 @@ Additional fields in the `params` object for a round that uses `PairingDefault`
 parameters. A per-round match format (such as games needed to win a match)
 is a ruleset concern, not a pairing-logic parameter - see `ruleset_params`
 in the `config` table and [Rulesets](#rulesets).
+
+### `Pairing1v1`
+
+1v1 Swiss pairing (`src/logic/mtg/matching.py`), read no parameters of its
+own. Unlike `PairingDefault`'s greedy pod-fill, it computes a maximum-weight
+perfect matching (a graph matching, not a sort-and-place): free players,
+any single-player ("anchored") pods, and enough dummy bye slots to cover
+the field become graph nodes, and the matching that maximizes total edge
+weight becomes the round's pairings. Weights are chosen so the priorities
+are strictly lexicographic: avoid a rematch and a second bye first, then
+minimize the total (pair-down) score-group gap, then give any bye to the
+lowest-standing player without one, with a small random tie-break last.
+A reader reproducing this file's pairings needs the algorithm, not just
+this page - see `src/logic/mtg/mtr-1v1-spec.md` §4.1 for the rules it
+follows and the class's own docstring for the exact weight formula.
+
+### `PairingBracket`
+
+Single-elimination top-cut pairing (`src/logic/mtg/matching.py`), chosen
+automatically by stage from the ruleset's playoff plan - never a user's
+explicit `pairing_rounds` choice, and reads no parameters. The bracket is
+seeded once, from the standings as of the last Swiss round, filtered to
+players still active when the first playoff round was created, and is
+never reseeded afterward: a later stage's pairings are a pure function of
+that fixed seed list and who is still active. A seed whose bracket
+opponent has since dropped gets a bye and advances instead of being
+paired.
 
 ## Adjacent outputs (not part of this format)
 
@@ -758,9 +785,9 @@ scoring logics above, neither is part of the JSON schema itself, only the
 
 `tests/test_serialization.py` holds round-trip tests that double as
 executable proof of this contract, including a test that loads a real
-captured tournament file end to end. `tests/test_scoring_wagering.py`
-holds the same proof for the two scoring logic formulas, including the
-draw payout formula at its `R`/`S` boundary values.
+captured tournament file end to end. `tests/test_scoring_hareruya.py`
+holds the same proof for the two wagering scoring logic formulas,
+including the draw payout formula at its `R`/`S` boundary values.
 
 ## Worked example: load, change, save
 
@@ -808,9 +835,9 @@ implementations.
   replaying every player's stack**, since payouts are interdependent
   (see [Scoring logic](#scoring-logic)). EDH_matchmaker's reference
   implementation accepts this cost rather than adding a cache, since
-  it is only paid per standings computation, not per game reported;
-  see the `# ponytail:` comment on `Tournament.rating()` in
-  `src/core.py` for the exact tradeoff.
+  it is only paid per standings computation, not per game reported -
+  see `ScoringHareruya.compute_ratings` in
+  `src/logic/commander/scoring.py`.
 - **No concurrent-write protection.** Two writers on the same path can
   silently overwrite each other. A future version needing multi-writer
   safety must add file locking or a compare-and-swap mechanism; this
