@@ -2101,7 +2101,7 @@ class Tournament(ITournament):
 
     def get_standings_str(
         self,
-        fields: list[StandingsExport.Field] = StandingsExport.DEFAULT_FIELDS,
+        fields: list[StandingsExport.Field] | None = None,
         style: StandingsExport.Format = StandingsExport.Format.PLAIN,
         tour_round: Round | None = None,
         standings: list[Player] | None = None,
@@ -2110,6 +2110,7 @@ class Tournament(ITournament):
 
         Args:
             fields: A list of StandingsExport.Field to include in the standings.
+                Defaults to config.standings_export.fields.
             style: The desired output format (e.g., PLAIN, CSV, JSON).
             tour_round: The round for which to generate standings. Defaults to the current round.
             standings: Pre-calculated standings. If None, standings will be calculated.
@@ -2125,6 +2126,8 @@ class Tournament(ITournament):
             tour_round = self.tour_round
         if standings is None:
             standings = self.get_standings(tour_round)
+        if fields is None:
+            fields = self.config.standings_export.fields
 
         # Create context with all available data
         context = TournamentContext(
@@ -2147,13 +2150,21 @@ class Tournament(ITournament):
             for p in standings
         ]
         if style == StandingsExport.Format.PLAIN:
-            col_len = [0] * len(fields)
-            for col in range(len(fields)):
+            # Ruleset-specific columns (e.g. MTG's OMW/GW/OGW) after the
+            # core fields - only the round's ruleset can format these.
+            extra_columns = self.ruleset.standings_columns(self, tour_round) if tour_round else []
+            if extra_columns:
+                lines[0] += [header for header, _ in extra_columns]
+                for i, p in enumerate(standings):
+                    lines[i + 1] += [values.get(p.uid, "") for _, values in extra_columns]
+
+            col_len = [0] * len(lines[0])
+            for col in range(len(lines[0])):
                 for line in lines:
                     if len(line[col]) > col_len[col]:
                         col_len[col] = len(line[col])
             for line in lines:
-                for col in range(len(fields)):
+                for col in range(len(lines[0])):
                     line[col] = line[col].ljust(col_len[col])
             # add new line at index 1
             lines.insert(1, ["-" * width for width in col_len])
