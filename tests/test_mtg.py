@@ -1,3 +1,4 @@
+import json
 import random
 import unittest
 from fractions import Fraction
@@ -814,6 +815,84 @@ class TestPairingBracket(unittest.TestCase):
                     ruleset="Mtg1v1Ruleset", top_cut=7, auto_export=False
                 )
             )
+
+
+class TestEndToEnd(unittest.TestCase):
+    """13 players, 4 Swiss rounds, top_cut=8, a Bo5 final - exercises the
+    whole Mtg1v1Ruleset stack together rather than one piece at a time."""
+
+    def test_13_players_top_cut_8_bo5_final(self):
+        random.seed(99)
+        cfg = TournamentConfiguration(
+            ruleset="Mtg1v1Ruleset",
+            auto_export=False,
+            n_rounds=4,
+            top_cut=8,
+            playoff_rounds={2: {"ruleset_params": {"games_to_win": 3}}},
+        )
+        t = Tournament(cfg)
+        t.add_player([f"P{i}" for i in range(13)])
+
+        seen_pairs: set[frozenset] = set()
+        byes_seen: list = []
+        for i in range(4):
+            t.create_pairings()
+            for pod in t.tour_round.pods:
+                pair = frozenset(p.uid for p in pod.players)
+                self.assertNotIn(pair, seen_pairs, "rematch occurred")
+                seen_pairs.add(pair)
+            byes = list(t.tour_round.byes)
+            self.assertEqual(len(byes), 1)
+            byes_seen.append(byes[0].uid)
+            t.random_results()
+
+            if i == 1:  # save/load after round 2
+                serialized = t.serialize()
+                Tournament.CACHE.clear()
+                t2 = Tournament.inflate(serialized)
+                self.assertEqual(
+                    [p.uid for p in t.get_standings(t.tour_round)],
+                    [p.uid for p in t2.get_standings(t2.tour_round)],
+                )
+                t = t2  # keep going on the reloaded tournament
+
+        self.assertEqual(len(set(byes_seen)), len(byes_seen))  # no repeat bye
+
+        ruleset = t.ruleset
+        for r in t.rounds:
+            for pod in r.pods:
+                if pod.games:
+                    ruleset.validate_report(pod, list(pod.games))  # must not raise
+
+        # Playoffs: force the first-seated player to win every match.
+        playoff_rounds_played = 0
+        while t.create_pairings():
+            for pod in t.tour_round.pods:
+                t.report_win(pod.players[0])
+            playoff_rounds_played += 1
+        self.assertEqual(playoff_rounds_played, 3)  # QF, SF, final for top_cut=8
+
+        final_round = t.rounds[-1]
+        self.assertEqual(t.ruleset._param(final_round, "games_to_win"), 3)
+        champion, finalist = final_round.pods[0].players
+        standings = t.get_standings(final_round)
+        self.assertEqual(standings[0], champion)
+        self.assertEqual(standings[1], finalist)
+
+        # Save after the final: schema-valid and reloads to the same standings.
+        from jsonschema import Draft202012Validator
+
+        with open("docs/tournament-log.schema.json") as f:
+            schema = json.load(f)
+        serialized = t.serialize()
+        Draft202012Validator(schema).validate(serialized)
+
+        Tournament.CACHE.clear()
+        t3 = Tournament.inflate(serialized)
+        self.assertEqual(
+            [p.uid for p in t.get_standings(final_round)],
+            [p.uid for p in t3.get_standings(t3.rounds[-1])],
+        )
 
 
 if __name__ == "__main__":
