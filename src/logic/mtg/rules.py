@@ -126,7 +126,8 @@ class Mtg1v1Ruleset(IRuleset):
     | LOSS from a game-loss penalty, no decided pod | 0 | +1 | none | none |
     | PENDING (unassigned, dropped, pending pod) | skipped entirely | | | |
 
-    No playoff plan yet (PLAYOFFS stays the IRuleset default {}) - Phase 5.
+    Playoff plan (spec 4): single elimination, seeded by the final Swiss
+    standings - see PairingBracket (src/logic/mtg/matching.py).
     """
 
     IS_COMPLETE = True
@@ -143,6 +144,18 @@ class Mtg1v1Ruleset(IRuleset):
     # pattern).
     _SWISS_STAGE_VALUE = 0
 
+    PLAYOFFS = {
+        2: ((2, "PairingBracket"),),
+        4: ((4, "PairingBracket"), (2, "PairingBracket")),
+        8: ((8, "PairingBracket"), (4, "PairingBracket"), (2, "PairingBracket")),
+        16: (
+            (16, "PairingBracket"),
+            (8, "PairingBracket"),
+            (4, "PairingBracket"),
+            (2, "PairingBracket"),
+        ),
+    }
+
     def validate_report(self, pod: IPod, games: list[IGameResult]) -> None:
         """Raises ValueError unless games is a valid 1v1 match report.
 
@@ -150,7 +163,10 @@ class Mtg1v1Ruleset(IRuleset):
         players; at least one game was played; each game was won by one of
         them or drawn between both; neither player's single-game win count
         exceeds games_to_win, and they must not both reach it (a report may
-        end below games_to_win when time is called).
+        end below games_to_win when time is called) - except in a playoff
+        round, where a tied game-win tally (including no games decided
+        either way) is never valid: a single-elimination match cannot end
+        in a draw.
         """
         name = pod.name  # type: ignore[attr-defined]
         seated = {p.uid for p in pod.players}
@@ -174,6 +190,10 @@ class Mtg1v1Ruleset(IRuleset):
             raise ValueError(f"{name}: no player may win more than {g} games.")
         if all(wins >= g for wins in tally.values()):
             raise ValueError(f"{name}: both players cannot reach {g} game wins.")
+
+        is_playoff = pod.tour_round.stage.value != self._SWISS_STAGE_VALUE  # type: ignore[attr-defined]
+        if is_playoff and len(set(tally.values())) == 1:
+            raise ValueError(f"{name}: a playoff match cannot end in a draw.")
 
     def match_winners(self, pod: IPod) -> frozenset[UUID]:
         tally: dict[UUID, int] = {p.uid: 0 for p in pod.players}

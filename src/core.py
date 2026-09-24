@@ -618,8 +618,10 @@ class TournamentAction:
 class TournamentConfiguration(ITournamentConfiguration):
     class TopCut(IntEnum):
         NONE = 0
+        TOP_2 = 2
         TOP_4 = 4
         TOP_7 = 7
+        TOP_8 = 8
         TOP_10 = 10
         TOP_13 = 13
         TOP_16 = 16
@@ -877,9 +879,14 @@ class Tournament(ITournament):
     _ruleset_cache: dict[str, IRuleset] = {}
 
     # Version of the tournament-log JSON format written by TournamentAction.store.
-    # Bump this, and add a matching format_version branch in inflate(),
-    # whenever a change to serialize()/inflate() is not backward compatible.
-    LOG_FORMAT_VERSION = "1.1"
+    # Bump this, and add the new version to KNOWN_FORMAT_VERSIONS, whenever a
+    # change to serialize()/inflate() is not backward compatible.
+    LOG_FORMAT_VERSION = "1.2"
+    # Every format_version this implementation can read without warning - a
+    # reader must not assume a default for a missing config field beyond
+    # what inflate() already handles, but a known older version is not
+    # itself cause for a warning (only a version outside this set is).
+    KNOWN_FORMAT_VERSIONS = frozenset({"1.0", "1.1", "1.2"})
 
     @classmethod
     def _discover_logic(
@@ -2295,10 +2302,10 @@ class Tournament(ITournament):
             Tournament: The reconstructed Tournament instance.
         """
         format_version = data.get("format_version", cls.LOG_FORMAT_VERSION)
-        if format_version != cls.LOG_FORMAT_VERSION:
+        if format_version not in cls.KNOWN_FORMAT_VERSIONS:
             Log.log(
                 f"Loading tournament log with unknown format_version "
-                f"{format_version!r} (expected {cls.LOG_FORMAT_VERSION!r}).",
+                f"{format_version!r} (known: {sorted(cls.KNOWN_FORMAT_VERSIONS)}).",
                 level=Log.Level.WARNING,
             )
 
@@ -3298,8 +3305,10 @@ class Round(IRound):
 
     class Stage(Enum):
         SWISS = 0
+        TOP_2 = 2
         TOP_4 = 4
         TOP_7 = 7
+        TOP_8 = 8
         TOP_10 = 10
         TOP_13 = 13
         TOP_16 = 16
@@ -3307,14 +3316,7 @@ class Round(IRound):
 
         @staticmethod
         def is_playoff(stage: Stage) -> bool:
-            return stage in [
-                Round.Stage.TOP_4,
-                Round.Stage.TOP_7,
-                Round.Stage.TOP_10,
-                Round.Stage.TOP_13,
-                Round.Stage.TOP_16,
-                Round.Stage.TOP_40,
-            ]
+            return stage != Round.Stage.SWISS
 
     def __init__(
         self,
@@ -3666,7 +3668,17 @@ class Round(IRound):
     def disable_topcut(self, standings: list[Player]):
         """Disable players who don't advance to top cut.
         They remain in the tournament but won't participate in top cut rounds."""
-        standings = self.tour.get_standings(self.tour.previous_round(self))
+        prev_round = self.tour.previous_round(self)
+        standings = self.tour.get_standings(prev_round)
+
+        # At the first playoff round (previous round is Swiss), draw the
+        # top-N line against active players only - a player who dropped or
+        # was disabled before the cut must not still occupy a top-N slot,
+        # so the next-ranked active player advances instead. A later
+        # playoff round must not re-filter: a semifinalist who drops must
+        # not pull an extra Swiss-standings player into contention.
+        if prev_round is not None and prev_round.stage == Round.Stage.SWISS:
+            standings = [p for p in standings if p in self.active_players]
 
         # Disable players from bottom of standings until we reach top_cut size
         for p in standings[self.stage.value : :]:

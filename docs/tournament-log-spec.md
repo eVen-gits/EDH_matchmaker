@@ -6,7 +6,7 @@ compatible files, without reading the EDH_matchmaker source code.
 
 ## Status of this document
 
-This page describes format version `1.1`, the format that EDH_matchmaker
+This page describes format version `1.2`, the format that EDH_matchmaker
 writes today. [Known gaps](#known-gaps-and-open-decisions) lists the parts
 of the format that a stricter cross-software standard must still decide.
 
@@ -72,11 +72,12 @@ scheme yet.
 
 A reader must accept a file with no `format_version` field as `"1.0"`.
 
-A reader must not reject a file whose `format_version` differs from
-`"1.0"`. Log a warning and attempt to read it, since format changes are
-expected to stay additive (new optional fields) for the foreseeable
-future. A breaking change bumps `format_version` and documents the break
-on this page.
+A reader must not reject a file whose `format_version` is a known older
+version (`"1.0"`, `"1.1"`) - attempt to read it without warning, since
+format changes are expected to stay additive (new optional fields) for
+the foreseeable future. Only a `format_version` this reader does not
+recognize at all warrants a warning. A breaking change bumps
+`format_version` and documents the break on this page.
 
 #### `1.0` → `1.1`
 
@@ -91,6 +92,20 @@ these nine fields still flat on `config` (see [Scoring
 logic](#scoring-logic) for exactly which fields belong to which
 algorithm) and treat them as the equivalent `scoring_params` entries. A
 `1.1` writer always writes the nested form.
+
+#### `1.1` → `1.2`
+
+Purely additive - a `1.1` file is already a valid `1.2` file:
+
+- `config.ruleset`, `config.playoff_rounds`, and
+  `pairing_rounds[].ruleset_params` (see [The `config`
+  object](#the-config-object) and [Rulesets](#rulesets)).
+- `pods[].games` entries changed shape, from a bare UID array to
+  `{"winners": [...]}` (see [Pod objects](#pod-objects)) - never released
+  before this version, so no compatibility burden.
+- New `top_cut` / `stage` values `2` (`TOP_2`) and `8` (`TOP_8`) - see
+  [`top_cut` and `stage` values](#top_cut-and-stage-values). A `1.1`
+  reader would reject these two values; a `1.2` reader must accept them.
 
 ### Minimal example
 
@@ -321,17 +336,24 @@ that requires a new `format_version`.
 ### `top_cut` and `stage` values
 
 `config.top_cut` and `rounds[].stage` share one value set. `top_cut`
-names its zero value `NONE`; `stage` names the same value `SWISS`.
+names its zero value `NONE`; `stage` names the same value `SWISS`. A
+non-zero value is the number of players still in contention when that
+playoff stage begins - not a Commander-specific size. Each ruleset
+accepts only some of these values as `top_cut` (its `PLAYOFFS` plan's
+keys - see [Rulesets](#rulesets)); `rounds[].stage` can hold any of them,
+whichever the tournament's ruleset produced.
 
-| Value | `top_cut` name | `stage` name | Meaning |
-|---|---|---|---|
-| 0 | `NONE` | `SWISS` | No playoff cut / a Swiss round. |
-| 4 | `TOP_4` | `TOP_4` | Top-4 playoff. |
-| 7 | `TOP_7` | `TOP_7` | Top-7 playoff. |
-| 10 | `TOP_10` | `TOP_10` | Top-10 playoff. |
-| 13 | `TOP_13` | `TOP_13` | Top-13 playoff. |
-| 16 | `TOP_16` | `TOP_16` | Top-16 playoff. |
-| 40 | `TOP_40` | `TOP_40` | Top-40 playoff. |
+| Value | `top_cut` name | `stage` name | Meaning | Accepted by |
+|---|---|---|---|---|
+| 0 | `NONE` | `SWISS` | No playoff cut / a Swiss round. | every ruleset |
+| 2 | `TOP_2` | `TOP_2` | Top-2 (final) playoff. | `Mtg1v1Ruleset` |
+| 4 | `TOP_4` | `TOP_4` | Top-4 playoff. | `CommanderRuleset`, `Mtg1v1Ruleset` |
+| 7 | `TOP_7` | `TOP_7` | Top-7 playoff. | `CommanderRuleset` |
+| 8 | `TOP_8` | `TOP_8` | Top-8 playoff. | `Mtg1v1Ruleset` |
+| 10 | `TOP_10` | `TOP_10` | Top-10 playoff. | `CommanderRuleset` |
+| 13 | `TOP_13` | `TOP_13` | Top-13 playoff. | `CommanderRuleset` |
+| 16 | `TOP_16` | `TOP_16` | Top-16 playoff. | `CommanderRuleset`, `Mtg1v1Ruleset` |
+| 40 | `TOP_40` | `TOP_40` | Top-40 playoff. | `CommanderRuleset` |
 
 ### `StandingsExport.Field` values
 

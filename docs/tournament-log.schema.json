@@ -45,7 +45,7 @@
     },
     "stageOrTopCut": {
       "type": "integer",
-      "enum": [0, 4, 7, 10, 13, 16, 40]
+      "enum": [0, 2, 4, 7, 8, 10, 13, 16, 40]
     },
     "config": {
       "type": "object",

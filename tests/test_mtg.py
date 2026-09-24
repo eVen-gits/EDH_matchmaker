@@ -5,6 +5,7 @@ from unittest import mock
 
 from src.core import Pod, StandingsExport, Tournament, TournamentAction, TournamentConfiguration
 from src.interface import IGameResult
+from src.logic.mtg.matching import bracket_seed_order
 from src.logic.mtg.rules import FLOOR, Mtg1v1Ruleset, games_from_score, mean_pct, mtr_stats, pct
 
 TournamentAction.LOGF = False  # type: ignore
@@ -594,6 +595,225 @@ class TestPairing1v1(unittest.TestCase):
             self.assertEqual(t.tour_round.logic.name, "Pairing1v1")
             t.random_results()
             t.new_round()
+
+
+class TestBracketSeedOrder(unittest.TestCase):
+    def test_8(self):
+        self.assertEqual(bracket_seed_order(8), [1, 8, 4, 5, 2, 7, 3, 6])
+
+    def test_4(self):
+        self.assertEqual(bracket_seed_order(4), [1, 4, 2, 3])
+
+    def test_2(self):
+        self.assertEqual(bracket_seed_order(2), [1, 2])
+
+    def test_16_is_a_permutation_of_1_to_16(self):
+        order = bracket_seed_order(16)
+        self.assertEqual(len(order), 16)
+        self.assertEqual(set(order), set(range(1, 17)))
+
+
+class TestPairingBracket(unittest.TestCase):
+    """The single-elimination playoff bracket (spec 4, MTR 10.4)."""
+
+    def _tournament(self, n_players, n_rounds, top_cut, playoff_rounds=None):
+        cfg = TournamentConfiguration(
+            ruleset="Mtg1v1Ruleset",
+            auto_export=False,
+            n_rounds=n_rounds,
+            top_cut=top_cut,
+            playoff_rounds=playoff_rounds or {},
+        )
+        t = Tournament(cfg)
+        t.add_player([f"P{i}" for i in range(n_players)])
+        return t
+
+    def _finish_swiss(self, t, n_rounds):
+        for _ in range(n_rounds):
+            t.create_pairings()
+            t.random_results()
+
+    def test_stage_sequence_8_4_2_then_completes(self):
+        random.seed(11)
+        t = self._tournament(16, 4, 8)
+        self._finish_swiss(t, 4)
+
+        t.create_pairings()
+        self.assertEqual(t.tour_round.stage.value, 8)
+        t.random_results()
+
+        t.create_pairings()
+        self.assertEqual(t.tour_round.stage.value, 4)
+        t.random_results()
+
+        t.create_pairings()
+        self.assertEqual(t.tour_round.stage.value, 2)
+        t.random_results()
+
+        self.assertFalse(t.create_pairings())
+
+    def test_qf_pods_match_bracket_seed_order_higher_seed_first(self):
+        random.seed(10)
+        t = self._tournament(16, 4, 8)
+        self._finish_swiss(t, 4)
+        seeds = t.get_standings(t.tour_round)[:8]
+        seed_index = {p: i for i, p in enumerate(seeds)}
+
+        t.create_pairings()
+
+        expected_pairs = {
+            frozenset({seeds[0].uid, seeds[7].uid}),
+            frozenset({seeds[3].uid, seeds[4].uid}),
+            frozenset({seeds[1].uid, seeds[6].uid}),
+            frozenset({seeds[2].uid, seeds[5].uid}),
+        }
+        actual_pairs = {
+            frozenset(p.uid for p in pod.players) for pod in t.tour_round.pods
+        }
+        self.assertEqual(actual_pairs, expected_pairs)
+        for pod in t.tour_round.pods:
+            a, b = pod.players
+            self.assertLess(seed_index[a], seed_index[b])
+
+    def test_forced_upset_no_reseeding_in_sf(self):
+        random.seed(12)
+        t = self._tournament(16, 4, 8)
+        self._finish_swiss(t, 4)
+        seeds = t.get_standings(t.tour_round)[:8]
+        seed_index = {p: i for i, p in enumerate(seeds)}
+
+        t.create_pairings()  # QF
+        for pod in t.tour_round.pods:
+            a, b = pod.players
+            ia, ib = seed_index[a], seed_index[b]
+            if {ia, ib} == {0, 7}:
+                t.report_win(a if ia == 7 else b)  # seed 8 upsets seed 1
+            else:
+                t.report_win(a if ia < ib else b)  # higher seed advances
+
+        t.create_pairings()  # SF - not reseeded
+        sf_pairs = {
+            frozenset(p.uid for p in pod.players) for pod in t.tour_round.pods
+        }
+        expected = {
+            frozenset({seeds[7].uid, seeds[3].uid}),  # s8, s4
+            frozenset({seeds[1].uid, seeds[2].uid}),  # s2, s3
+        }
+        self.assertEqual(sf_pairs, expected)
+
+    def test_report_draw_and_tied_report_match_raise_in_playoffs(self):
+        random.seed(13)
+        t = self._tournament(16, 4, 2)
+        self._finish_swiss(t, 4)
+        t.create_pairings()  # the final (TOP_2)
+        pod = t.tour_round.pods[0]
+        with self.assertRaises(ValueError):
+            t.report_draw(list(pod.players))
+        a, b = pod.players
+        with self.assertRaises(ValueError):
+            t.report_match(pod, games_from_score(pod, {a: 1, b: 1}))
+
+    def test_bo5_final_via_playoff_rounds_override(self):
+        random.seed(14)
+        t = self._tournament(
+            16, 4, 8, playoff_rounds={2: {"ruleset_params": {"games_to_win": 3}}}
+        )
+        self._finish_swiss(t, 4)
+
+        t.create_pairings()  # QF, default games_to_win (2)
+        for pod in t.tour_round.pods:
+            t.report_win(pod.players[0])
+        t.create_pairings()  # SF
+        for pod in t.tour_round.pods:
+            t.report_win(pod.players[0])
+
+        t.create_pairings()  # final, stage TOP_2 -> playoff_rounds[2]
+        self.assertEqual(t.ruleset._param(t.tour_round, "games_to_win"), 3)
+        pod = t.tour_round.pods[0]
+        a, b = pod.players
+        t.report_win(a)
+        self.assertEqual(len(pod.games), 3)  # a clean 3-0 sweep
+        self.assertTrue(all(g.winners == {a.uid} for g in pod.games))
+
+        # A time-called 2-1 is also a valid (non-tied) Bo5 report.
+        t.report_match(pod, games_from_score(pod, {a: 2, b: 1}))
+        self.assertEqual(len(pod.games), 3)
+
+    def test_drop_after_qf_paired_gives_sf_opponent_a_bye(self):
+        random.seed(15)
+        t = self._tournament(16, 4, 8)
+        self._finish_swiss(t, 4)
+        t.create_pairings()  # QF
+        winners = []
+        for pod in t.tour_round.pods:
+            t.report_win(pod.players[0])
+            winners.append(pod.players[0])
+
+        t.drop_player(winners[0])
+        t.create_pairings()  # SF: one semifinalist just dropped
+
+        byes = list(t.tour_round.byes)
+        self.assertEqual(len(byes), 1)
+        self.assertNotEqual(byes[0].uid, winners[0].uid)
+        seated = sum(len(pod.players) for pod in t.tour_round.pods)
+        # 4 QF winners - 1 dropped = 3 active semifinalists: 2 seated + 1 bye.
+        self.assertEqual(seated + len(byes), 3)
+
+    def test_final_standings_champion_then_finalist(self):
+        random.seed(16)
+        t = self._tournament(16, 4, 2)
+        self._finish_swiss(t, 4)
+        t.create_pairings()  # the final
+        pod = t.tour_round.pods[0]
+        champion = pod.players[0]
+        finalist = pod.players[1]
+        t.report_win(champion)
+
+        standings = t.get_standings(t.tour_round)
+        self.assertEqual(standings[0], champion)
+        self.assertEqual(standings[1], finalist)
+
+    def test_save_and_load_between_playoff_rounds(self):
+        random.seed(17)
+        t = self._tournament(16, 4, 4)
+        self._finish_swiss(t, 4)
+        t.create_pairings()  # SF (top_cut=4's first stage)
+        t.random_results()
+
+        serialized = t.serialize()
+        Tournament.CACHE.clear()
+        t2 = Tournament.inflate(serialized)
+
+        self.assertEqual(
+            [p.uid for p in t.get_standings(t.rounds[-1])],
+            [p.uid for p in t2.get_standings(t2.rounds[-1])],
+        )
+        self.assertTrue(t2.create_pairings())  # the final pairs cleanly
+
+    def test_top_cut_2_and_16_run_to_completion(self):
+        cases = {2: (16, 1), 16: (32, 4)}
+        for cut, (n_players, n_playoff_rounds) in cases.items():
+            with self.subTest(cut=cut):
+                random.seed(20 + cut)
+                t = self._tournament(n_players, 4, cut)
+                self._finish_swiss(t, 4)
+                played = 0
+                while t.create_pairings():
+                    t.random_results()
+                    played += 1
+                self.assertEqual(played, n_playoff_rounds)
+
+    def test_commander_rejects_top_cut_8_mtg_rejects_top_cut_7(self):
+        with self.assertRaises(ValueError):
+            Tournament(
+                TournamentConfiguration(pod_sizes=[4], top_cut=8, auto_export=False)
+            )
+        with self.assertRaises(ValueError):
+            Tournament(
+                TournamentConfiguration(
+                    ruleset="Mtg1v1Ruleset", top_cut=7, auto_export=False
+                )
+            )
 
 
 if __name__ == "__main__":
