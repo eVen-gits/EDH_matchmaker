@@ -825,6 +825,10 @@ class MainWindow(QMainWindow):
 
     def set_list_item_color(self, item: QListWidgetItem, context: TournamentContext):
         player: Player = item.data(Qt.ItemDataRole.UserRole)
+
+        if self.core.tour_round is None:
+            return
+
         result = player.result(self.core.tour_round)
 
         if player in self.core.tour_round.dropped_players:

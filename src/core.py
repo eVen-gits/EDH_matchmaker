@@ -2396,7 +2396,7 @@ class Player(IPlayer):
             return None
         return tour_round.get_location(self)
 
-    def result(self, tour_round: Round) -> Player.EResult:
+    def result(self, tour_round: Round | None) -> Player.EResult:
         """Retrieves the player's result for a specific round.
 
         Args:
@@ -2405,6 +2405,8 @@ class Player(IPlayer):
         Returns:
             Player.EResult: The result (WIN, LOSS, DRAW, BYE, PENDING).
         """
+        if tour_round is None:
+            return Player.EResult.PENDING
         if self.uid in tour_round._byes:
             return Player.EResult.BYE
         if self.uid in tour_round._game_loss:
@@ -2843,7 +2845,7 @@ class Player(IPlayer):
 
     @override
     def __repr__(self, tokens=None, context: TournamentContext | None = None):
-        if len(self.tour.tour_round.active_players) == 0:
+        if self.tour.tour_round is None or len(self.tour.tour_round.active_players) == 0:
             return ""
         if not tokens:
             tokens = self.FORMATTING
