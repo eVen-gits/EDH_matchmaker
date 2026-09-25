@@ -138,6 +138,8 @@ class Mtg1v1Ruleset(IRuleset):
     # Spec: a coin flip or the higher seed picks play/draw (informational
     # only) - seats otherwise carry no meaning, unlike Commander's.
     SEAT_BALANCING = False
+    # An odd player count must get a bye, never leave someone unseated.
+    BYES_REQUIRED = True
 
     # Round.Stage.SWISS's value, without importing core.py (see
     # CommonScoring._SWISS in src/logic/commander/scoring.py for the same

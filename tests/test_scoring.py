@@ -80,3 +80,34 @@ class TestScoring(unittest.TestCase):
             self.assertTrue(self.t.tour_round.done)
 
             self.t.reset_pods()
+
+
+class TestScoringPodSizeCompatibility(unittest.TestCase):
+    """Scoring logics are offered only when they support the tournament
+    sizes - same filter as IPairingLogic.supports_pod_sizes."""
+
+    def test_supports_pod_sizes(self):
+        scoring_1v1 = Tournament.get_scoring_logic("Scoring1v1")
+        default = Tournament.get_scoring_logic("ScoringDefault")
+        self.assertEqual(scoring_1v1.SUPPORTED_POD_SIZES, (2,))
+        self.assertIsNone(default.SUPPORTED_POD_SIZES)  # any size
+        self.assertTrue(scoring_1v1.supports_pod_sizes([2]))
+        self.assertFalse(scoring_1v1.supports_pod_sizes([4, 3]))
+        self.assertFalse(scoring_1v1.supports_pod_sizes([4, 3, 2]))
+        self.assertTrue(default.supports_pod_sizes([2]))
+        self.assertTrue(default.supports_pod_sizes([4, 3]))
+
+    def test_selectable_filtered_by_pod_sizes(self):
+        self.assertNotIn(
+            "Scoring1v1", Tournament.selectable_scoring_logics([4, 3])
+        )
+        self.assertIn("Scoring1v1", Tournament.selectable_scoring_logics([2]))
+        self.assertIn(
+            "ScoringDefault", Tournament.selectable_scoring_logics([2])
+        )
+
+    def test_selectable_without_pod_sizes_returns_all(self):
+        self.assertEqual(
+            Tournament.selectable_scoring_logics(),
+            Tournament.scoring_logic_names(),
+        )

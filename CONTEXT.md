@@ -176,16 +176,22 @@ to miss).
 
 ## `SUPPORTED_POD_SIZES`
 
-A tuple on a pairing-logic class limiting which pod sizes (3, 4, 5, …) it
-will be offered for; `None` means "any size."
+A tuple on a pairing-logic or scoring-logic class limiting which pod sizes
+(3, 4, 5, …) it will be offered for; `None` means "any size." Both
+`IPairingLogic` and `IScoringLogic` carry it independently — a scoring
+formula tied to 1v1 (e.g. `Scoring1v1`) and a pairing algorithm tied to 1v1
+(e.g. `Pairing1v1`) each declare their own tuple, so neither leaks into a
+tournament of the wrong pod size on its own.
 
 **Lives in:** `src/interface.py` (`IPairingLogic.SUPPORTED_POD_SIZES`,
-`supports_pod_sizes()`)
+`IScoringLogic.SUPPORTED_POD_SIZES`, `supports_pod_sizes()` on each)
 **Invariant:** Must be set deliberately for any algorithm that can't handle
 every pod size — the adaptive default pairing logic checks this to decide
-what it's allowed to fall back to, so leaving it `None` on an algorithm that
-actually can't handle 3-player pods is a silent correctness bug, not just a
-GUI omission.
+what it's allowed to fall back to, and the config GUI checks both
+`Tournament.selectable_pairing_logics()`/`selectable_scoring_logics()` to
+filter their dropdowns, so leaving it `None` on an algorithm that actually
+can't handle 3-player pods is a silent correctness bug, not just a GUI
+omission.
 
 ## `SELECTABLE`
 

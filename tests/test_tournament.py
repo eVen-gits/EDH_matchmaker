@@ -9,6 +9,32 @@ fkr = Faker()
 TournamentAction.LOGF = False  # type: ignore
 
 
+class TestSnakePodsMigration(unittest.TestCase):
+    """snake_pods is deprecated (read, never written) - see the "1.1 -> 1.2"
+    section of docs/tournament-log-spec.md."""
+
+    def test_old_format_snake_pods_false_pins_round_2_to_default(self):
+        config = TournamentConfiguration.inflate(
+            {
+                "pod_sizes": [4, 3],
+                "allow_bye": True,
+                "snake_pods": False,
+                "n_rounds": 3,
+                "max_byes": 2,
+                "auto_export": False,
+                "standings_export": {"fields": [], "format": 0, "dir": ""},
+                "global_wr_seats": [0.25, 0.2, 0.15, 0.1],
+                "top_cut": 0,
+            }
+        )
+        self.assertEqual(config.pairing_logics[1], "PairingDefault")
+
+    def test_new_config_round_2_defaults_to_snake(self):
+        t = Tournament(TournamentConfiguration(auto_export=False, n_rounds=3))
+        self.assertEqual(t.ruleset.swiss_pairing_logic(t, 1), "PairingSnake")
+        self.assertNotIn("snake_pods", t.config.serialize())
+
+
 class TestTournamentPodSizing(unittest.TestCase):
     def test_correct_pod_sizing_43_nobye(self):
         t = Tournament(

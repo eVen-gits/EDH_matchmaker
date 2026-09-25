@@ -14,3 +14,4 @@ class Scoring1v1(_commander_scoring.ScoringDefault):
     """
 
     IS_COMPLETE = True
+    SUPPORTED_POD_SIZES = (2,)

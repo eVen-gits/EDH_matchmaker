@@ -311,12 +311,27 @@ class IScoringLogic(ABC):
 
     IS_COMPLETE: bool = False
     name: str
+    # Pod sizes this algorithm supports (its capability). None means any size.
+    # The tournament's pod sizes must all be supported for this algorithm to be
+    # offered - see supports_pod_sizes and Tournament.selectable_scoring_logics.
+    SUPPORTED_POD_SIZES: tuple[int, ...] | None = None
     # This algorithm's parameter spec, loaded at class definition from the
     # sidecar `<ClassName>.params.yaml` (name, default, type, range,
     # description). DEFAULT_PARAMS is derived from it - the names and defaults
     # used by TournamentConfiguration.scoring_params.
     PARAM_SPEC: dict[str, ParamSpec] = {}
     DEFAULT_PARAMS: dict[str, Any] = {}
+
+    @classmethod
+    def supports_pod_sizes(cls, pod_sizes: Sequence[int]) -> bool:
+        """Whether this algorithm can score a tournament with these pod sizes.
+
+        True if it supports any size (SUPPORTED_POD_SIZES is None) or every
+        given size is in its supported set.
+        """
+        if cls.SUPPORTED_POD_SIZES is None:
+            return True
+        return set(pod_sizes).issubset(cls.SUPPORTED_POD_SIZES)
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
         super().__init_subclass__(**kwargs)
@@ -391,6 +406,9 @@ class IRuleset(ABC):
     )
     # Whether core calls Pod.auto_assign_seats after Swiss pairing.
     SEAT_BALANCING: bool = True
+    # Whether this ruleset requires an odd player count to get a bye rather
+    # than leave someone unseated (config.allow_bye and max_byes >= 1).
+    BYES_REQUIRED: bool = False
     # top_cut -> playoff rounds in play order, each (stage value, top-cut
     # pairing logic name). Its keys are the only non-zero top_cut values
     # the ruleset accepts.
@@ -498,7 +516,6 @@ class IStandingsExport(ABC):
 class ITournamentConfiguration(ABC):
     pod_sizes: Sequence[int] = (4, 3)
     allow_bye: bool = True
-    snake_pods: bool = True
     n_rounds: int = 4
     max_byes: int = 2
     auto_export: bool = True
