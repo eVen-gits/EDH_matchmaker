@@ -84,7 +84,7 @@ class CommanderRuleset(IRuleset):
     def swiss_pairing_logic(self, tour: ITournament, seq: int) -> str:
         if seq == 0:
             return "PairingRandom"
-        if seq == 1 and tour.config.snake_pods:  # type: ignore[attr-defined]
+        if seq == 1:
             return "PairingSnake"
         return "PairingDefault"
 

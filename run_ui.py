@@ -32,12 +32,14 @@ from src.core import (
     Log,
     Player,
     Pod,
+    Round,
     Tournament,
     TournamentConfiguration,
     TournamentAction,
     TournamentContext,
 )
 from src.misc import generate_player_names
+from src.logic.mtg.rules import games_from_score
 
 
 # from PySide2 import QtWidgets
@@ -81,6 +83,9 @@ class PodSizeEditor(QWidget):
 
     def __init__(self, sizes, parent=None):
         super().__init__(parent)
+        # None = any size allowed (see set_allowed); the Add button and
+        # set_allowed's single-size lock both key off this.
+        self._allowed: tuple[int, ...] | None = None
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         self._list = QListWidget()
@@ -120,7 +125,25 @@ class PodSizeEditor(QWidget):
         size = self._spin.value()
         if size in self.values():  # no duplicate sizes
             return
+        if self._allowed is not None and size not in self._allowed:
+            return
         self._add_item(size)
+        self.changed.emit()
+
+    def set_allowed(self, allowed: tuple[int, ...] | None) -> None:
+        """Restricts which sizes the Add button accepts (None = any).
+
+        Disables the whole editor when exactly one size is allowed (e.g.
+        MTG's [2]) - there is nothing to choose.
+        """
+        self._allowed = allowed
+        self.setEnabled(allowed is None or len(allowed) != 1)
+
+    def reset(self, sizes) -> None:
+        """Replaces the list wholesale (e.g. a new ruleset's default sizes)."""
+        self._list.clear()
+        for size in sizes:
+            self._add_item(size)
         self.changed.emit()
 
     def _remove_selected(self, *_):
@@ -259,7 +282,12 @@ class UILog:
     @classmethod
     def with_status(cls, func_to_decorate):
         def wrapper(self, *original_args, **original_kwargs):
-            ret = func_to_decorate(self, *original_args, **original_kwargs)
+            try:
+                ret = func_to_decorate(self, *original_args, **original_kwargs)
+            except ValueError as e:
+                QMessageBox.warning(self, "Not allowed", str(e))
+                Log.log(str(e), level=Log.Level.WARNING)
+                ret = None
             if cls.backlog < len(Log.output):
                 for i in range(cls.backlog, len(Log.output)):
                     self.ui.lw_status.addItem(str(Log.output[i]))
@@ -374,6 +402,169 @@ class GeneratePlayersDialog(QDialog):
         _ = dlg.exec()
         parent.restore_ui()
         return None
+
+
+def _player_text(player: Player, p_fmt, context: TournamentContext, cols) -> str:
+    """A player list item's display text: the usual repr tokens, plus one
+    " | HEADER value" per ruleset standings column (e.g. MTG's OMW/GW/OGW;
+    Commander's standings_columns is empty, so this is a no-op there)."""
+    text = player.__repr__(p_fmt, context=context)
+    for header, cells in cols:
+        text += f" | {header} {cells.get(player.uid, '')}"
+    return text
+
+
+def round_label(r) -> str:
+    """A round's display label: "Round N" (1-based) for Swiss, "Top K" for
+    a playoff stage."""
+    if r.stage == Round.Stage.SWISS:
+        return f"Round {r.seq + 1}"
+    return f"Top {r.stage.value}"
+
+
+def _scored(pod: Pod) -> bool:
+    """Whether pod takes a whole-match score report (a Bo3-style "2-1") via
+    MatchReportDialog, rather than Commander's single winner/draw.
+
+    Capability check: true for a 2-player pod under a ruleset whose params
+    include games_to_win (today, only Mtg1v1Ruleset).
+    """
+    ruleset = pod.tour_round.tour.ruleset
+    return "games_to_win" in ruleset.PARAM_SPEC and len(pod.players) == 2
+
+
+def _game_loss_target(players: list, tour_round) -> Pod | None:
+    """The scored pod a lone seated player's game-loss penalty routes into
+    (Bo3 opponent gets a game win), or None when the ordinary
+    toggle_game_loss applies (Commander, an unseated player, or a
+    multi-select)."""
+    if tour_round is None or len(players) != 1:
+        return None
+    player = players[0]
+    if player.uid in tour_round._game_loss:
+        return None
+    pod = player.pod(tour_round)
+    if pod is None or not _scored(pod):
+        return None
+    return pod
+
+
+def _game_loss_confirm_text(players: list, tour_round) -> str:
+    names = ", ".join(p.name for p in players)
+    if _game_loss_target(players, tour_round) is not None:
+        return (
+            f"Assign game loss for {names}? The penalty game goes into the "
+            "match score."
+        )
+    return "Toggle game loss for: {}?".format(names)
+
+
+class MatchReportDialog(QDialog):
+    """Whole-match score entry (e.g. 2-1, a time-called 1-0, an ID 0-0-3).
+
+    One spin box per seated player plus a Draws spin box; live validation
+    against the tournament's ruleset disables OK until the score is a valid
+    report. Built in code, like GeneratePlayersDialog, with no .ui file.
+    """
+
+    def __init__(
+        self,
+        app: MainWindow,
+        pod: Pod,
+        preset: dict[Player, int] | None = None,
+        parent=None,
+    ):
+        QDialog.__init__(self, parent)
+        self.app = app
+        self.pod = pod
+        self.ruleset = pod.tour_round.tour.ruleset
+        g = self.ruleset.params(pod.tour_round)["games_to_win"]
+        self.g = g
+        self.setWindowTitle(f"{pod.name} - Best of {2 * g - 1}")
+
+        layout = QVBoxLayout(self)
+        self.setLayout(layout)
+        form = QFormLayout()
+        layout.addLayout(form)
+
+        wins, draws = self._prefill(preset)
+        self._spins: dict[Player, QSpinBox] = {}
+        for p in pod.players:
+            spin = QSpinBox()
+            spin.setRange(0, g)
+            spin.setValue(wins.get(p, 0))
+            spin.valueChanged.connect(self._update_status)
+            form.addRow(p.name, spin)
+            self._spins[p] = spin
+
+        self.sb_draws = QSpinBox()
+        self.sb_draws.setRange(0, 9)
+        self.sb_draws.setValue(draws)
+        self.sb_draws.valueChanged.connect(self._update_status)
+        form.addRow("Draws", self.sb_draws)
+
+        self.lbl_status = QLabel()
+        layout.addWidget(self.lbl_status)
+
+        buttons = QHBoxLayout()
+        layout.addLayout(buttons)
+        self.pb_ok = QPushButton("OK")
+        self.pb_cancel = QPushButton("Cancel")
+        buttons.addWidget(self.pb_ok)
+        buttons.addWidget(self.pb_cancel)
+        self.pb_ok.clicked.connect(self.accept)
+        self.pb_cancel.clicked.connect(self.reject)
+
+        self._update_status()
+
+    def _prefill(self, preset: dict[Player, int] | None):
+        """Starting wins/draws: preset if given, else the pod's own report
+        (a re-report opens showing what was already recorded)."""
+        if preset is not None:
+            return preset, 0
+        wins: dict[Player, int] = {}
+        draws = 0
+        for game in self.pod.games:
+            if len(game.winners) == 1:
+                (uid,) = game.winners
+                player = Player.get(self.pod.tour, uid)
+                wins[player] = wins.get(player, 0) + 1
+            else:
+                draws += 1
+        return wins, draws
+
+    def _games(self):
+        wins: dict[IPlayer, int] = {p: spin.value() for p, spin in self._spins.items()}
+        return games_from_score(self.pod, wins, self.sb_draws.value())
+
+    def _update_status(self, *_):
+        games = self._games()
+        try:
+            self.ruleset.validate_report(self.pod, games)
+        except ValueError as e:
+            self.lbl_status.setText(str(e))
+            self.pb_ok.setEnabled(False)
+            return
+        self.pb_ok.setEnabled(True)
+        tally = {p: spin.value() for p, spin in self._spins.items()}
+        draws = self.sb_draws.value()
+        top = max(tally.values())
+        winners = [p for p in self.pod.players if tally[p] == top]
+        scores = "-".join(str(tally[p]) for p in self.pod.players)
+        if draws:
+            scores = f"{scores}-{draws}"
+        if len(winners) == 1:
+            self.lbl_status.setText(f"{winners[0].name} wins {scores}")
+        else:
+            self.lbl_status.setText(f"Draw {scores}")
+
+    @staticmethod
+    def show_dialog(
+        app: MainWindow, pod: Pod, preset: dict[Player, int] | None = None
+    ):
+        dlg = MatchReportDialog(app, pod, preset=preset)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            app.report_match(pod, dlg._games())
 
 
 class MainWindow(QMainWindow):
@@ -636,11 +827,11 @@ class MainWindow(QMainWindow):
             for item in self.ui.lv_players.selectedItems()
         ]
         ok = self.confirm(
-            "Toggle game loss for: {}?".format(", ".join([p.name for p in players])),
+            _game_loss_confirm_text(players, self.core.tour_round),
             "Confirm game loss status",
         )
         if ok:
-            self.toggle_game_loss(players)
+            self.game_loss(players)
 
     def lva_bye(self):
         players = [
@@ -701,6 +892,23 @@ class MainWindow(QMainWindow):
                     "Invalid input. Please enter a comma-separated list of numbers.",
                 )
 
+    def game_loss(self, players: list[Player]):
+        """Routes a game-loss penalty: a lone seated MTG player opens
+        MatchReportDialog with the opponent up a game (or the pod's own
+        report pre-filled, if it already has one); everything else falls
+        through to the ordinary toggle_game_loss (Commander, an unseated
+        player, a multi-select)."""
+        pod = _game_loss_target(players, self.core.tour_round)
+        if pod is not None:
+            (player,) = players
+            opponent = next(p for p in pod.players if p != player)
+            preset = None if pod.games else {opponent: 1}
+            MatchReportDialog.show_dialog(self, pod, preset=preset)
+            self.ui_update_player_list()
+            self.ui_update_pods()
+            return
+        self.toggle_game_loss(players)
+
     @UILog.with_status
     def toggle_game_loss(self, players: list[Player]):
         if not isinstance(players, list):
@@ -747,7 +955,13 @@ class MainWindow(QMainWindow):
             tour_round = self.core.tour_round
             standings = self.core.get_standings(tour_round)
             context = TournamentContext(self.core, tour_round, standings)
+            cols = (
+                self.core.ruleset.standings_columns(self.core, tour_round)
+                if tour_round
+                else []
+            )
             list_item = PlayerListItem(player, p_fmt=self.PLIST_FMT, context=context)
+            list_item.setText(_player_text(player, self.PLIST_FMT, context, cols))
             list_item.setData(Qt.ItemDataRole.UserRole, player)
             self.ui.lv_players.addItem(list_item)
         self.ui_update_player_list()
@@ -795,6 +1009,10 @@ class MainWindow(QMainWindow):
             )
             for pod in self.core.tour_round.pods:
                 layout.addWidget(PodWidget(self, pod, context=context))
+        title = f"EDH matchmaker - {self.core.config.ruleset.removesuffix('Ruleset')}"
+        if self.core.tour_round:
+            title += f" - {round_label(self.core.tour_round)}"
+        self.setWindowTitle(title)
 
     def ui_clear_pods(self):
         layout = self.ui.saw_content.layout()
@@ -854,10 +1072,16 @@ class MainWindow(QMainWindow):
                 item.setBackground(PlayerListItem.Color.UNSEATED)
 
     def ui_update_player_list(self):
+        tour_round = self.core.tour_round
         context = TournamentContext(
             self.core,
-            self.core.tour_round,
-            self.core.get_standings(self.core.tour_round),
+            tour_round,
+            self.core.get_standings(tour_round),
+        )
+        cols = (
+            self.core.ruleset.standings_columns(self.core, tour_round)
+            if tour_round
+            else []
         )
         for row in range(self.ui.lv_players.count()):
             item = self.ui.lv_players.item(row)
@@ -865,7 +1089,7 @@ class MainWindow(QMainWindow):
 
             self.set_list_item_color(item, context)
 
-            item.setText(data.__repr__(self.PLIST_FMT, context=context))
+            item.setText(_player_text(data, self.PLIST_FMT, context, cols))
         PlayerListItem.sort_with_context(self.ui.lv_players, context)
         self.ui_filter_players()
 
@@ -890,8 +1114,14 @@ class MainWindow(QMainWindow):
         tour_round = self.core.tour_round
         standings = self.core.get_standings(tour_round)
         context = TournamentContext(self.core, tour_round, standings)
+        cols = (
+            self.core.ruleset.standings_columns(self.core, tour_round)
+            if tour_round
+            else []
+        )
         for p in self.core.players:
             list_item = PlayerListItem(p, p_fmt=self.PLIST_FMT, context=context)
+            list_item.setText(_player_text(p, self.PLIST_FMT, context, cols))
             list_item.setData(Qt.ItemDataRole.UserRole, p)
             self.set_list_item_color(list_item, context)
             self.ui.lv_players.addItem(list_item)
@@ -918,6 +1148,18 @@ class MainWindow(QMainWindow):
         )
         self.core.report_draw(players)
         self.ui_update_player_list()
+
+    @UILog.with_status
+    def report_match(self, pod: Pod, games: list[IGameResult]):
+        self.core.report_match(pod, games)
+        self.ui_update_player_list()
+        self.ui_update_pods()
+
+    @UILog.with_status
+    def reset_result(self, pod: Pod):
+        self.core.reset_result(pod)
+        self.ui_update_player_list()
+        self.ui_update_pods()
 
     @UILog.with_status
     def bench_players(self, players: list[Player]):
@@ -992,6 +1234,11 @@ class PodWidget(QWidget):
 
         self.ui.lw_players.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.ui.lw_players.customContextMenuRequested.connect(self.rightclick_menu)
+        self.ui.lw_players.itemDoubleClicked.connect(self._on_double_click)
+
+    def _on_double_click(self, *_):
+        if _scored(self.pod):
+            self.report_score()
 
     def refresh_ui(self, context: TournamentContext | None = None):
         if not self.pod.players:
@@ -1005,9 +1252,7 @@ class PodWidget(QWidget):
                 self.app.core.get_standings(self.pod.tour_round),
             )
 
-        self.ui.lbl_pod_id.setText(
-            "{} - {} players".format(self.pod.name, len(self.pod.players))
-        )
+        self.ui.lbl_pod_id.setText(self._pod_label())
         self.lw_players.clear()
         for p in self.pod.players:
             list_item = PlayerListItem(p, p_fmt=self.PLIST_FMT, context=context)
@@ -1032,6 +1277,28 @@ class PodWidget(QWidget):
             + 2 * self.lw_players.frameWidth()
         )
 
+    def _pod_label(self) -> str:
+        if _scored(self.pod):
+            ruleset = self.pod.tour_round.tour.ruleset
+            g = ruleset.params(self.pod.tour_round)["games_to_win"]
+            label = f"{self.pod.name} - Bo{2 * g - 1}"
+            if self.pod.games:
+                tally: dict[Player, int] = {p: 0 for p in self.pod.players}
+                draws = 0
+                for game in self.pod.games:
+                    if len(game.winners) == 1:
+                        (uid,) = game.winners
+                        player = Player.get(self.pod.tour, uid)
+                        tally[player] += 1
+                    else:
+                        draws += 1
+                scores = "-".join(str(tally[p]) for p in self.pod.players)
+                if draws:
+                    scores = f"{scores}-{draws}"
+                label = f"{label} - {scores}"
+            return label
+        return "{} - {} players".format(self.pod.name, len(self.pod.players))
+
     def rightclick_menu(self, position):
         # Popup menu
         pop_menu = QMenu()
@@ -1041,9 +1308,17 @@ class PodWidget(QWidget):
 
         # Check if it is on the item when you right-click, if it is not, delete and modify will not be displayed.
         if self.ui.lw_players.itemAt(position):
+            if _scored(self.pod):
+                pop_menu.addAction(
+                    QAction("Report score...", self, triggered=self.report_score)
+                )
             if n_selected == 1:
                 pop_menu.addAction(
-                    QAction("Report win", self, triggered=self.report_win)
+                    QAction(
+                        "Report win (g-0)" if _scored(self.pod) else "Report win",
+                        self,
+                        triggered=self.report_win,
+                    )
                 )
             else:
                 pop_menu.addAction(
@@ -1088,11 +1363,20 @@ class PodWidget(QWidget):
         # rename_player_action.triggered.connect(self.lva_rename_player)
         pop_menu.exec(self.ui.lw_players.mapToGlobal(position))
 
+    def report_score(self):
+        MatchReportDialog.show_dialog(self.app, self.pod)
+        self.refresh_ui()
+
     def report_win(self):
         player = self.lw_players.currentItem().data(Qt.ItemDataRole.UserRole)
-        ok = self.app.confirm(
-            "Report player {} won?".format(player.name), "Confirm result"
-        )
+        if _scored(self.pod):
+            g = self.pod.tour_round.tour.ruleset.params(self.pod.tour_round)[
+                "games_to_win"
+            ]
+            message = f"Report player {player.name} won {g}-0?"
+        else:
+            message = "Report player {} won?".format(player.name)
+        ok = self.app.confirm(message, "Confirm result")
         if ok:
             self.app.report_win(player)
             # self.deleteLater()
@@ -1111,7 +1395,6 @@ class PodWidget(QWidget):
             "Confirm result",
         )
         if ok:
-            self.pod.reset_result()
             self.app.report_draw(players)
             # self.deleteLater()
             self.app.ui_update_player_list()
@@ -1119,8 +1402,7 @@ class PodWidget(QWidget):
 
     def reset_result(self):
         if self.pod.result_type != Pod.EResult.PENDING:
-            self.pod.reset_result()
-            self.app.ui_update_player_list()
+            self.app.reset_result(self.pod)
             self.refresh_ui()
 
     def bench_players(self):
@@ -1143,13 +1425,11 @@ class PodWidget(QWidget):
             for item in self.lw_players.selectedItems()
         ]
         ok = self.app.confirm(
-            "Assign game loss for players:\n\n{}".format(
-                "\n".join([p.name for p in players])
-            ),
+            _game_loss_confirm_text(players, self.pod.tour_round),
             "Confirm game loss penalty",
         )
         if ok:
-            self.app.toggle_game_loss(players)
+            self.app.game_loss(players)
 
     def assign_bye(self):
         players = [
@@ -1178,7 +1458,7 @@ class RoundSelectWidget(QDialog):
 
     def restore_ui(self):
         for tour_round in self.core.rounds:
-            item = QListWidgetItem(f"Round {tour_round.seq}")
+            item = QListWidgetItem(round_label(tour_round))
             item.setData(Qt.ItemDataRole.UserRole, tour_round)
             self.ui.lw_rounds.addItem(item)
 
@@ -1203,11 +1483,14 @@ class RoundSelectWidget(QDialog):
 
 
 class TournamentConfigDialog(QDialog):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, reset: bool = True):
         QDialog.__init__(self, parent)
         self.core: Tournament = parent.core
 
-        self.reset = True
+        # True for a new tournament (show_dialog), False to edit the running
+        # one (show_edit_dialog) - must be set before restore_ui, which uses
+        # it to decide whether the ruleset combo starts disabled.
+        self.reset = reset
 
         self.ui = uic.loadUi("./ui/TournamentConfigDialog.ui", self)
         assert self.ui is not None
@@ -1215,8 +1498,14 @@ class TournamentConfigDialog(QDialog):
         self._scoring_form: ParamForm | None = None
         self._pairing_combos: list = []
         # One entry per round (aligned with _pairing_combos): the round's
-        # ParamForm, or None when its logic ships no parameters.
+        # pairing-param ParamForm, or None when its logic ships no parameters.
         self._pairing_forms: list = []
+        # One entry per round (aligned with _pairing_combos): the round's
+        # ruleset-param ParamForm (e.g. games_to_win), or None when the
+        # ruleset ships no parameters.
+        self._ruleset_forms: list = []
+        # Playoff-stage ruleset-param forms, keyed by stage value.
+        self._playoff_forms: dict = {}
         # The tournament's global pod-size editor; drives which pairing logics
         # each round may offer (see _rebuild_pairing_rows).
         self._pod_size_editor: PodSizeEditor | None = None
@@ -1224,7 +1513,12 @@ class TournamentConfigDialog(QDialog):
         self.ui.cb_scoringLogic.currentIndexChanged.connect(
             self._rebuild_scoring_form
         )
-        self.ui.sb_nRounds.valueChanged.connect(self._rebuild_pairing_rows)
+        self.ui.cb_topCut.currentIndexChanged.connect(
+            lambda *_: self._rebuild_playoff_rows()
+        )
+        self.ui.sb_nRounds.valueChanged.connect(
+            lambda *_: self._rebuild_pairing_rows()
+        )
         self.ui.pb_browse.clicked.connect(self.select_log_location)
         self.ui.pb_confirm.clicked.connect(self.apply_choices)
 
@@ -1233,36 +1527,31 @@ class TournamentConfigDialog(QDialog):
     def restore_ui(self):
         # Load and set bye option
         self.cb_allow_bye.setChecked(self.core.config.allow_bye)
-        # Pod sizes before the pairing rows: they filter each round's logics.
+        # Pod sizes before the ruleset combo: _apply_ruleset filters/resets them.
         self._pod_size_editor = PodSizeEditor(list(self.core.config.pod_sizes))
-        self._pod_size_editor.changed.connect(self._rebuild_pairing_rows)
+        self._pod_size_editor.changed.connect(self._on_pod_sizes_changed)
         pod_layout = self.ui.w_pod_sizes.layout()
         pod_layout.addWidget(self._pod_size_editor)
-        # snake_pods before the pairing rows: it feeds their default preselection.
-        self.cb_snakePods.setChecked(self.core.config.snake_pods)
+
+        # Populate cb_ruleset and preselect the tournament's current ruleset.
+        for name in Tournament.ruleset_names():
+            self.ui.cb_ruleset.addItem(name.removesuffix("Ruleset"), name)
+        idx = self.ui.cb_ruleset.findData(self.core.config.ruleset)
+        self.ui.cb_ruleset.setCurrentIndex(idx if idx >= 0 else 0)
+        if not self.reset and self.core.has_results:
+            self.ui.cb_ruleset.setEnabled(False)
+            self.ui.cb_ruleset.setToolTip("Game is fixed once pairings exist.")
+        self.ui.cb_ruleset.currentIndexChanged.connect(
+            lambda *_: self._apply_ruleset(initial=False)
+        )
+
         self.sb_nRounds.setValue(self.core.config.n_rounds)
-        self._rebuild_pairing_rows()
         self.sb_max_byes.setValue(self.core.config.max_byes)
         self.ui.cb_auto_export.setChecked(self.core.config.auto_export)
-        # Populte cb_topCut
-        self.ui.cb_topCut.addItem("None", TournamentConfiguration.TopCut.NONE)
-        self.ui.cb_topCut.addItem("Top 4", TournamentConfiguration.TopCut.TOP_4)
-        self.ui.cb_topCut.addItem("Top 7", TournamentConfiguration.TopCut.TOP_7)
-        self.ui.cb_topCut.addItem("Top 10", TournamentConfiguration.TopCut.TOP_10)
-        self.ui.cb_topCut.addItem("Top 13", TournamentConfiguration.TopCut.TOP_13)
-        self.ui.cb_topCut.addItem("Top 16", TournamentConfiguration.TopCut.TOP_16)
-        self.ui.cb_topCut.addItem("Top 40", TournamentConfiguration.TopCut.TOP_40)
-        self.ui.cb_topCut.setCurrentIndex(
-            self.ui.cb_topCut.findData(self.core.config.top_cut)
-        )
-        # Populate cb_scoringLogic
-        self.ui.cb_scoringLogic.addItem("Default", "ScoringDefault")
-        self.ui.cb_scoringLogic.addItem("Hareruya", "ScoringHareruya")
-        self.ui.cb_scoringLogic.addItem("Modified Hareruya", "ScoringModifiedHareruya")
-        self.ui.cb_scoringLogic.setCurrentIndex(
-            self.ui.cb_scoringLogic.findData(self.core.config.scoring_logic)
-        )
-        self._rebuild_scoring_form()
+
+        # Seeds pod sizes/scoring/top-cut/byes from the current config, then
+        # builds the pairing and playoff rows.
+        self._apply_ruleset(initial=True)
 
         if TournamentAction.LOGF:
             self.ui.le_log_location.setText(TournamentAction.LOGF)
@@ -1270,6 +1559,84 @@ class TournamentConfigDialog(QDialog):
             self.ui.le_log_location.setText(
                 os.path.abspath(TournamentAction.DEFAULT_LOGF)
             )
+
+    def _apply_ruleset(self, initial: bool):
+        """Seeds every ruleset-dependent widget for the selected game.
+
+        Runs once on load (initial=True, seeded from self.core.config) and
+        again whenever the user changes cb_ruleset (initial=False, reset to
+        that ruleset's own defaults - see the "Decisions" in the plan this
+        implements).
+        """
+        name = self.ui.cb_ruleset.currentData()
+        if name is None:
+            return
+        ruleset = Tournament.get_ruleset(name)
+
+        if self._pod_size_editor is not None:
+            if not initial:
+                self._pod_size_editor.reset(list(ruleset.DEFAULT_POD_SIZES))
+            self._pod_size_editor.set_allowed(ruleset.ALLOWED_POD_SIZES)
+
+        # Scoring: only logics compatible with the tournament's pod sizes are
+        # offered (see Tournament.selectable_scoring_logics, the same filter
+        # selectable_pairing_logics applies to pairing logic); preselect the
+        # ruleset's default on a change, else the tournament's current pick.
+        preselect_scoring = (
+            self.core.config.scoring_logic if initial else ruleset.DEFAULT_SCORING_LOGIC
+        )
+        self._rebuild_scoring_choices(preselect_scoring)
+
+        # Top cut: only the choices this ruleset's PLAYOFFS plan supports.
+        # Keep the current choice if it is still offered, else None.
+        prev_top_cut = (
+            self.core.config.top_cut
+            if initial
+            else self.ui.cb_topCut.currentData()
+        )
+        self.ui.cb_topCut.blockSignals(True)
+        self.ui.cb_topCut.clear()
+        self.ui.cb_topCut.addItem("None", TournamentConfiguration.TopCut.NONE)
+        for k in sorted(ruleset.PLAYOFFS):
+            self.ui.cb_topCut.addItem(f"Top {k}", TournamentConfiguration.TopCut(k))
+        idx = self.ui.cb_topCut.findData(prev_top_cut)
+        self.ui.cb_topCut.setCurrentIndex(idx if idx >= 0 else 0)
+        self.ui.cb_topCut.blockSignals(False)
+
+        # Byes: a ruleset that requires them (e.g. Mtg1v1Ruleset) hides the
+        # controls and pins allow_bye on.
+        required = ruleset.BYES_REQUIRED
+        self.ui.cb_allow_bye.setVisible(not required)
+        self.ui.label_5.setVisible(not required)
+        self.ui.sb_max_byes.setVisible(not required)
+        if required:
+            self.ui.cb_allow_bye.setChecked(True)
+
+        self._rebuild_pairing_rows(reset_ruleset_params=not initial)
+        self._rebuild_playoff_rows(reset_ruleset_params=not initial)
+
+    def _on_pod_sizes_changed(self, *_):
+        """Re-filters scoring and pairing choices after an edit to the pod
+        sizes (not a ruleset change - that goes through _apply_ruleset)."""
+        self._rebuild_scoring_choices(self.ui.cb_scoringLogic.currentData())
+        self._rebuild_pairing_rows()
+
+    def _rebuild_scoring_choices(self, preselect: str | None):
+        """Repopulates cb_scoringLogic with the logics compatible with the
+        tournament's current pod sizes (see selectable_scoring_logics), then
+        preselects `preselect` if still offered, else the first choice."""
+        pod_sizes = self._pod_size_editor.values() if self._pod_size_editor else None
+        selectable = Tournament.selectable_scoring_logics(pod_sizes)
+        self.ui.cb_scoringLogic.blockSignals(True)
+        self.ui.cb_scoringLogic.clear()
+        for logic_name in selectable:
+            self.ui.cb_scoringLogic.addItem(
+                logic_name.removeprefix("Scoring"), logic_name
+            )
+        idx = self.ui.cb_scoringLogic.findData(preselect)
+        self.ui.cb_scoringLogic.setCurrentIndex(idx if idx >= 0 else 0)
+        self.ui.cb_scoringLogic.blockSignals(False)
+        self._rebuild_scoring_form()
 
     def _rebuild_scoring_form(self, *_):
         """Generates the parameter widgets for the selected scoring logic.
@@ -1291,41 +1658,51 @@ class TournamentConfigDialog(QDialog):
         layout.addWidget(form)
         self._scoring_form = form
 
-    def _adaptive_pairing_default(self, seq: int) -> str:
-        """The pairing logic the adaptive scheme uses for a Swiss round seq."""
-        if seq == 0:
-            return "PairingRandom"
-        if seq == 1 and self.cb_snakePods.isChecked():
-            return "PairingSnake"
-        return "PairingDefault"
-
-    def _rebuild_pairing_rows(self, *_):
+    def _rebuild_pairing_rows(self, *_, reset_ruleset_params: bool = False):
         """One pairing envelope per Swiss round, driven by the rounds count.
 
-        Each round gets a group box with a pairing-logic dropdown and, below it,
-        the parameter widgets for the selected logic. Only logics compatible
-        with the tournament's pod sizes are offered (see
-        selectable_pairing_logics). Rebuilt when the rounds count or the pod
-        sizes change; existing picks and edited values are kept when still valid.
+        Each round gets a group box with a pairing-logic dropdown, that
+        logic's own parameter widgets, and (when the ruleset takes
+        parameters, e.g. games_to_win) the ruleset's parameter widgets.
+        Only pairing logics compatible with the tournament's pod sizes are
+        offered (see selectable_pairing_logics). Rebuilt when the rounds
+        count, the pod sizes, or the ruleset change; existing picks and
+        edited values are kept when still valid, except ruleset-param
+        values, which reset to {} on a ruleset change (reset_ruleset_params).
         """
         n = self.ui.sb_nRounds.value()
         prev_logics = [c.currentData() for c in self._pairing_combos]
         prev_params = [f.values() if f else {} for f in self._pairing_forms]
+        prev_ruleset_params = (
+            []
+            if reset_ruleset_params
+            else [f.values() if f else {} for f in self._ruleset_forms]
+        )
         layout = self.ui.w_pairing_rounds.layout()
         _clear_layout(layout)
         self._pairing_combos = []
         self._pairing_forms = []
+        self._ruleset_forms = []
         pod_sizes = self._pod_size_editor.values() if self._pod_size_editor else None
         selectable = Tournament.selectable_pairing_logics(pod_sizes)
         configured = self.core.config.pairing_logics
         configured_params = self.core.config.pairing_params
+        configured_ruleset_params = (
+            []
+            if reset_ruleset_params
+            else [
+                r.get("ruleset_params", {}) for r in self.core.config.pairing_rounds
+            ]
+        )
+        ruleset_name = self.ui.cb_ruleset.currentData()
+        ruleset = Tournament.get_ruleset(ruleset_name) if ruleset_name else None
         for seq in range(n):
             if seq < len(prev_logics) and prev_logics[seq] in selectable:
                 preselect = prev_logics[seq]
             elif seq < len(configured) and configured[seq] in selectable:
                 preselect = configured[seq]
             else:
-                adaptive = self._adaptive_pairing_default(seq)
+                adaptive = ruleset.swiss_pairing_logic(self.core, seq) if ruleset else None
                 # Fall back to the first compatible logic if the adaptive pick
                 # is not offered for these pod sizes (for example size-2 pods).
                 preselect = adaptive if adaptive in selectable else (
@@ -1335,20 +1712,26 @@ class TournamentConfigDialog(QDialog):
             box = QGroupBox(f"Round {seq + 1}")
             vbox = QVBoxLayout(box)
             combo = QComboBox()
-            for name in selectable:
-                combo.addItem(name.replace("Pairing", ""), name)
+            for logic_name in selectable:
+                combo.addItem(logic_name.replace("Pairing", ""), logic_name)
             idx = combo.findData(preselect)
             combo.setCurrentIndex(idx if idx >= 0 else 0)
             vbox.addWidget(combo)
-            # Container the per-round param form is (re)built into.
+            # Container the per-round pairing-param form is (re)built into.
             holder = QWidget()
             holder_layout = QVBoxLayout(holder)
             holder_layout.setContentsMargins(0, 0, 0, 0)
             vbox.addWidget(holder)
+            # Container the per-round ruleset-param form is (re)built into.
+            ruleset_holder = QWidget()
+            ruleset_holder_layout = QVBoxLayout(ruleset_holder)
+            ruleset_holder_layout.setContentsMargins(0, 0, 0, 0)
+            vbox.addWidget(ruleset_holder)
             layout.addWidget(box)
 
             self._pairing_combos.append(combo)
             self._pairing_forms.append(None)
+            self._ruleset_forms.append(None)
             # Param seed: values edited this session win, else stored config.
             if seq < len(prev_params) and prev_params[seq]:
                 param_seed = prev_params[seq]
@@ -1357,6 +1740,13 @@ class TournamentConfigDialog(QDialog):
             else:
                 param_seed = {}
             self._build_round_param_form(seq, holder, param_seed)
+            if seq < len(prev_ruleset_params) and prev_ruleset_params[seq]:
+                ruleset_seed = prev_ruleset_params[seq]
+            elif seq < len(configured_ruleset_params):
+                ruleset_seed = configured_ruleset_params[seq]
+            else:
+                ruleset_seed = {}
+            self._build_round_ruleset_form(seq, ruleset_holder, ruleset, ruleset_seed)
             # Switching a round's logic resets its params to that logic's
             # defaults (seed {}), mirroring the scoring form's behavior.
             combo.currentIndexChanged.connect(
@@ -1384,6 +1774,67 @@ class TournamentConfigDialog(QDialog):
         holder_layout.addWidget(form)
         self._pairing_forms[seq] = form
 
+    def _build_round_ruleset_form(self, seq, holder, ruleset, ruleset_seed):
+        """(Re)builds the ruleset-param widgets for one Swiss round.
+
+        Mirrors _build_round_param_form, but for the ruleset's own
+        parameters (e.g. Mtg1v1Ruleset's games_to_win) rather than the
+        pairing logic's. A ruleset with no parameters (e.g. Commander)
+        leaves the holder empty and stores None.
+        """
+        holder_layout = holder.layout()
+        assert holder_layout is not None  # created in _rebuild_pairing_rows
+        _clear_layout(holder_layout)
+        self._ruleset_forms[seq] = None
+        if ruleset is None or not ruleset.PARAM_SPEC:
+            return
+        form = ParamForm(ruleset.PARAM_SPEC, {**ruleset.DEFAULT_PARAMS, **ruleset_seed})
+        holder_layout.addWidget(form)
+        self._ruleset_forms[seq] = form
+
+    def _rebuild_playoff_rows(self, *_, reset_ruleset_params: bool = False):
+        """One envelope per playoff stage the current top cut plays, each
+        holding that stage's ruleset-param widgets (e.g. a Bo5 final's
+        games_to_win). Nothing is shown when the ruleset takes no
+        parameters or no top cut is selected. Runs on load, whenever
+        cb_topCut changes, and from _apply_ruleset on a ruleset change
+        (reset_ruleset_params clears edited values, since they belonged to
+        the previous ruleset's stages)."""
+        prev_forms = {} if reset_ruleset_params else dict(self._playoff_forms)
+        layout = self.ui.w_playoff_rounds.layout()
+        _clear_layout(layout)
+        self._playoff_forms = {}
+
+        ruleset_name = self.ui.cb_ruleset.currentData()
+        ruleset = Tournament.get_ruleset(ruleset_name) if ruleset_name else None
+        top_cut = self.ui.cb_topCut.currentData()
+        if ruleset is None or not ruleset.PARAM_SPEC or not top_cut:
+            return
+        configured = self.core.config.playoff_rounds
+        for stage, _logic_name in ruleset.PLAYOFFS.get(int(top_cut), ()):
+            prev_form = prev_forms.get(stage)
+            if prev_form is not None:
+                seed = prev_form.values()
+            else:
+                seed = configured.get(stage, {}).get("ruleset_params", {})
+            box = QGroupBox(f"Top {stage}")
+            vbox = QVBoxLayout(box)
+            form = ParamForm(ruleset.PARAM_SPEC, {**ruleset.DEFAULT_PARAMS, **seed})
+            vbox.addWidget(form)
+            layout.addWidget(box)
+            self._playoff_forms[stage] = form
+
+    def _changed_ruleset_params(self, form: ParamForm | None) -> dict:
+        """A ruleset-param form's values, minus any equal to that ruleset's
+        own default (implementation plan 4.2: the sidecar default stays the
+        tournament default, only overrides are stored)."""
+        if form is None:
+            return {}
+        ruleset_name = self.ui.cb_ruleset.currentData()
+        ruleset = Tournament.get_ruleset(ruleset_name) if ruleset_name else None
+        defaults = ruleset.DEFAULT_PARAMS if ruleset else {}
+        return {k: v for k, v in form.values().items() if defaults.get(k) != v}
+
     def select_log_location(self):
         file, ext = QFileDialog.getSaveFileName(
             caption="Specify log location...",
@@ -1399,6 +1850,7 @@ class TournamentConfigDialog(QDialog):
     def apply_choices(self):
         TournamentAction.LOGF = self.ui.le_log_location.text()
         self.config = TournamentConfiguration(
+            ruleset=self.ui.cb_ruleset.currentData(),
             allow_bye=self.cb_allow_bye.isChecked(),
             # The tournament's pod sizes (ordered, preference first). These also
             # decide which pairing logics each round may use.
@@ -1406,7 +1858,6 @@ class TournamentConfigDialog(QDialog):
                 self._pod_size_editor.values() if self._pod_size_editor else [4, 3]
             ),
             n_rounds=self.sb_nRounds.value(),
-            snake_pods=self.cb_snakePods.isChecked(),
             max_byes=self.sb_max_byes.value(),
             auto_export=self.cb_auto_export.isChecked(),
             top_cut=self.ui.cb_topCut.currentData(),
@@ -1416,15 +1867,30 @@ class TournamentConfigDialog(QDialog):
             scoring_params=(
                 self._scoring_form.values() if self._scoring_form else {}
             ),
-            # One entry per round (see _rebuild_pairing_rows): the chosen logic
-            # and its params. A round whose logic has no params carries {}.
+            # One entry per round (see _rebuild_pairing_rows): the chosen
+            # pairing logic/params and the ruleset param overrides - only the
+            # values that differ from the ruleset's own defaults, so the
+            # sidecar default stays the tournament default.
             pairing_rounds=[
                 {
                     "logic": combo.currentData(),
                     "params": form.values() if form else {},
+                    "ruleset_params": self._changed_ruleset_params(rform),
                 }
-                for combo, form in zip(self._pairing_combos, self._pairing_forms)
+                for combo, form, rform in zip(
+                    self._pairing_combos, self._pairing_forms, self._ruleset_forms
+                )
             ],
+            # Playoff-stage ruleset param overrides, same "only the diffs"
+            # rule; a stage with nothing to override is left out entirely.
+            playoff_rounds={
+                stage: {"ruleset_params": overrides}
+                for stage, form in self._playoff_forms.items()
+                if (overrides := self._changed_ruleset_params(form))
+            },
+            # Carried over unedited, so an edit does not silently reset them.
+            standings_export=self.core.config.standings_export,
+            global_wr_seats=self.core.config.global_wr_seats,
         )
         if self.reset:
             t = Tournament(
@@ -1454,8 +1920,7 @@ class TournamentConfigDialog(QDialog):
 
     @staticmethod
     def show_edit_dialog(parent=None):
-        dlg = TournamentConfigDialog(parent)
-        dlg.reset = False
+        dlg = TournamentConfigDialog(parent, reset=False)
         dlg.show()
         result = dlg.exec()
 
@@ -1576,13 +2041,12 @@ def apply_cli_config(core, args):
         core.config.scoring_params.update(
             {"win_points": win, "draw_points": draw, "bye_points": bye}
         )
-    if args.snake:
-        core.config.snake_pods = True
     if args.rounds:
         core.config.n_rounds = args.rounds
 
 
-if __name__ == "__main__":
+def build_arg_parser() -> argparse.ArgumentParser:
+    """Builds the CLI parser. Kept out of __main__ so it is testable."""
     parser = argparse.ArgumentParser()
 
     parser.add_argument(
@@ -1614,7 +2078,12 @@ if __name__ == "__main__":
         help="Change the scoring system. The first argument is the number of points for a win, the second is a draw, and the third is the number of points for a bye.",
     )
     parser.add_argument(
-        "-S", "--snake", dest="snake", action="store_true", default=False
+        "--ruleset",
+        dest="ruleset",
+        type=str,
+        default=None,
+        help="Start a new tournament for this ruleset (e.g. Mtg1v1Ruleset). "
+        "Ignored, and rejected together with -o, when opening a log.",
     )
     parser.add_argument(
         "-r",
@@ -1627,13 +2096,25 @@ if __name__ == "__main__":
     parser.add_argument(
         "-o", "--open", dest="open", type=str, default=None, help="Open a log file."
     )
-    subparsers = parser.add_subparsers()
+    parser.add_subparsers()
+    return parser
+
+
+if __name__ == "__main__":
+    parser = build_arg_parser()
     args, unknown = parser.parse_known_args()
+
+    if args.open and args.ruleset:
+        parser.error("argument --ruleset: not allowed with argument -o/--open")
 
     app = QApplication(sys.argv)
 
     if args.open:
         core = TournamentAction.load(args.open)
+    elif args.ruleset:
+        # A new game, not a continuation - do not fall back to the last log.
+        core = Tournament(config=TournamentConfiguration(ruleset=args.ruleset))
+        core.new_round()
     elif not (core := TournamentAction.load()):
         core = Tournament()
         core.new_round()

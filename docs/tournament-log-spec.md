@@ -106,6 +106,11 @@ Purely additive - a `1.1` file is already a valid `1.2` file:
 - New `top_cut` / `stage` values `2` (`TOP_2`) and `8` (`TOP_8`) - see
   [`top_cut` and `stage` values](#top_cut-and-stage-values). A `1.1`
   reader would reject these two values; a `1.2` reader must accept them.
+- `config.snake_pods` is deprecated as of `1.2`: still readable, never
+  written. A `1.2` writer instead pins round 2's Swiss pairing explicitly
+  via `pairing_rounds[1].logic` when it needs `PairingDefault` there -
+  round 2 defaults to `PairingSnake` otherwise. See `snake_pods` in
+  [The `config` object](#the-config-object).
 
 ### Minimal example
 
@@ -119,7 +124,6 @@ Purely additive - a `1.1` file is already a valid `1.2` file:
   "config": {
     "pod_sizes": [2],
     "allow_bye": true,
-    "snake_pods": true,
     "n_rounds": 1,
     "max_byes": 1,
     "auto_export": false,
@@ -180,7 +184,7 @@ draw, or a pending game).
 |---|---|---|
 | `pod_sizes` | array of int | The tournament's pod sizes, ordered (first = most preferred), for example `[4, 3]`. The pairing logic fills pods at the first size before falling back to the next. These sizes also decide which pairing logics a round may use - see [Pairing logic](#pairing-logic). |
 | `allow_bye` | bool | If `true`, a leftover player can receive a bye instead of a pod. |
-| `snake_pods` | bool | If `true`, round 2 seeding uses a Swiss snake order. |
+| `snake_pods` | bool | **Deprecated** (read, never written): old logs used this to choose round 2's Swiss pairing. Round 2 is always `PairingSnake` now (`CommanderRuleset.swiss_pairing_logic`); a reader encountering `snake_pods: false` in an old file should treat round 2 as `PairingDefault` instead (this implementation pins it via `pairing_rounds[1].logic` on load). Absent in files written by this version. |
 | `n_rounds` | int | Number of Swiss rounds. |
 | `max_byes` | int | Maximum number of byes one player can receive across the tournament. |
 | `auto_export` | bool | If `true`, the writer also produces the plain-text exports described in [Adjacent outputs](#adjacent-outputs-not-part-of-this-format). Does not affect this JSON format. |

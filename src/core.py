@@ -644,7 +644,6 @@ class TournamentConfiguration(ITournamentConfiguration):
             "pod_sizes", list(ruleset_cls.DEFAULT_POD_SIZES)
         )
         self.allow_bye: bool = kwargs.get("allow_bye", True)
-        self.snake_pods: bool = kwargs.get("snake_pods", True)
         self.n_rounds: int = kwargs.get("n_rounds", 5)
         # Parse int or enum for TopCut
         tc_val: TournamentConfiguration.TopCut | int = kwargs.get(
@@ -701,6 +700,18 @@ class TournamentConfiguration(ITournamentConfiguration):
         # ruleset (their DEFAULT_PARAMS), see CommonPairing.params() /
         # IRuleset.params().
         self.pairing_rounds: list[dict[str, Any]] = self._build_pairing_rounds(kwargs)
+        # Deprecated (read, never written): old logs used a snake_pods flag
+        # to choose round 2's Swiss pairing. Round 2 is always PairingSnake
+        # now (CommanderRuleset.swiss_pairing_logic), so an old file with
+        # snake_pods: false must pin round 2 to PairingDefault explicitly to
+        # keep its saved behavior.
+        if kwargs.get("snake_pods") is False:
+            while len(self.pairing_rounds) < 2:
+                self.pairing_rounds.append(
+                    {"logic": None, "params": {}, "ruleset_params": {}}
+                )
+            if self.pairing_rounds[1]["logic"] is None:
+                self.pairing_rounds[1]["logic"] = "PairingDefault"
         # Ruleset param overrides per playoff stage: {stage_value:
         # {"ruleset_params": {...}}}. Stages not in the current playoff plan
         # are ignored. See ruleset_overrides.
@@ -787,7 +798,6 @@ class TournamentConfiguration(ITournamentConfiguration):
         return {
             "pod_sizes": self.pod_sizes,
             "allow_bye": self.allow_bye,
-            "snake_pods": self.snake_pods,
             "n_rounds": self.n_rounds,
             "max_byes": self.max_byes,
             "auto_export": self.auto_export,
@@ -822,7 +832,9 @@ class TournamentConfiguration(ITournamentConfiguration):
         return cls(
             pod_sizes=data["pod_sizes"],
             allow_bye=data["allow_bye"],
-            snake_pods=data["snake_pods"],
+            # Deprecated (read, never written): see the snake_pods migration
+            # in __init__. Optional because the property no longer exists.
+            snake_pods=data.get("snake_pods"),
             n_rounds=data["n_rounds"],
             max_byes=data["max_byes"],
             auto_export=data["auto_export"],
@@ -991,6 +1003,29 @@ class Tournament(ITournament):
         return cls._scoring_logic_cache[logic_name]
 
     @classmethod
+    def scoring_logic_names(cls) -> list[str]:
+        """Names of every discovered scoring logic."""
+        cls.discover_scoring_logic()
+        return sorted(cls._scoring_logic_cache)
+
+    @classmethod
+    def selectable_scoring_logics(
+        cls, pod_sizes: Sequence[int] | None = None
+    ) -> list[str]:
+        """Names of scoring logics a user may pick for this tournament.
+
+        When pod_sizes is given, excludes any logic that does not support
+        all of those sizes (see IScoringLogic.supports_pod_sizes) - the
+        same filter selectable_pairing_logics applies to pairing logic.
+        """
+        cls.discover_scoring_logic()
+        return sorted(
+            name
+            for name, obj in cls._scoring_logic_cache.items()
+            if pod_sizes is None or obj.supports_pod_sizes(pod_sizes)
+        )
+
+    @classmethod
     def discover_ruleset(cls) -> None:
         """Discover and cache all ruleset implementations from src/logic/*/rules.py."""
         if cls._ruleset_cache:
@@ -1016,6 +1051,12 @@ class Tournament(ITournament):
             raise ValueError(f"Unknown ruleset: {name}")
 
         return cls._ruleset_cache[name]
+
+    @classmethod
+    def ruleset_names(cls) -> list[str]:
+        """Names of every discovered ruleset."""
+        cls.discover_ruleset()
+        return sorted(cls._ruleset_cache)
 
     @property
     def ruleset(self) -> IRuleset:
@@ -1218,6 +1259,11 @@ class Tournament(ITournament):
                         draws += len(pod._result)
         return draws / matches
 
+    @property
+    def has_results(self) -> bool:
+        """Whether any round has pods, byes, or game losses recorded."""
+        return any(r._pods or r._byes or r._game_loss for r in self.rounds)
+
     def __validate_config(self, config: TournamentConfiguration) -> bool:
         """
         Validates the tournament configuration.
@@ -1260,6 +1306,12 @@ class Tournament(ITournament):
         if top_cut != 0 and top_cut not in ruleset.PLAYOFFS:
             raise ValueError(f"top_cut {top_cut} is not valid for {config.ruleset}.")
 
+        if ruleset.BYES_REQUIRED and (not config.allow_bye or config.max_byes < 1):
+            raise ValueError(
+                f"{config.ruleset} requires byes: an odd player count gets "
+                "one bye per round."
+            )
+
         # ruleset_params overrides (Swiss and playoff) must validate against
         # the ruleset's own PARAM_SPEC.
         for seq, pairing_round in enumerate(config.pairing_rounds):
@@ -1280,8 +1332,7 @@ class Tournament(ITournament):
                 )
 
         # A result must never be re-read under another game's rules.
-        has_results = any(r._pods or r._byes or r._game_loss for r in self.rounds)
-        if has_results and config.ruleset != self.config.ruleset:
+        if self.has_results and config.ruleset != self.config.ruleset:
             raise ValueError(
                 "Cannot change ruleset after the tournament has pods, byes, "
                 "or game losses."

@@ -51,7 +51,7 @@
       "type": "object",
       "additionalProperties": true,
       "required": [
-        "pod_sizes", "allow_bye", "snake_pods", "n_rounds", "max_byes",
+        "pod_sizes", "allow_bye", "n_rounds", "max_byes",
         "auto_export", "standings_export", "global_wr_seats", "top_cut"
       ],
       "properties": {
@@ -61,7 +61,10 @@
           "minItems": 1
         },
         "allow_bye": { "type": "boolean" },
-        "snake_pods": { "type": "boolean" },
+        "snake_pods": {
+          "type": "boolean",
+          "description": "Deprecated (read, never written): old logs used this to choose round 2's Swiss pairing. Round 2 is always PairingSnake now (CommanderRuleset.swiss_pairing_logic); an old snake_pods: false pins round 2 to PairingDefault via pairing_rounds instead."
+        },
         "n_rounds": { "type": "integer", "minimum": 0 },
         "max_byes": { "type": "integer", "minimum": 0 },
         "auto_export": { "type": "boolean" },
