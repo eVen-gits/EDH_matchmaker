@@ -6,12 +6,23 @@
 
 ![image](https://user-images.githubusercontent.com/2612606/166250998-7b4c721c-8a35-4ac2-ad87-e8fe02c46d11.png)
 
-A comprehensive tool for managing Commander (EDH) tournaments with Swiss pairings.
+A comprehensive tool for managing Swiss-pairing tournaments: Commander (EDH,
+multiplayer pods) and 1v1 Magic. A tournament's game is an explicit choice
+(the ruleset), picked in the GUI when a new tournament is created.
 
 ## Features
 
-- **Swiss Pairings**: Automated pairing logic optimized for EDH (4-player pods). Pick the pairing logic per round in the tournament config.
-- **Pluggable Scoring**: Choose the scoring algorithm (Default, Hareruya, Modified Hareruya). Each algorithm declares its own parameters in a sidecar file, and the config screen builds their fields automatically.
+- **Swiss Pairings**: Automated pairing logic per ruleset - EDH's pod-fill
+  algorithm for 4-player pods (3-player fallback), and a maximum-weight
+  matching for 1v1's 2-player pods. Pick the pairing logic per round in the
+  tournament config.
+- **1v1 Magic support**: Play/report best-of-N matches, single-elimination
+  top cut seeded by Swiss standings, and MTR-standard tiebreakers (OMW, GW,
+  OGW).
+- **Pluggable Scoring**: Choose the scoring algorithm (Default, Hareruya,
+  Modified Hareruya for Commander; a Magic Tournament Rules-based scoring for
+  1v1). Each algorithm declares its own parameters in a sidecar file, and the
+  config screen builds their fields automatically.
 - **Tournament Management**: Track standings, drops, and round history.
 - **Standings Export**: Export results for external use.
 - **Cross-Platform**: Runs on Linux, Windows, and macOS (Python-based).
