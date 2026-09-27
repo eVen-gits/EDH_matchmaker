@@ -1,0 +1,12 @@
+global_wr_seats:
+  default: [0.2470, 0.1928, 0.1672, 0.1458]
+  type: list
+  item_type: float
+  min: 0
+  max: 1
+  step: 0.001
+  label: Win rate per seat
+  description: >
+    Win rate per seat, seat 1 first; 1 minus their sum is the draw rate.
+    Drives random_report and seat balancing (Player.average_seat). Data: all
+    50+ player events in [2024-09-30; 2025-05-05].
