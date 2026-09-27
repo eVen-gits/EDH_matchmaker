@@ -4,6 +4,7 @@ import warnings
 from typing import Any, Callable, List, Sequence, TypeVar, Union, cast
 
 import argparse
+import copy
 import functools
 import importlib
 import json
@@ -627,6 +628,20 @@ class TournamentConfiguration(ITournamentConfiguration):
         TOP_16 = 16
         TOP_40 = 40
 
+    # A game's own config fields -> defaults, set by the ruleset's
+    # CONFIG_CLASS (e.g. CommanderConfiguration's global_wr_seats).
+    # Persisted flat alongside the base fields.
+    GAME_FIELDS: dict[str, Any] = {}
+
+    def __new__(cls, **kwargs):
+        # TournamentConfiguration(...) builds the ruleset's CONFIG_CLASS, so
+        # callers never pick the game's subclass themselves.
+        target: type = cls
+        if cls is TournamentConfiguration:
+            ruleset = Tournament.get_ruleset(kwargs.get("ruleset", "CommanderRuleset"))
+            target = ruleset.CONFIG_CLASS or cls
+        return super().__new__(target)
+
     def __init__(self, **kwargs):
         """Initializes the TournamentConfiguration.
 
@@ -668,20 +683,8 @@ class TournamentConfiguration(ITournamentConfiguration):
                 ]
             ),
         )
-        self.global_wr_seats: Sequence[float] = kwargs.get(
-            "global_wr_seats",
-            [
-                # 0.2553,
-                # 0.2232,
-                # 0.1847,
-                # 0.1428,
-                # New data: all 50+ player events since [2024-09-30;2025-05-05]
-                0.2470,
-                0.1928,
-                0.1672,
-                0.1458,
-            ],
-        )
+        for key, default in self.GAME_FIELDS.items():
+            setattr(self, key, kwargs.get(key, copy.deepcopy(default)))
         # Scoring logic selection - see src/logic/commander/scoring.py.
         # scoring_params is opaque here: field names and defaults belong to
         # whichever IScoringLogic class scoring_logic names (its
@@ -802,7 +805,7 @@ class TournamentConfiguration(ITournamentConfiguration):
             "max_byes": self.max_byes,
             "auto_export": self.auto_export,
             "standings_export": self.standings_export.serialize(),
-            "global_wr_seats": self.global_wr_seats,
+            **{key: getattr(self, key) for key in self.GAME_FIELDS},
             "top_cut": self.top_cut.value,
             "scoring_logic": self.scoring_logic,
             "scoring_params": self.scoring_params,
@@ -829,7 +832,10 @@ class TournamentConfiguration(ITournamentConfiguration):
                 "draw_discard_pod_fraction",
             )
             scoring_params = {k: data[k] for k in legacy_keys if k in data}
-        return cls(
+        # The raw data goes in underneath so the ruleset's config subclass
+        # reads its own GAME_FIELDS (e.g. global_wr_seats) as saved;
+        # __init__ ignores any key it does not know.
+        return cls(**{**data, **dict(
             pod_sizes=data["pod_sizes"],
             allow_bye=data["allow_bye"],
             # Deprecated (read, never written): see the snake_pods migration
@@ -839,7 +845,6 @@ class TournamentConfiguration(ITournamentConfiguration):
             max_byes=data["max_byes"],
             auto_export=data["auto_export"],
             standings_export=StandingsExport.inflate(data["standings_export"]),
-            global_wr_seats=data["global_wr_seats"],
             top_cut=TournamentConfiguration.TopCut(data["top_cut"]),
             # Additive field - absent in files written before this
             # version, so read with a default for backward compatibility.
@@ -854,7 +859,7 @@ class TournamentConfiguration(ITournamentConfiguration):
             playoff_rounds={
                 int(k): v for k, v in data.get("playoff_rounds", {}).items()
             },
-        )
+        )})
 
     @staticmethod
     def _inflate_pairing(data: dict) -> dict:
@@ -2744,7 +2749,7 @@ class Player(IPlayer):
         In subsequent matching attempts, these will get lower priority on early seats.
 
         We are now using a weighted average of all the pods the player has been in.
-        Weights are based on TC.global_wr_seats
+        Weights are based on CommanderConfiguration.global_wr_seats
         """
         pods = [
             self.pod(round)
@@ -2765,7 +2770,12 @@ class Player(IPlayer):
                 elif index == len(pod) - 1:
                     continue
                 else:
-                    rates = self.tour.config.global_wr_seats[0 : len(pod)]
+                    # Middle seats exist only in 3+ player pods, i.e.
+                    # Commander - see CommanderConfiguration.
+                    wr_seats: Sequence[float] = getattr(
+                        self.tour.config, "global_wr_seats"
+                    )
+                    rates = wr_seats[0 : len(pod)]
                     norm_scale = 1 - (np.cumsum(rates) - rates[0]) / (
                         np.sum(rates) - rates[0]
                     )

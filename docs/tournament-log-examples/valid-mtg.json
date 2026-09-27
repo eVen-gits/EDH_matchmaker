@@ -15,7 +15,8 @@
       "format": 0,
       "dir": "./logs/standings.txt"
     },
-    "global_wr_seats": [0.2470, 0.1928, 0.1672, 0.1458],
+    "match_wr_seats": [0.5, 0.5],
+    "match_draw_rate": 0.1,
     "top_cut": 4,
     "ruleset": "Mtg1v1Ruleset",
     "scoring_logic": "Scoring1v1",

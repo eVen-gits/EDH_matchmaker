@@ -1890,7 +1890,10 @@ class TournamentConfigDialog(QDialog):
             },
             # Carried over unedited, so an edit does not silently reset them.
             standings_export=self.core.config.standings_export,
-            global_wr_seats=self.core.config.global_wr_seats,
+            **{
+                k: getattr(self.core.config, k)
+                for k in self.core.config.GAME_FIELDS
+            },
         )
         if self.reset:
             t = Tournament(

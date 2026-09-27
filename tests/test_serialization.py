@@ -116,6 +116,20 @@ class TestSerialization(unittest.TestCase):
             inflated_gl.result(t_inflated.tour_round), Player.EResult.LOSS
         )
 
+    def test_game_fields_round_trip(self):
+        cases = {
+            "CommanderRuleset": {"global_wr_seats": [0.3, 0.25, 0.2, 0.15]},
+            "Mtg1v1Ruleset": {"match_wr_seats": [0.6, 0.4], "match_draw_rate": 0.2},
+        }
+        for ruleset, fields in cases.items():
+            with self.subTest(ruleset=ruleset):
+                cfg = TournamentConfiguration(ruleset=ruleset, auto_export=False, **fields)
+                back = TournamentConfiguration.inflate(cfg.serialize())
+                self.assertIs(type(back), type(cfg))
+                self.assertEqual(back.serialize(), cfg.serialize())
+                for k, v in fields.items():
+                    self.assertEqual(getattr(back, k), v)
+
     def test_serialize_includes_format_metadata(self):
         import datetime as dt
 

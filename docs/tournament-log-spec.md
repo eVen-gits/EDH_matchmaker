@@ -189,7 +189,9 @@ draw, or a pending game).
 | `max_byes` | int | Maximum number of byes one player can receive across the tournament. |
 | `auto_export` | bool | If `true`, the writer also produces the plain-text exports described in [Adjacent outputs](#adjacent-outputs-not-part-of-this-format). Does not affect this JSON format. |
 | `standings_export` | object | See below. |
-| `global_wr_seats` | array of float | Seat-position win-rate adjustment, one value per seat, most-advantaged seat first. |
+| `global_wr_seats` | array of float | `CommanderRuleset` only; optional, default in `CommanderConfiguration` (`src/logic/commander/rules.py`). Win rate per seat, seat 1 first; `1 - sum` is the draw rate. Drives simulated results and seat balancing. Older writers stored it for every ruleset; other rulesets ignore it. |
+| `match_wr_seats` | array of float | `Mtg1v1Ruleset` only; optional, default in `Mtg1v1Configuration` (`src/logic/mtg/rules.py`). Relative chance each seat (play, draw) wins a decided simulated match. |
+| `match_draw_rate` | float | `Mtg1v1Ruleset` only; optional, default in `Mtg1v1Configuration`. Chance a simulated Swiss match ends drawn (playoff matches never draw). |
 | `top_cut` | int | The playoff cut size. See [`top_cut` and `stage` values](#top_cut-and-stage-values). `0` means no playoff cut (Swiss only). |
 | `scoring_logic` | string | optional, default `"ScoringDefault"`. Which formula computes player points. See [Scoring logic](#scoring-logic). |
 | `scoring_params` | object | optional, default `{}`. Parameters for whichever algorithm `scoring_logic` names - field names, types, and defaults are owned by that algorithm, not by this format. See [Scoring logic](#scoring-logic) for the fields each shipped algorithm reads. |

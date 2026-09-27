@@ -7,7 +7,7 @@ from unittest import mock
 from src.core import Pod, StandingsExport, Tournament, TournamentAction, TournamentConfiguration
 from src.interface import IGameResult
 from src.logic.mtg.matching import bracket_seed_order
-from src.logic.mtg.rules import FLOOR, Mtg1v1Ruleset, games_from_score, mean_pct, mtr_stats, pct
+from src.logic.mtg.rules import FLOOR, Mtg1v1Configuration, Mtg1v1Ruleset, games_from_score, mean_pct, mtr_stats, pct
 
 TournamentAction.LOGF = False  # type: ignore
 
@@ -193,10 +193,25 @@ class TestRandomReport(Mtg1v1TestCase):
             self.ruleset.validate_report(self.pod, games)  # must not raise
             self.assertGreaterEqual(len(games), 1)
 
+    def test_rates_follow_config(self):
+        random.seed(0)
+        n, draws, a_wins = 2000, 0, 0
+        for _ in range(n):
+            games = self.ruleset.random_report(self.pod)
+            a = sum(g.winners == {self.a} for g in games)
+            b = sum(g.winners == {self.b} for g in games)
+            draws += a == b
+            a_wins += a > b
+        self.assertAlmostEqual(draws / n, 0.1, delta=0.02)
+        self.assertAlmostEqual(a_wins / (n - draws), 0.5, delta=0.04)
+
 
 class TestConfigDefaults(unittest.TestCase):
     def test_defaults(self):
         cfg = TournamentConfiguration(ruleset="Mtg1v1Ruleset", auto_export=False)
+        assert isinstance(cfg, Mtg1v1Configuration)
+        self.assertEqual((cfg.match_wr_seats, cfg.match_draw_rate), ([0.5, 0.5], 0.1))
+        self.assertNotIn("global_wr_seats", cfg.serialize())
         self.assertEqual(list(cfg.pod_sizes), [2])
         self.assertEqual(cfg.scoring_logic, "Scoring1v1")
         self.assertEqual(
@@ -781,13 +796,15 @@ class TestPairingBracket(unittest.TestCase):
         t.create_pairings()  # SF (top_cut=4's first stage)
         t.random_results()
 
+        # Read before inflating: t and t2 share uids, so once t2 is in
+        # Tournament.CACHE, t's own lookups resolve to t2's objects.
+        expected = [p.uid for p in t.get_standings(t.rounds[-1])]
         serialized = t.serialize()
         Tournament.CACHE.clear()
         t2 = Tournament.inflate(serialized)
 
         self.assertEqual(
-            [p.uid for p in t.get_standings(t.rounds[-1])],
-            [p.uid for p in t2.get_standings(t2.rounds[-1])],
+            expected, [p.uid for p in t2.get_standings(t2.rounds[-1])]
         )
         self.assertTrue(t2.create_pairings())  # the final pairs cleanly
 
