@@ -1,0 +1,5 @@
+# .no-mistakes.yaml configuration
+# See https://github.com/kunchenguid/no-mistakes for reference
+
+commands:
+  test: "PYTHONPATH=. pytest"
