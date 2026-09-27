@@ -7,6 +7,11 @@ Long over due update on readme... here are some recent highlights.
 The CLI option is no longer supported. The program, for the time being, is meant for use through UI.
 Eventually, there will probably be some sort of Discord integration, but first, the rough edges have to be brushed out.
 
+Besides Commander (EDH), the tool now also runs 1v1 Magic Swiss tournaments
+(maximum-weight-matching pairing, best-of-N match reporting, single-
+elimination top cut, and Magic Tournament Rules standings tiebreakers). Pick
+the ruleset when you create a tournament.
+
 ## Installation: ##
 
 The software was developed on Linux and installation should be rather straight forward. It's cross-platform, so I believe it should work on mac too, but I can't check. Either way, Windows has it's own issues, so here's how you do it.

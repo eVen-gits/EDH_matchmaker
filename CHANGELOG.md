@@ -8,6 +8,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- 1v1 Magic tournament support (`Mtg1v1Ruleset`), alongside Commander/EDH.
+  A tournament's game is now an explicit choice (`config.ruleset`, default
+  `CommanderRuleset`), selected via a ruleset dropdown when creating a
+  tournament in the GUI; it is fixed once the tournament has any pods, byes,
+  or game losses. 1v1 adds:
+  - `Pairing1v1`, a maximum-weight-matching Swiss pairing (via `networkx`,
+    a new dependency) for 2-player pods, and `PairingBracket` for
+    single-elimination top cut, seeded by final Swiss standings.
+  - `Scoring1v1`, Magic Tournament Rules match points (3/1/0, bye as a 2-0
+    win).
+  - Best-of-N match reporting (`games_to_win`, default 2), with per-game
+    winners/draws rather than Commander's single-game-per-pod report, plus
+    a GUI score-entry dialog for it.
+  - MTR standings tiebreakers - OMW, GW, OGW - shown as extra standings
+    columns.
+  - Game-specific config (e.g. 1v1's `match_wr_seats`/`match_draw_rate`)
+    now lives on a `TournamentConfiguration` subclass per ruleset
+    (`Mtg1v1Configuration`), declared via `GAME_FIELDS`.
+  See `docs/tournament-log-spec.md` and `CONTEXT.md` for the save format,
+  scoring formulas, and terminology (Pod, Game vs. match, Ruleset, Stage).
 - Tunable pairing-logic parameters, using the same sidecar mechanism as scoring.
   A pairing algorithm declares its parameters in `<ClassName>.params.yaml`, reads
   them with `self._param(...)`, and the tournament config screen generates the
