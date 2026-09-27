@@ -6,6 +6,7 @@ from fractions import Fraction
 from typing import Any
 from uuid import UUID
 
+from ...core import TournamentConfiguration
 from ...interface import IGameResult, IPlayer, IPod, IRound, IRuleset, ITournament
 
 # As written in the Magic Tournament Rules (3.1, Appendix C) - not 1/3.
@@ -111,6 +112,19 @@ def mtr_stats(tour: ITournament, player: IPlayer, tour_round: IRound) -> MtrStat
     return MtrStats(match_points, rounds_played, game_points, games_played, tuple(opponents))
 
 
+class Mtg1v1Configuration(TournamentConfiguration):
+    """1v1 Magic's config fields, on top of the shared ones."""
+
+    match_wr_seats: list[float]
+    match_draw_rate: float
+    GAME_FIELDS = {
+        # random_report only: relative chance each seat (play, draw) wins a
+        # decided match, and the chance a Swiss match ends drawn.
+        "match_wr_seats": [0.5, 0.5],
+        "match_draw_rate": 0.1,
+    }
+
+
 class Mtg1v1Ruleset(IRuleset):
     """1v1 Magic tournament rules (Magic Tournament Rules, see
     src/logic/mtg/mtr-1v1-spec.md).
@@ -140,6 +154,7 @@ class Mtg1v1Ruleset(IRuleset):
     SEAT_BALANCING = False
     # An odd player count must get a bye, never leave someone unseated.
     BYES_REQUIRED = True
+    CONFIG_CLASS = Mtg1v1Configuration
 
     # Round.Stage.SWISS's value, without importing core.py (see
     # CommonScoring._SWISS in src/logic/commander/scoring.py for the same
@@ -223,29 +238,27 @@ class Mtg1v1Ruleset(IRuleset):
         return [IGameResult(winners)]
 
     def random_report(self, pod: IPod) -> list[IGameResult]:
-        """Simulates games until someone reaches games_to_win: each game is
-        about 5% drawn, otherwise a coin flip. In a Swiss round, there is
-        also a ~5% chance after each game that time is called and the match
-        stops early below games_to_win; a playoff round never stops early
-        (spec: no drawn single-elimination match). Always a valid report."""
+        """Simulates a match from config.match_draw_rate/match_wr_seats
+        (see Mtg1v1Configuration). A drawn Swiss match is time called at
+        k-k below games_to_win (0-0 is one drawn game); a playoff match
+        never draws (spec: no drawn single-elimination match). A decided
+        match goes games_to_win to 0..games_to_win-1, the winner taking the
+        last game. Always a valid report."""
+        config: Mtg1v1Configuration = pod.tour_round.tour.config  # type: ignore[attr-defined]
         g = self._param(pod.tour_round, "games_to_win")
         a, b = (p.uid for p in pod.players)
-        tally = {a: 0, b: 0}
         is_swiss = pod.tour_round.stage.value == self._SWISS_STAGE_VALUE  # type: ignore[attr-defined]
-        games: list[IGameResult] = []
-        while tally[a] < g and tally[b] < g:
-            roll = random.random()
-            if roll < 0.05:
-                games.append(IGameResult(frozenset({a, b})))
-            elif roll < 0.525:
-                games.append(IGameResult(frozenset({a})))
-                tally[a] += 1
-            else:
-                games.append(IGameResult(frozenset({b})))
-                tally[b] += 1
-            if is_swiss and random.random() < 0.05:
-                break
-        return games
+        if is_swiss and random.random() < config.match_draw_rate:
+            k = random.randrange(g)
+            if k == 0:
+                return [IGameResult(frozenset({a, b}))]
+            return [IGameResult(frozenset({u})) for u in [a, b] * k]
+        winner, loser = random.choices(
+            [(a, b), (b, a)], weights=config.match_wr_seats
+        )[0]
+        order = [winner] * (g - 1) + [loser] * random.randrange(g)
+        random.shuffle(order)
+        return [IGameResult(frozenset({u})) for u in order + [winner]]
 
     def swiss_pairing_logic(self, tour: ITournament, seq: int) -> str:
         # Round 1 comes out random anyway: everyone is in one score group

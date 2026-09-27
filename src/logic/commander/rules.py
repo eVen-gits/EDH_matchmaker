@@ -1,12 +1,25 @@
 from __future__ import annotations
 import random
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 from uuid import UUID
 
 import numpy as np
 
+from ...core import TournamentConfiguration
 from ...interface import IGameResult, IPod, IRound, IRuleset, ITournament
+
+
+class CommanderConfiguration(TournamentConfiguration):
+    """Commander's config fields, on top of the shared ones."""
+
+    global_wr_seats: Sequence[float]
+    GAME_FIELDS = {
+        # Win rate per seat, seat 1 first; 1 - sum is the draw rate. Drives
+        # random_report and seat balancing (Player.average_seat).
+        # Data: all 50+ player events in [2024-09-30;2025-05-05].
+        "global_wr_seats": [0.2470, 0.1928, 0.1672, 0.1458],
+    }
 
 
 class CommanderRuleset(IRuleset):
@@ -35,6 +48,7 @@ class CommanderRuleset(IRuleset):
         "AVG_SEAT",
     )
     SEAT_BALANCING = True
+    CONFIG_CLASS = CommanderConfiguration
 
     PLAYOFFS = {
         4: ((4, "PairingTop4"),),
@@ -68,7 +82,7 @@ class CommanderRuleset(IRuleset):
         # Unchanged from the pre-plugin Tournament.random_results body: same
         # random.random() call, same numpy arithmetic on global_wr_seats.
         tour: ITournament = pod.tour_round.tour  # type: ignore[attr-defined]
-        config = tour.config  # type: ignore[attr-defined]
+        config: CommanderConfiguration = tour.config  # type: ignore[attr-defined]
         draw_rate = 1 - sum(config.global_wr_seats)
         result = random.random()
         rates = np.array(

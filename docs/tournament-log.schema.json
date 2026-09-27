@@ -52,7 +52,7 @@
       "additionalProperties": true,
       "required": [
         "pod_sizes", "allow_bye", "n_rounds", "max_byes",
-        "auto_export", "standings_export", "global_wr_seats", "top_cut"
+        "auto_export", "standings_export", "top_cut"
       ],
       "properties": {
         "pod_sizes": {
@@ -71,7 +71,19 @@
         "standings_export": { "$ref": "#/$defs/standingsExport" },
         "global_wr_seats": {
           "type": "array",
-          "items": { "type": "number" }
+          "items": { "type": "number" },
+          "description": "CommanderRuleset only (CommanderConfiguration)."
+        },
+        "match_wr_seats": {
+          "type": "array",
+          "items": { "type": "number", "minimum": 0 },
+          "description": "Mtg1v1Ruleset only (Mtg1v1Configuration)."
+        },
+        "match_draw_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Mtg1v1Ruleset only (Mtg1v1Configuration)."
         },
         "top_cut": { "$ref": "#/$defs/stageOrTopCut" },
         "scoring_logic": { "type": "string" },

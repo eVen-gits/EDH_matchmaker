@@ -413,6 +413,9 @@ class IRuleset(ABC):
     # pairing logic name). Its keys are the only non-zero top_cut values
     # the ruleset accepts.
     PLAYOFFS: Mapping[int, tuple[tuple[int, str], ...]] = {}
+    # The TournamentConfiguration subclass holding this game's own config
+    # fields (its GAME_FIELDS); None = the plain base class.
+    CONFIG_CLASS: type[ITournamentConfiguration] | None = None
 
     # Loaded at class definition from the sidecar `<ClassName>.params.yaml`.
     # Per-round/playoff-stage overrides live in
@@ -520,17 +523,6 @@ class ITournamentConfiguration(ABC):
     max_byes: int = 2
     auto_export: bool = True
     standings_export: IStandingsExport
-    global_wr_seats: Sequence[float] = (
-        # 0.2553,
-        # 0.2232,
-        # 0.1847,
-        # 0.1428,
-        # New data: all 50+ player events since [2024-09-30;2025-05-05]
-        0.2470,
-        0.1928,
-        0.1672,
-        0.1458,
-    )
     top_cut: int = 0
     scoring_logic: str = "ScoringDefault"
     # Owned by whichever class scoring_logic names - see

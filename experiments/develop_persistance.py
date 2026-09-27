@@ -44,4 +44,3 @@ if __name__ == "__main__":
         if tour_orig[i] != tour_new[i]:
             print(f"Line {i}: {tour_orig[i]} != {tour_new[i]}")
             pass
-
