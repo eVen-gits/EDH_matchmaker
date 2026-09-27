@@ -1,4 +1,4 @@
-"""Parameter specifications for scoring and pairing algorithms.
+"""Parameter specifications for algorithms, rulesets, and tournament config.
 
 Each algorithm declares its tunable parameters in a sidecar YAML file named
 ``<ClassName>.params.yaml`` next to the module that defines the class. The file

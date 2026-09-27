@@ -48,6 +48,25 @@ Optional keys:
   field's GUI widget conditionally visible. `other_param` must be another
   parameter defined in the *same* file.
 
+### Tournament configuration fields
+
+`src/TournamentConfiguration.params.yaml` describes the shared config
+fields; a game's `CONFIG_CLASS` (e.g. `CommanderConfiguration`) has its own
+sidecar for its game fields, loaded into `GAME_FIELDS` (not inherited from
+the base). These use extra keys:
+
+- `type: list` with `item_type` (`int`, `float`, `str`, `dict`); `min`,
+  `max` and `choices` then apply to each item. `type: dict` is opaque.
+- `default_from: ruleset.<ATTR>` — the default is the selected ruleset's
+  attribute; omit `default` and set `type`.
+- `choices_from` — a string naming where runtime choices come from (e.g.
+  `ruleset.PLAYOFFS`, `rulesets`, `scoring_logics`).
+- widgets `multiselect` (list with `choices`), `listedit` (list without),
+  `custom` (structured value, e.g. `pairing_rounds`).
+
+`python -m src.param_catalog` prints every sidecar's spec as JSON; check it
+after an edit.
+
 ## Rules that matter
 
 - **This file is the single source of truth for the parameter.** Never
