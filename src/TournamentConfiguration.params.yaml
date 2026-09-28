@@ -21,8 +21,13 @@ pod_sizes:
   choices_from: ruleset.ALLOWED_POD_SIZES
   label: Pod sizes
   description: >
-    Pod sizes the pairing may use, in order of preference. A ruleset with
-    ALLOWED_POD_SIZES limits them; None allows any size.
+    Pod sizes the pairing may use, in order of preference: earlier sizes are
+    tried first, and a later size is only used for players the earlier ones
+    can't absorb. When the remainder is smaller than every configured size,
+    a bye is used instead of backtracking to a later, evenly-dividing size
+    (if allow_bye and the remainder fits max_byes) - so [4, 3] with 6
+    players gives one pod of 4 plus 2 byes, while [3, 4] gives two pods of
+    3. A ruleset with ALLOWED_POD_SIZES limits them; None allows any size.
 
 allow_bye:
   default: true

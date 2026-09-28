@@ -206,6 +206,44 @@ class TestTournamentPodSizing(unittest.TestCase):
                 t.add_player(fkr.name())
 
 
+class TestPodSizeOrderPreference(unittest.TestCase):
+    """pod_sizes is an ordered preference list: earlier sizes are preferred
+    over later ones, and a bye is used before backtracking to a later,
+    evenly-dividing size - see CONTEXT.md's "Pod" entry."""
+
+    def test_3_6_prefers_3(self):
+        t = Tournament(
+            TournamentConfiguration(
+                pod_sizes=[3, 6], allow_bye=True, max_byes=2, auto_export=False
+            )
+        )
+        self.assertEqual(t.get_pod_sizes(6), [3, 3])
+
+    def test_6_3_prefers_6(self):
+        t = Tournament(
+            TournamentConfiguration(
+                pod_sizes=[6, 3], allow_bye=True, max_byes=2, auto_export=False
+            )
+        )
+        self.assertEqual(t.get_pod_sizes(6), [6])
+
+    def test_4_3_six_players_prefers_4_plus_byes(self):
+        t = Tournament(
+            TournamentConfiguration(
+                pod_sizes=[4, 3], allow_bye=True, max_byes=2, auto_export=False
+            )
+        )
+        self.assertEqual(t.get_pod_sizes(6), [4])
+
+    def test_3_4_six_players_prefers_two_pods_of_3(self):
+        t = Tournament(
+            TournamentConfiguration(
+                pod_sizes=[3, 4], allow_bye=True, max_byes=2, auto_export=False
+            )
+        )
+        self.assertEqual(t.get_pod_sizes(6), [3, 3])
+
+
 class TestRoundCreation(unittest.TestCase):
     def test_modified_n_rounds(self) -> None:
         config = TournamentConfiguration(
