@@ -302,7 +302,7 @@ class TestConfigDialogInvalidConfigOnReset(unittest.TestCase):
     def test_unscorable_pod_size_refuses_to_build_config(self):
         dlg, parent = self._dialog()
         old_config = parent.core.config
-        dlg._pod_size_editor.reset([6])
+        dlg._pod_size_editor.reset([7])
         self.assertIsNone(dlg.ui.cb_scoringLogic.currentData())
 
         with mock.patch("run_ui.QMessageBox.critical") as mock_critical:

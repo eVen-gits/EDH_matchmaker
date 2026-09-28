@@ -90,7 +90,7 @@ class TestScoringPodSizeCompatibility(unittest.TestCase):
         scoring_1v1 = Tournament.get_scoring_logic("Scoring1v1")
         default = Tournament.get_scoring_logic("ScoringDefault")
         self.assertEqual(scoring_1v1.SUPPORTED_POD_SIZES, (2,))
-        self.assertEqual(default.SUPPORTED_POD_SIZES, (3, 4, 5))
+        self.assertEqual(default.SUPPORTED_POD_SIZES, (3, 4, 5, 6))
         self.assertTrue(scoring_1v1.supports_pod_sizes([2]))
         self.assertFalse(scoring_1v1.supports_pod_sizes([4, 3]))
         self.assertFalse(scoring_1v1.supports_pod_sizes([4, 3, 2]))
