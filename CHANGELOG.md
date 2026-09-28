@@ -65,6 +65,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the same as before. It matters only when a larger size such as `5` is added:
   4-player pods are no longer treated as small.
 
+### Fixed
+- File > Save As no longer crashes the app; it writes the tournament to the
+  chosen file (#22).
+
 ## [3.1.0] - 2026-08-28
 
 ### Added
