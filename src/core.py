@@ -599,6 +599,10 @@ class TournamentAction:
 
         Returns:
             The loaded tournament instance, or None if the file does not exist.
+
+        Raises:
+            Exception: If the file cannot be parsed or inflated; LOGF is then
+                left unchanged.
         """
         if os.path.exists(logdir):
             # Parse before touching LOGF: on failure the current tournament's
