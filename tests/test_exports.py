@@ -180,7 +180,11 @@ class TestExportPath(unittest.TestCase):
                 os.chdir(cwd)
 
     def test_unwritable_auto_export_path_does_not_break_actions(self):
+        import os
+        import tempfile
+
         t = _small_tournament()
         t.config.auto_export = True
-        t.config.standings_export.dir = "/proc/nope/standings.txt"
-        t.add_player(["Late Player"])  # must not raise
+        with tempfile.NamedTemporaryFile() as f:
+            t.config.standings_export.dir = os.path.join(f.name, "standings.txt")
+            t.add_player(["Late Player"])  # must not raise
