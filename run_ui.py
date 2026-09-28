@@ -650,7 +650,7 @@ class MainWindow(QMainWindow):
         self.ui.actionPods.triggered.connect(self.export_pods)
         self.ui.actionStandings.triggered.connect(self.export_standings_dialog)
 
-        self.ui.actionLoad_players.triggered.connect(self.load_players)
+        self.ui.actionLoad_players.triggered.connect(lambda *_: self.load_players())
 
         # self.ui.actionJSON_Log.triggered.connect(lambda: print(self.core.parsable_log())) #TODO: Reimplement
 

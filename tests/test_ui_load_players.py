@@ -36,7 +36,7 @@ class LoadPlayersTest(unittest.TestCase):
                 return_value=(path, "*.txt"),
             ):
                 # Must not raise / abort the process (issue #26).
-                window.load_players()
+                window.ui.actionLoad_players.trigger()
             self.assertEqual(
                 sorted(p.name for p in t.players), ["Alice", "Bob", "Carol"]
             )
