@@ -88,6 +88,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   wrong game's scoring. They now declare `(3, 4, 5)`, matching
   `PairingDefault`/`PairingSnake`, so the config GUI's scoring dropdown
   filters them out for 1v1 the same way it already filtered pairing logic.
+  Commander tournaments with 2-player or 6+-player pods are therefore no
+  longer supported: the config dialog refuses to apply a configuration no
+  scoring logic supports, instead of saving one with no scoring logic.
 
 ### Changed
 - `PairingDefault` now measures a "small" pod against the preferred (first) pod
