@@ -91,6 +91,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Commander tournaments with 2-player or 6+-player pods are therefore no
   longer supported: the config dialog refuses to apply a configuration no
   scoring logic supports, instead of saving one with no scoring logic.
+- Mtg1v1's top-cut bracket no longer crashes on Create pods when the field
+  is smaller than the cut (e.g. a Top 8 cut with only 5 players); missing
+  seeds are now treated as already eliminated, giving the top remaining
+  seeds a bye into the next round instead of an `IndexError` (#29).
 
 ### Changed
 - `PairingDefault` now measures a "small" pod against the preferred (first) pod
