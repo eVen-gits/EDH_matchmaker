@@ -60,6 +60,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dropdowns re-filter when the pod sizes change.
 
 ### Fixed
+- File > Load tournament no longer crashes the app on a truncated or corrupt
+  log file. `TournamentAction.load` now parses the file before updating
+  `LOGF`, so a failed load leaves the current tournament's log path
+  unchanged, and the GUI shows an error dialog instead of letting the
+  exception abort the process (#31). `run_ui.py -o <file>` and the startup
+  load of the last log now print a one-line error and exit non-zero on an
+  unreadable log, without writing to it.
 - File > Load players no longer crashes the app on a blank line in the input
   file; blank lines are skipped instead of being passed to `add_player` as an
   empty name (#26).
