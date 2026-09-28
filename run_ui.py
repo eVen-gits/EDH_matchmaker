@@ -1206,7 +1206,11 @@ class MainWindow(QMainWindow):
             initialFilter="*.json",
         )
         if file:
-            loaded = TournamentAction.load(file)
+            try:
+                loaded = TournamentAction.load(file)
+            except Exception as e:
+                QMessageBox.critical(self, "Failed to load tournament", str(e))
+                return
             if loaded is not None:
                 self.core = loaded
             else:
