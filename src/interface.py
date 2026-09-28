@@ -262,10 +262,15 @@ class IPairingLogic(ABC):
         """Whether this algorithm can pair a tournament with these pod sizes.
 
         True if it supports any size (SUPPORTED_POD_SIZES is None) or every
-        given size is in its supported set.
+        given size is in its supported set (an empty list supports nothing).
         """
         if cls.SUPPORTED_POD_SIZES is None:
             return True
+        # An empty pod_sizes means no sizes are chosen yet, so vacuous
+        # subset truth must not let a size-restricted algorithm through -
+        # only ones that support any size should be offered.
+        if not pod_sizes:
+            return False
         return set(pod_sizes).issubset(cls.SUPPORTED_POD_SIZES)
     # Loaded at class definition from the sidecar `<ClassName>.params.yaml`.
     # Per-round overrides live in config.pairing_rounds[seq]["params"].
@@ -327,10 +332,15 @@ class IScoringLogic(ABC):
         """Whether this algorithm can score a tournament with these pod sizes.
 
         True if it supports any size (SUPPORTED_POD_SIZES is None) or every
-        given size is in its supported set.
+        given size is in its supported set (an empty list supports nothing).
         """
         if cls.SUPPORTED_POD_SIZES is None:
             return True
+        # An empty pod_sizes means no sizes are chosen yet, so vacuous
+        # subset truth must not let a size-restricted algorithm through -
+        # only ones that support any size should be offered.
+        if not pod_sizes:
+            return False
         return set(pod_sizes).issubset(cls.SUPPORTED_POD_SIZES)
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
