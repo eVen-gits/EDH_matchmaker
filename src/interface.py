@@ -262,7 +262,7 @@ class IPairingLogic(ABC):
         """Whether this algorithm can pair a tournament with these pod sizes.
 
         True if it supports any size (SUPPORTED_POD_SIZES is None) or every
-        given size is in its supported set.
+        given size is in its supported set (an empty list supports nothing).
         """
         if cls.SUPPORTED_POD_SIZES is None:
             return True
@@ -332,7 +332,7 @@ class IScoringLogic(ABC):
         """Whether this algorithm can score a tournament with these pod sizes.
 
         True if it supports any size (SUPPORTED_POD_SIZES is None) or every
-        given size is in its supported set.
+        given size is in its supported set (an empty list supports nothing).
         """
         if cls.SUPPORTED_POD_SIZES is None:
             return True
