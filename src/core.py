@@ -409,6 +409,9 @@ class StandingsExport(DataExport, IStandingsExport):
                     )
                 except (KeyError, ValueError, AttributeError):
                     pass
+                except OSError as e:
+                    # A bad export path must not break every later action.
+                    Log.log(f"Standings auto-export failed: {e}")
             return ret
 
         return cast(_F, auto_standings_export_wrapper)
@@ -2296,8 +2299,9 @@ class Tournament(ITournament):
             target_type: The target for the export (FILE, WEB, CONSOLE).
         """
         if StandingsExport.Target.FILE == target_type:
-            if not os.path.exists(os.path.dirname(var_export_param)):
-                os.makedirs(os.path.dirname(var_export_param))
+            # A bare filename has no directory part; it goes to the CWD.
+            if os.path.dirname(var_export_param):
+                os.makedirs(os.path.dirname(var_export_param), exist_ok=True)
             with open(var_export_param, "w", encoding="utf-8") as f:
                 f.writelines(data)
 

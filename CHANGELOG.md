@@ -65,6 +65,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the same as before. It matters only when a larger size such as `5` is added:
   4-player pods are no longer treated as small.
 
+### Fixed
+- Exporting standings to a bare filename (no directory) no longer crashes;
+  the file is written to the working directory. A standings auto-export that
+  fails with an OS error is now logged instead of aborting every later
+  action (#24).
+
 ## [3.1.0] - 2026-08-28
 
 ### Added

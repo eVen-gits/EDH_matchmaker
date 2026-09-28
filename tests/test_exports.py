@@ -160,3 +160,27 @@ class TestStandingsFields(unittest.TestCase):
         # Header uses lowercase field .name attributes
         self.assertIn("name", result)
         self.assertIn("pts", result)
+
+
+class TestExportPath(unittest.TestCase):
+    """Regression for #24: a bare filename as the export path."""
+
+    def test_bare_filename_writes_to_cwd(self):
+        import os
+        import tempfile
+
+        t = _small_tournament()
+        with tempfile.TemporaryDirectory() as d:
+            cwd = os.getcwd()
+            os.chdir(d)
+            try:
+                t.export_str("x", "standings.txt", StandingsExport.Target.FILE)
+                self.assertTrue(os.path.exists("standings.txt"))
+            finally:
+                os.chdir(cwd)
+
+    def test_unwritable_auto_export_path_does_not_break_actions(self):
+        t = _small_tournament()
+        t.config.auto_export = True
+        t.config.standings_export.dir = "/proc/nope/standings.txt"
+        t.add_player(["Late Player"])  # must not raise
