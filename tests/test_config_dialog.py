@@ -299,6 +299,18 @@ class TestConfigDialogInvalidConfigOnReset(unittest.TestCase):
         mock_critical.assert_called_once()
         self.assertIsInstance(parent.core, Tournament)
 
+    def test_unscorable_pod_size_refuses_to_build_config(self):
+        dlg, parent = self._dialog()
+        old_config = parent.core.config
+        dlg._pod_size_editor.reset([6])
+        self.assertIsNone(dlg.ui.cb_scoringLogic.currentData())
+
+        with mock.patch("run_ui.QMessageBox.critical") as mock_critical:
+            dlg.apply_choices()
+
+        mock_critical.assert_called_once()
+        self.assertIs(parent.core.config, old_config)
+
     def test_empty_pod_sizes_does_not_offer_1v1_only_algorithms(self):
         # Also part of B: with pod_sizes emptied, the scoring/pairing
         # dropdowns must not offer the MTG-only Scoring1v1/Pairing1v1 for
