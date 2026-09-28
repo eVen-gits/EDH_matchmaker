@@ -1183,7 +1183,7 @@ class MainWindow(QMainWindow):
             if not file.endswith(ext.replace("*", "")):
                 file = ext.replace("*", "{}").format(file)
             TournamentAction.LOGF = file
-            TournamentAction.store()
+            TournamentAction.store(self.core)
 
     def new_tour(self):
         TournamentConfigDialog.show_dialog(self)
