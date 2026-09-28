@@ -17,8 +17,18 @@ match" entry below — collapsing to exactly one game by default, which is why
 Commander never needed to distinguish the two.
 
 **Lives in:** `src/core.py` (`Pod`), `src/interface.py` (`IPod`)
-**Invariant:** Pod size is 4 by default, 3 only as a fallback when player
-count doesn't divide evenly; 2 for 1v1 tournaments. A pairing algorithm must
+**Invariant:** `config.pod_sizes` is an ordered preference list, not a set —
+earlier sizes are preferred over later ones (Commander defaults to `[4, 3]`,
+so 4 is preferred and 3 is the fallback; 1v1 tournaments use `[2]`).
+`Tournament.get_pod_sizes()` walks that order depth-first, taking as much of
+the earliest size as it can before trying the next; when the remaining
+players are fewer than the smallest configured size, it uses a bye (if
+`config.allow_bye` and the shortfall fits `config.max_byes`) rather than
+backtrack to a later, evenly-dividing size — so a 6-player Commander event
+configured as `[4, 3]` pairs one pod of 4 plus 2 byes, while `[3, 4]` pairs
+two pods of 3, because the leading size decides before the bye limit does.
+List order must survive the config dialog, the CLI, and saved-tournament
+JSON unchanged — never sort `pod_sizes`. A pairing algorithm must also
 declare which sizes it supports via `SUPPORTED_POD_SIZES` — see that entry
 below.
 
