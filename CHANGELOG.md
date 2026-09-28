@@ -60,6 +60,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dropdowns re-filter when the pod sizes change.
 
 ### Fixed
+- File > Load players no longer crashes the app on a blank line in the input
+  file; blank lines are skipped instead of being passed to `add_player` as an
+  empty name (#26).
 - Standings export in `CSV` and `JSON` formats now writes real CSV / JSON
   instead of the plain table or a `ValueError`. `get_standings_str()` defaults
   to the configured `standings_export.format`, so the Export > Standings dialog

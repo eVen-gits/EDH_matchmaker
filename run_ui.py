@@ -662,6 +662,7 @@ class MainWindow(QMainWindow):
         icon = QIcon("media/icon.ico")
         self.setWindowIcon(icon)
 
+    @UILog.with_status
     def load_players(self):
         file, ext = QFileDialog.getOpenFileName(
             caption="Select text file with players to load...",
@@ -671,7 +672,8 @@ class MainWindow(QMainWindow):
         if file:
             with open(file, "r", encoding="utf-8") as f:
                 player_names = f.readlines()
-            self.core.add_player([p.strip() for p in player_names])
+            player_names = [p.strip() for p in player_names if p.strip()]
+            self.core.add_player(player_names)
             self.restore_ui()
 
     def export_standings_dialog(self):
