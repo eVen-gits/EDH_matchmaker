@@ -113,16 +113,13 @@ def mtr_stats(tour: ITournament, player: IPlayer, tour_round: IRound) -> MtrStat
 
 
 class Mtg1v1Configuration(TournamentConfiguration):
-    """1v1 Magic's config fields, on top of the shared ones."""
+    """1v1 Magic's config fields, on top of the shared ones.
+
+    Fields and defaults: the sidecar `Mtg1v1Configuration.params.yaml`.
+    """
 
     match_wr_seats: list[float]
     match_draw_rate: float
-    GAME_FIELDS = {
-        # random_report only: relative chance each seat (play, draw) wins a
-        # decided match, and the chance a Swiss match ends drawn.
-        "match_wr_seats": [0.5, 0.5],
-        "match_draw_rate": 0.1,
-    }
 
 
 class Mtg1v1Ruleset(IRuleset):

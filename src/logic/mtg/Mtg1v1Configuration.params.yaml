@@ -1,0 +1,18 @@
+match_wr_seats:
+  default: [0.5, 0.5]
+  type: list
+  item_type: float
+  min: 0
+  step: 0.01
+  label: Match win weight per seat
+  description: >
+    random_report only: relative chance each seat (play, draw) wins a
+    decided match.
+
+match_draw_rate:
+  default: 0.1
+  min: 0
+  max: 1
+  step: 0.01
+  label: Match draw rate
+  description: random_report only - the chance a Swiss match ends drawn.

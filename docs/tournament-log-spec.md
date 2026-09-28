@@ -635,11 +635,18 @@ To add a new scoring or pairing algorithm with tunable parameters:
    (`bool`->checkbox, `int`->spinbox, `float`->doublespinbox, `str`->lineedit,
    `choices`->combobox). `scale`/`suffix` set a display transform (a fraction
    shown as a percentage). `visible_when: {other_param: value}` shows the field
-   only while another param holds that value.
+   only while another param holds that value. List fields use `type: list`
+   with `item_type`; `default_from: ruleset.X` takes the default from the
+   selected ruleset, and `choices_from` names where runtime choices come from
+   (see `src/param_spec.py`).
 3. A subclass with no sidecar of its own inherits its parent's parameters (as
    `ScoringModifiedHareruya` inherits `ScoringHareruya`'s).
 
-An algorithm with no parameters needs no sidecar file.
+An algorithm with no parameters needs no sidecar file. The tournament
+configuration fields are described the same way, in
+`src/TournamentConfiguration.params.yaml` and each game's `CONFIG_CLASS`
+sidecar. `python -m src.param_catalog` prints every spec, grouped by game, as
+JSON for a front end.
 
 ## Pairing logic
 
