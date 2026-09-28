@@ -1,0 +1,108 @@
+# Fields shared by every tournament's configuration (TournamentConfiguration in
+# src/core.py). A game's own fields live in its CONFIG_CLASS's sidecar next to
+# its rules.py (e.g. src/logic/commander/CommanderConfiguration.params.yaml).
+# `default_from: ruleset.X` = the selected ruleset's attribute X supplies the
+# default; `choices_from` names where the runtime-allowed values come from.
+ruleset:
+  default: CommanderRuleset
+  type: str
+  label: Game
+  choices_from: rulesets
+  description: >
+    Class name of the IRuleset that owns this tournament's game rules
+    (src/logic/<game>/rules.py). It supplies the defaults of pod_sizes,
+    scoring_logic and standings_export, and the allowed top_cut values.
+
+pod_sizes:
+  type: list
+  item_type: int
+  min: 2
+  default_from: ruleset.DEFAULT_POD_SIZES
+  choices_from: ruleset.ALLOWED_POD_SIZES
+  label: Pod sizes
+  description: >
+    Pod sizes the pairing may use, in order of preference. A ruleset with
+    ALLOWED_POD_SIZES limits them; None allows any size.
+
+allow_bye:
+  default: true
+  label: Allow byes
+  description: >
+    Whether a player left over after seating everyone else gets a bye. A
+    ruleset with BYES_REQUIRED (1v1 Magic) needs this on.
+
+max_byes:
+  default: 2
+  min: 0
+  label: Max byes per player
+  visible_when: {allow_bye: true}
+  description: How many byes one player may receive in the tournament.
+
+n_rounds:
+  default: 5
+  min: 1
+  label: Swiss rounds
+  description: Number of Swiss rounds before any top cut.
+
+top_cut:
+  default: 0
+  type: int
+  choices: [0, 2, 4, 7, 8, 10, 13, 16, 40]
+  choices_from: ruleset.PLAYOFFS
+  label: Top cut
+  description: >
+    Players advancing to playoffs after Swiss; 0 means no playoffs. Only 0
+    and the selected ruleset's PLAYOFFS keys are valid. Stored as
+    TournamentConfiguration.TopCut.
+
+auto_export:
+  default: true
+  label: Auto-export standings
+  description: Write the standings export after every change to standings.
+
+standings_export:
+  type: list
+  item_type: str
+  default_from: ruleset.DEFAULT_STANDINGS_FIELDS
+  choices: [STANDING, ID, NAME, RECORD, RATING, WINS, OPP_BEATEN, OPP_POINTRATE,
+            UNIQUE, POINTRATE, GAMES, SEAT_HISTORY, AVG_SEAT]
+  label: Standings export columns
+  visible_when: {auto_export: true}
+  description: >
+    Columns of the standings export, in order (StandingsExport.Field names).
+    Stored as a StandingsExport object.
+
+scoring_logic:
+  type: str
+  default_from: ruleset.DEFAULT_SCORING_LOGIC
+  choices_from: scoring_logics
+  label: Scoring
+  description: >
+    Class name of the IScoringLogic that computes points. Only logics whose
+    SUPPORTED_POD_SIZES cover pod_sizes are selectable.
+
+scoring_params:
+  default: {}
+  label: Scoring parameters
+  description: >
+    Overrides of the scoring logic's parameters, keyed by parameter name;
+    that logic's own sidecar describes them.
+
+pairing_rounds:
+  default: []
+  type: list
+  item_type: dict
+  widget: custom
+  label: Swiss round pairing
+  description: >
+    One entry per Swiss round: {logic, params, ruleset_params}. logic is a
+    pairing logic class name, or null for the ruleset's adaptive default;
+    params and ruleset_params override that logic's and the ruleset's own
+    sidecar parameters. Missing rounds use the defaults.
+
+playoff_rounds:
+  default: {}
+  label: Playoff round overrides
+  description: >
+    Ruleset parameter overrides per playoff stage: {stage: {ruleset_params}}.
+    Stages not in the ruleset's PLAYOFFS plan for top_cut are ignored.

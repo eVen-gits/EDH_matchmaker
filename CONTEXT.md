@@ -209,9 +209,12 @@ The YAML file next to a scoring/pairing/ruleset class that is the source
 of truth for that algorithm's (or ruleset's) parameter names, defaults,
 types, ranges, and GUI widget hints — a ruleset's sidecar works exactly
 like a pairing or scoring one, e.g. `Mtg1v1Ruleset.params.yaml`'s
-`games_to_win`.
+`games_to_win`. Tournament configuration fields have one too:
+`src/TournamentConfiguration.params.yaml` for the shared fields, and each
+game's `CONFIG_CLASS` sidecar (e.g. `CommanderConfiguration.params.yaml`)
+for its game fields. `python -m src.param_catalog` prints every spec as JSON.
 
-**Lives in:** `src/param_spec.py`, `src/*_logic/<ClassName>.params.yaml`
+**Lives in:** `src/param_spec.py`, `src/logic/<game>/<ClassName>.params.yaml`
 **Invariant:** A hardcoded default inside the Python class is *not*
 authoritative once a sidecar exists — the sidecar is what the config GUI
 reads to build widgets, so a param added only in code without updating the

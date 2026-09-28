@@ -1,4 +1,4 @@
-"""Parameter specifications for scoring and pairing algorithms.
+"""Parameter specifications for algorithms, rulesets, and tournament config.
 
 Each algorithm declares its tunable parameters in a sidecar YAML file named
 ``<ClassName>.params.yaml`` next to the module that defines the class. The file
@@ -27,7 +27,7 @@ import sys
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import yaml
 
@@ -38,19 +38,42 @@ _TYPES: dict[str, type] = {
     "int": int,
     "bool": bool,
     "str": str,
+    # Containers, for tournament configuration fields. A list's elements are
+    # typed by `item_type` (one of the scalar names above, or "dict"); a
+    # dict is opaque (its keys belong to another spec, e.g. playoff_rounds).
+    "list": list,
+    "dict": dict,
 }
+_ITEM_TYPES = {"float": float, "int": int, "str": str, "dict": dict}
 
 # Allowed `widget:` hints. If omitted, one is inferred from the type (see
 # _infer_widget). The GUI (run_ui.ParamForm) maps each to a Qt widget.
 _WIDGETS = frozenset(
-    {"spinbox", "doublespinbox", "checkbox", "lineedit", "combobox", "slider"}
+    {
+        "spinbox",
+        "doublespinbox",
+        "checkbox",
+        "lineedit",
+        "combobox",
+        "slider",
+        # List fields: pick any subset of `choices` (order = pick order), or
+        # edit a free list of `item_type` values.
+        "multiselect",
+        "listedit",
+        # Structured value the front end builds from other specs (e.g.
+        # pairing_rounds from each pairing logic's spec); no generic widget.
+        "custom",
+    }
 )
 
 
 def _infer_widget(type_name: str, has_choices: bool) -> str:
+    if type_name == "list":
+        return "multiselect" if has_choices else "listedit"
     if has_choices:
         return "combobox"
     return {
+        "dict": "custom",
         "bool": "checkbox",
         "int": "spinbox",
         "float": "doublespinbox",
@@ -79,6 +102,15 @@ class ParamSpec:
     suffix: str | None = None
     # (param_name, value): show this field only while that param equals value.
     visible_when: tuple[str, Any] | None = None
+    # Element type of a "list" param (a scalar type name or "dict").
+    item_type: str | None = None
+    # Where the default comes from when it is not a constant, e.g.
+    # "ruleset.DEFAULT_POD_SIZES": the selected ruleset's attribute. `default`
+    # is then None in the spec.
+    default_from: str | None = None
+    # Where the allowed values come from when they depend on runtime state,
+    # e.g. "ruleset.PLAYOFFS" or "rulesets"; narrows any static `choices`.
+    choices_from: str | None = None
 
 
 def _sidecar_path(cls: type) -> Path | None:
@@ -99,11 +131,14 @@ def _sidecar_path(cls: type) -> Path | None:
     return None
 
 
-def load_param_spec(cls: type) -> dict[str, ParamSpec]:
+def load_param_spec(cls: type, inherit: bool = True) -> dict[str, ParamSpec]:
     """Loads and validates the parameter spec for an algorithm class.
 
     Args:
         cls: The scoring or pairing logic class.
+        inherit: If False, only the class's own sidecar counts, not an
+            ancestor's (a game's config class must not re-own the base
+            TournamentConfiguration fields).
 
     Returns:
         An ordered mapping of parameter name to ParamSpec. Empty if the class
@@ -114,6 +149,8 @@ def load_param_spec(cls: type) -> dict[str, ParamSpec]:
             the file and the offending parameter.
     """
     path = _sidecar_path(cls)
+    if path is not None and not inherit and path.name != f"{cls.__name__}.params.yaml":
+        path = None
     if path is None:
         return {}
 
@@ -158,23 +195,30 @@ def validate_values(
         if name not in specs:
             raise ValueError(f"{where}: unknown parameter '{name}'.")
         spec = specs[name]
-        if spec.type == "float":
-            if isinstance(value, bool) or not isinstance(value, (int, float)):
-                raise ValueError(f"{where}: '{name}' must be a float, got {value!r}.")
-        else:
-            expected = _TYPES[spec.type]
-            if type(value) is not expected:
+        if not _is_type(value, spec.type):
+            raise ValueError(f"{where}: '{name}' must be a {spec.type}, got {value!r}.")
+        items = value if spec.type == "list" else [value]
+        for item in items:
+            if spec.item_type is not None and not _is_type(item, spec.item_type):
                 raise ValueError(
-                    f"{where}: '{name}' must be a {spec.type}, got {value!r}."
+                    f"{where}: '{name}' items must be {spec.item_type}, got {item!r}."
                 )
-        if spec.min is not None and value < spec.min:
-            raise ValueError(f"{where}: '{name}'={value!r} is below min {spec.min}.")
-        if spec.max is not None and value > spec.max:
-            raise ValueError(f"{where}: '{name}'={value!r} is above max {spec.max}.")
-        if spec.choices is not None and value not in spec.choices:
-            raise ValueError(
-                f"{where}: '{name}'={value!r} is not one of {spec.choices}."
-            )
+            if spec.min is not None and item < spec.min:
+                raise ValueError(f"{where}: '{name}'={item!r} is below min {spec.min}.")
+            if spec.max is not None and item > spec.max:
+                raise ValueError(f"{where}: '{name}'={item!r} is above max {spec.max}.")
+            if spec.choices is not None and item not in spec.choices:
+                raise ValueError(
+                    f"{where}: '{name}'={item!r} is not one of {spec.choices}."
+                )
+
+
+def _is_type(value: Any, type_name: str) -> bool:
+    """Whether value matches a sidecar type name (an int passes as float)."""
+    if type_name == "float":
+        return not isinstance(value, bool) and isinstance(value, (int, float))
+    # bool is a subclass of int, so compare exact types.
+    return type(value) is {**_TYPES, **_ITEM_TYPES}[type_name]
 
 
 def _build_spec(path: Path, name: str, descriptor: Any) -> ParamSpec:
@@ -185,14 +229,25 @@ def _build_spec(path: Path, name: str, descriptor: Any) -> ParamSpec:
 
     if not isinstance(descriptor, dict):
         raise fail("descriptor must be a mapping.")
-    if "default" not in descriptor:
+    default_from = descriptor.get("default_from")
+    if default_from is not None:
+        if not isinstance(default_from, str):
+            raise fail("'default_from' must be a string.")
+        if descriptor.get("default") is not None:
+            raise fail("set either 'default' or 'default_from', not both.")
+    elif "default" not in descriptor:
         raise fail("missing required 'default'.")
     if "description" not in descriptor:
         raise fail("missing required 'description'.")
+    choices_from = descriptor.get("choices_from")
+    if choices_from is not None and not isinstance(choices_from, str):
+        raise fail("'choices_from' must be a string.")
 
-    default = descriptor["default"]
+    default = descriptor.get("default")
 
     type_name = descriptor.get("type")
+    if type_name is None and default_from is not None:
+        raise fail("'type' is required with 'default_from'.")
     if type_name is None:
         # Infer from the default so `type:` is optional for obvious cases.
         for candidate, py in _TYPES.items():
@@ -205,10 +260,22 @@ def _build_spec(path: Path, name: str, descriptor: Any) -> ParamSpec:
     if type_name not in _TYPES:
         raise fail(f"unknown type '{type_name}'; use one of {sorted(_TYPES)}.")
 
-    expected = _TYPES[type_name]
-    # bool is a subclass of int, so guard both directions explicitly.
-    if type(default) is not expected:
-        raise fail(f"default {default!r} is not of type '{type_name}'.")
+    item_type = descriptor.get("item_type")
+    if type_name == "list":
+        if item_type not in _ITEM_TYPES:
+            raise fail(f"list needs 'item_type', one of {sorted(_ITEM_TYPES)}.")
+    elif item_type is not None:
+        raise fail("'item_type' only applies to type 'list'.")
+
+    # Checked element-wise for a list: each item against min/max/choices.
+    values: list[Any] = []
+    if default_from is None:
+        # bool is a subclass of int, so guard both directions explicitly.
+        if type(default) is not _TYPES[type_name]:
+            raise fail(f"default {default!r} is not of type '{type_name}'.")
+        values = cast(list[Any], default) if type_name == "list" else [default]
+        if item_type is not None and not all(_is_type(v, item_type) for v in values):
+            raise fail(f"default {default!r} items must be '{item_type}'.")
 
     low = descriptor.get("min")
     high = descriptor.get("max")
@@ -217,10 +284,11 @@ def _build_spec(path: Path, name: str, descriptor: Any) -> ParamSpec:
             raise fail(f"'{bound_name}' must be numeric.")
     if low is not None and high is not None and low > high:
         raise fail(f"min ({low}) is greater than max ({high}).")
-    if low is not None and default < low:
-        raise fail(f"default {default!r} is below min {low}.")
-    if high is not None and default > high:
-        raise fail(f"default {default!r} is above max {high}.")
+    for value in values:
+        if low is not None and value < low:
+            raise fail(f"default {default!r} is below min {low}.")
+        if high is not None and value > high:
+            raise fail(f"default {default!r} is above max {high}.")
 
     step = descriptor.get("step")
     if step is not None and not isinstance(step, (int, float)):
@@ -230,7 +298,7 @@ def _build_spec(path: Path, name: str, descriptor: Any) -> ParamSpec:
     if choices is not None:
         if not isinstance(choices, list) or not choices:
             raise fail("'choices' must be a non-empty list.")
-        if default not in choices:
+        if any(v not in choices for v in values):
             raise fail(f"default {default!r} is not one of choices {choices}.")
         choices = tuple(choices)
 
@@ -265,4 +333,7 @@ def _build_spec(path: Path, name: str, descriptor: Any) -> ParamSpec:
         scale=scale,
         suffix=str(suffix) if suffix is not None else None,
         visible_when=visible_when,
+        item_type=item_type,
+        default_from=default_from,
+        choices_from=choices_from,
     )

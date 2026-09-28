@@ -36,7 +36,7 @@ from .interface import (
     ITournament,
     ITournamentConfiguration,
 )
-from .param_spec import validate_values
+from .param_spec import ParamSpec, load_param_spec, validate_values
 
 _F = TypeVar("_F", bound=Callable[..., Any])
 
@@ -628,17 +628,28 @@ class TournamentConfiguration(ITournamentConfiguration):
         TOP_16 = 16
         TOP_40 = 40
 
-    # A game's own config fields -> defaults, set by the ruleset's
-    # CONFIG_CLASS (e.g. CommanderConfiguration's global_wr_seats).
-    # Persisted flat alongside the base fields.
+    # The shared fields' spec, from TournamentConfiguration.params.yaml
+    # (set below the class) - the source of their constant defaults.
+    PARAM_SPEC: dict[str, ParamSpec] = {}
+    # A game's own config fields, from its CONFIG_CLASS's sidecar (e.g.
+    # CommanderConfiguration.params.yaml's global_wr_seats), and their
+    # defaults. Persisted flat alongside the base fields.
+    GAME_PARAM_SPEC: dict[str, ParamSpec] = {}
     GAME_FIELDS: dict[str, Any] = {}
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        super().__init_subclass__(**kwargs)
+        cls.GAME_PARAM_SPEC = load_param_spec(cls, inherit=False)
+        cls.GAME_FIELDS = {n: s.default for n, s in cls.GAME_PARAM_SPEC.items()}
 
     def __new__(cls, **kwargs):
         # TournamentConfiguration(...) builds the ruleset's CONFIG_CLASS, so
         # callers never pick the game's subclass themselves.
         target: type = cls
         if cls is TournamentConfiguration:
-            ruleset = Tournament.get_ruleset(kwargs.get("ruleset", "CommanderRuleset"))
+            ruleset = Tournament.get_ruleset(
+                kwargs.get("ruleset", cls.PARAM_SPEC["ruleset"].default)
+            )
             target = ruleset.CONFIG_CLASS or cls
         return super().__new__(target)
 
@@ -652,17 +663,18 @@ class TournamentConfiguration(ITournamentConfiguration):
         # (src/logic/<game>/rules.py) - see IRuleset. Resolved first: it
         # also supplies the defaults of pod_sizes, scoring_logic and
         # standings_export.fields below when the caller does not pass them.
-        self.ruleset: str = kwargs.get("ruleset", "CommanderRuleset")
+        default = {n: s.default for n, s in self.PARAM_SPEC.items()}
+        self.ruleset: str = kwargs.get("ruleset", default["ruleset"])
         ruleset_cls = Tournament.get_ruleset(self.ruleset)
 
         self.pod_sizes: Sequence[int] = kwargs.get(
             "pod_sizes", list(ruleset_cls.DEFAULT_POD_SIZES)
         )
-        self.allow_bye: bool = kwargs.get("allow_bye", True)
-        self.n_rounds: int = kwargs.get("n_rounds", 5)
+        self.allow_bye: bool = kwargs.get("allow_bye", default["allow_bye"])
+        self.n_rounds: int = kwargs.get("n_rounds", default["n_rounds"])
         # Parse int or enum for TopCut
         tc_val: TournamentConfiguration.TopCut | int = kwargs.get(
-            "top_cut", TournamentConfiguration.TopCut.NONE
+            "top_cut", default["top_cut"]
         )
         if isinstance(tc_val, TournamentConfiguration.TopCut):
             self.top_cut: TournamentConfiguration.TopCut = tc_val
@@ -672,8 +684,8 @@ class TournamentConfiguration(ITournamentConfiguration):
                 self.top_cut = TournamentConfiguration.TopCut(tc_val)
             except Exception:
                 self.top_cut = TournamentConfiguration.TopCut.NONE
-        self.max_byes: int = kwargs.get("max_byes", 2)
-        self.auto_export: bool = kwargs.get("auto_export", True)
+        self.max_byes: int = kwargs.get("max_byes", default["max_byes"])
+        self.auto_export: bool = kwargs.get("auto_export", default["auto_export"])
         self.standings_export: IStandingsExport = kwargs.get(
             "standings_export",
             StandingsExport(
@@ -873,6 +885,9 @@ class TournamentConfiguration(ITournamentConfiguration):
             "pairing_logics": data.get("pairing_logics", []),
             "pairing_params": params,
         }
+
+
+TournamentConfiguration.PARAM_SPEC = load_param_spec(TournamentConfiguration)
 
 
 class Tournament(ITournament):

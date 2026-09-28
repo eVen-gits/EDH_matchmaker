@@ -11,15 +11,12 @@ from ...interface import IGameResult, IPod, IRound, IRuleset, ITournament
 
 
 class CommanderConfiguration(TournamentConfiguration):
-    """Commander's config fields, on top of the shared ones."""
+    """Commander's config fields, on top of the shared ones.
+
+    Fields and defaults: the sidecar `CommanderConfiguration.params.yaml`.
+    """
 
     global_wr_seats: Sequence[float]
-    GAME_FIELDS = {
-        # Win rate per seat, seat 1 first; 1 - sum is the draw rate. Drives
-        # random_report and seat balancing (Player.average_seat).
-        # Data: all 50+ player events in [2024-09-30;2025-05-05].
-        "global_wr_seats": [0.2470, 0.1928, 0.1672, 0.1458],
-    }
 
 
 class CommanderRuleset(IRuleset):

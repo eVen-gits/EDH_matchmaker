@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Params sidecars for the tournament configuration
+  (`src/TournamentConfiguration.params.yaml`) and each game's config fields
+  (`CommanderConfiguration.params.yaml`, `Mtg1v1Configuration.params.yaml`);
+  their defaults are no longer hardcoded in Python. The sidecar format gains
+  list/dict types (`item_type`), `default_from`, `choices_from`, and
+  `multiselect`/`listedit`/`custom` widgets.
+- `python -m src.param_catalog` (or `src.param_catalog.catalog()`) emits every
+  parameter spec - tournament, per-game, ruleset, scoring, pairing - as JSON
+  for front ends.
 - 1v1 Magic tournament support (`Mtg1v1Ruleset`), alongside Commander/EDH.
   A tournament's game is now an explicit choice (`config.ruleset`, default
   `CommanderRuleset`), selected via a ruleset dropdown when creating a
