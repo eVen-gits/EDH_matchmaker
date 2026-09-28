@@ -715,8 +715,8 @@ seeded once, from the standings as of the last Swiss round, filtered to
 players still active when the first playoff round was created, and is
 never reseeded afterward: a later stage's pairings are a pure function of
 that fixed seed list and who is still active. A seed whose bracket
-opponent has since dropped gets a bye and advances instead of being
-paired.
+opponent has since dropped, or does not exist because the field was
+smaller than `top_cut`, gets a bye and advances instead of being paired.
 
 ## Adjacent outputs (not part of this format)
 

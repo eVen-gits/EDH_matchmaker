@@ -210,7 +210,13 @@ class PairingBracket(_commander_matching.CommonPairing):
         eligible_at_cut = final_swiss.active_players  # pyright: ignore[reportAttributeAccessIssue]
         full_standings = tour.get_standings(final_swiss)  # pyright: ignore[reportAttributeAccessIssue]
         seeds = [p for p in full_standings if p in eligible_at_cut][:n]
-        slots = [seeds[i - 1] for i in bracket_seed_order(n)]
+        # A seed slot beyond the actual field (fewer players than top_cut)
+        # has no player - treated as already eliminated, same as a dropped
+        # seed: its bracket opponent gets a walkover bye below.
+        slots = [
+            seeds[i - 1] if i - 1 < len(seeds) else None
+            for i in bracket_seed_order(n)
+        ]
         seed_rank = {p: i for i, p in enumerate(seeds)}
 
         block = 2 * n // s
