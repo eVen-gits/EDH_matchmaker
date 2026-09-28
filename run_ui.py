@@ -1616,6 +1616,11 @@ class TournamentConfigDialog(QDialog):
         self.ui.sb_max_byes.setVisible(not required)
         if required:
             self.ui.cb_allow_bye.setChecked(True)
+            # sb_max_byes stays hidden while required, but its value still
+            # feeds config.max_byes on apply - a prior ruleset that allowed
+            # 0 byes must not leave this ruleset's hard requirement unmet.
+            if self.ui.sb_max_byes.value() < 1:
+                self.ui.sb_max_byes.setValue(1)
 
         self._rebuild_pairing_rows(reset_ruleset_params=not initial)
         self._rebuild_playoff_rows(reset_ruleset_params=not initial)
@@ -1901,9 +1906,17 @@ class TournamentConfigDialog(QDialog):
             },
         )
         if self.reset:
-            t = Tournament(
-                config=self.config,
-            )
+            try:
+                t = Tournament(
+                    config=self.config,
+                )
+            except Exception as e:
+                QMessageBox.critical(
+                    self,
+                    "Error",
+                    str(e),
+                )
+                return
             self.parent().core = t
             t.new_round()
             TournamentAction.store(t)
