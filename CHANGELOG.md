@@ -59,6 +59,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   screen has one tournament-wide pod-size editor, and the per-round pairing
   dropdowns re-filter when the pod sizes change.
 
+### Fixed
+- Standings export in `CSV` and `JSON` formats now writes real CSV / JSON
+  instead of the plain table or a `ValueError`. `get_standings_str()` defaults
+  to the configured `standings_export.format`, so the Export > Standings dialog
+  and auto-export honour the chosen format (#25).
+
 ### Changed
 - `PairingDefault` now measures a "small" pod against the preferred (first) pod
   size in `config.pod_sizes`, not the largest. For the standard `[4, 3]` this is
