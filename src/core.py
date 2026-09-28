@@ -2810,7 +2810,10 @@ class Player(IPlayer):
                     wr_seats: Sequence[float] = getattr(
                         self.tour.config, "global_wr_seats"
                     )
-                    rates = wr_seats[0 : len(pod)]
+                    rates = list(wr_seats[0 : len(pod)])
+                    # Pods larger than the configured seats (e.g. 6) reuse
+                    # the last seat rate for the extra middle seats.
+                    rates += rates[-1:] * (len(pod) - 1 - len(rates))
                     norm_scale = 1 - (np.cumsum(rates) - rates[0]) / (
                         np.sum(rates) - rates[0]
                     )
