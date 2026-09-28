@@ -36,7 +36,7 @@ class LoadPlayersTest(unittest.TestCase):
                 return_value=(path, "*.txt"),
             ):
                 # Must not raise / abort the process (issue #26).
-                window.ui.actionLoad_players.trigger()
+                window.ui.actionLoad_players.trigger()  # pyright: ignore[reportOptionalMemberAccess]
             self.assertEqual(
                 sorted(p.name for p in t.players), ["Alice", "Bob", "Carol"]
             )
