@@ -821,6 +821,26 @@ class TestPairingBracket(unittest.TestCase):
                     played += 1
                 self.assertEqual(played, n_playoff_rounds)
 
+    def test_top_cut_8_seeds_byes_when_fewer_players_than_cut(self):
+        """Issue #29: 5 players, 1 Swiss round, top_cut=8 - the field is
+        smaller than the cut, so seeds 6-8 don't exist. Top seeds should get
+        byes into the next round instead of PairingBracket indexing past the
+        seed list."""
+        random.seed(29)
+        t = self._tournament(5, 1, 8)
+        self._finish_swiss(t, 1)
+        seeds = t.get_standings(t.tour_round)[:8]
+
+        t.create_pairings()
+
+        # Only seeds 4 and 5 (indices 3, 4) form an actual pod; 1, 2, 3 bye.
+        actual_pairs = {
+            frozenset(p.uid for p in pod.players) for pod in t.tour_round.pods
+        }
+        self.assertEqual(actual_pairs, {frozenset({seeds[3].uid, seeds[4].uid})})
+        for seed in seeds[:3]:
+            self.assertEqual(seed.result(t.tour_round), seed.EResult.BYE)
+
     def test_commander_rejects_top_cut_8_mtg_rejects_top_cut_7(self):
         with self.assertRaises(ValueError):
             Tournament(

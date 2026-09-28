@@ -74,6 +74,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   valid value, since `BYES_REQUIRED` hides it without resetting it. Emptying
   the pod-size list no longer offers the other game's scoring/pairing
   algorithms (#28).
+- Mtg1v1's top-cut bracket no longer crashes on Create pods when the field
+  is smaller than the cut (e.g. a Top 8 cut with only 5 players); missing
+  seeds are now treated as already eliminated, giving the top remaining
+  seeds a bye into the next round instead of an `IndexError` (#29).
 
 ### Changed
 - `PairingDefault` now measures a "small" pod against the preferred (first) pod
