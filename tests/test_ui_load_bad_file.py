@@ -6,6 +6,8 @@ tournament and TournamentAction.LOGF unchanged. Qt runs offscreen.
 """
 
 import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from unittest import mock
@@ -54,6 +56,29 @@ class LoadBadFileTest(unittest.TestCase):
             mock_critical.assert_called_once()
             self.assertIs(window.core, t)
             self.assertEqual(TournamentAction.LOGF, "logs/default.json")
+
+
+class StartupLoadBadFileTest(unittest.TestCase):
+    def test_open_corrupt_file_exits_with_clean_error(self):
+        with tempfile.TemporaryDirectory() as d:
+            bad = os.path.join(d, "bad.json")
+            content = '{"config": {"pod_sizes": [4'
+            with open(bad, "w") as f:
+                f.write(content)
+            env = dict(os.environ, QT_QPA_PLATFORM="offscreen", PYTHONPATH=".")
+            proc = subprocess.run(
+                [sys.executable, "run_ui.py", "-o", bad],
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=60,
+            )
+            with open(bad) as f:
+                self.assertEqual(f.read(), content)
+
+        self.assertEqual(proc.returncode, 1)
+        self.assertNotIn("Traceback", proc.stderr)
+        self.assertIn(f"Failed to load tournament from {bad}", proc.stderr)
 
 
 if __name__ == "__main__":

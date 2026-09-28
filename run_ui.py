@@ -2129,6 +2129,22 @@ def build_arg_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def load_startup_log(*logdir: str) -> Tournament | None:
+    """Loads a log at startup, exiting with a one-line error if it is unreadable.
+
+    Args:
+        logdir: Optional log path; defaults to TournamentAction.load's default.
+
+    Returns:
+        The loaded tournament, or None if the file does not exist.
+    """
+    try:
+        return TournamentAction.load(*logdir)
+    except Exception as e:
+        path = logdir[0] if logdir else "logs/default.json"
+        sys.exit(f"Failed to load tournament from {path}: {e}")
+
+
 if __name__ == "__main__":
     parser = build_arg_parser()
     args, unknown = parser.parse_known_args()
@@ -2139,12 +2155,12 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
 
     if args.open:
-        core = TournamentAction.load(args.open)
+        core = load_startup_log(args.open)
     elif args.ruleset:
         # A new game, not a continuation - do not fall back to the last log.
         core = Tournament(config=TournamentConfiguration(ruleset=args.ruleset))
         core.new_round()
-    elif not (core := TournamentAction.load()):
+    elif not (core := load_startup_log()):
         core = Tournament()
         core.new_round()
 
