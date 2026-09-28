@@ -60,6 +60,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dropdowns re-filter when the pod sizes change.
 
 ### Fixed
+- Documented and locked in with regression tests that `pod_sizes` is an
+  ordered preference list: `Tournament.get_pod_sizes()` already preferred
+  earlier sizes over later ones and used a bye before backtracking to a
+  later, evenly-dividing size, but this wasn't spelled out anywhere. A
+  6-player Commander event configured as `[4, 3]` pairs one pod of 4 plus 2
+  byes (4 preferred); `[3, 4]` pairs two pods of 3 instead. See `CONTEXT.md`
+  ("Pod") and `TournamentConfiguration.params.yaml`'s `pod_sizes`
+  description for the rule.
 - File > Load tournament no longer crashes the app on a truncated or corrupt
   log file. `TournamentAction.load` now parses the file before updating
   `LOGF`, so a failed load leaves the current tournament's log path
