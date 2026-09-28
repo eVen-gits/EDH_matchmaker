@@ -1,3 +1,8 @@
+import csv
+import io
+import json
+import os
+import tempfile
 import unittest
 
 from src.core import (
@@ -41,15 +46,44 @@ class TestExports(unittest.TestCase):
         for p in self.t.players:
             self.assertIn(p.name, result)
 
-    def test_standings_str_csv_not_implemented(self):
-        # CSV is not yet implemented — documents expected behavior
-        with self.assertRaises((ValueError, Exception)):
-            self.t.get_standings_str(style=StandingsExport.Format.CSV)
+    def test_standings_str_csv(self):
+        rows = list(csv.reader(io.StringIO(
+            self.t.get_standings_str(style=StandingsExport.Format.CSV))))
+        self.assertEqual(len(rows), len(self.t.players) + 1)
+        for p in self.t.players:
+            self.assertIn(p.name, [c for r in rows for c in r])
 
-    def test_standings_str_json_not_implemented(self):
-        # JSON is not yet implemented — documents expected behavior
-        with self.assertRaises((ValueError, Exception)):
-            self.t.get_standings_str(style=StandingsExport.Format.JSON)
+    def test_standings_str_json(self):
+        data = json.loads(self.t.get_standings_str(style=StandingsExport.Format.JSON))
+        self.assertEqual(len(data), len(self.t.players))
+        self.assertEqual({p.name for p in self.t.players}, {d["name"] for d in data})
+
+    def test_standings_str_defaults_to_config_format(self):
+        self.t.config.standings_export.format = StandingsExport.Format.JSON
+        json.loads(self.t.get_standings_str())
+
+    def test_export_dialog_writes_chosen_format(self):
+        # Issue #25: the dialog ignored its Format choice and wrote PLAIN.
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        try:
+            from PyQt6.QtWidgets import QApplication
+            import run_ui
+        except ImportError as exc:  # pragma: no cover - env without PyQt6
+            self.skipTest(f"PyQt6 unavailable: {exc}")
+        app = QApplication.instance() or QApplication([])  # noqa: F841
+        window = run_ui.MainWindow(self.t)
+        with tempfile.TemporaryDirectory() as d:
+            for fmt, parse in (
+                (StandingsExport.Format.JSON, json.load),
+                (StandingsExport.Format.CSV, lambda f: list(csv.reader(f))),
+            ):
+                path = os.path.join(d, "standings" + StandingsExport.ext[fmt])
+                dlg = run_ui.ExportStandingsDialog(window)
+                dlg.ui.cb_format.setCurrentIndex(dlg.ui.cb_format.findData(fmt))
+                dlg.ui.le_export_dir.setText(path)
+                dlg.export()
+                with open(path) as f:
+                    self.assertEqual(len(parse(f)), len(self.t.players) + (fmt == StandingsExport.Format.CSV))
 
     def test_pod_repr_with_context(self):
         pod = self.t.tour_round.pods[0]
