@@ -204,8 +204,8 @@ draw, or a pending game).
 | Field | Type | Description |
 |---|---|---|
 | `fields` | array of int | Which standings columns to include. See [`StandingsExport.Field` values](#standingsexportfield-values). |
-| `format` | int | Output format for the plain-text export. See [`DataExport.Format` values](#dataexportformat-values). |
-| `dir` | string | File path for the plain-text standings export. Not part of this JSON format — see [Adjacent outputs](#adjacent-outputs-not-part-of-this-format). |
+| `format` | int | Output format for the standings export. See [`DataExport.Format` values](#dataexportformat-values). |
+| `dir` | string | File path for the standings export. Not part of this JSON format — see [Adjacent outputs](#adjacent-outputs-not-part-of-this-format). |
 
 These values are this implementation's defaults, given for reference.
 A conforming file must set every `config` field explicitly, except
@@ -724,7 +724,7 @@ EDH_matchmaker writes several other files alongside the JSON log. None
 of them are part of this specification. A conforming reader/writer only
 needs the sections above.
 
-- A plain-text standings table, written to `config.standings_export.dir`.
+- A standings table (plain text, CSV, or JSON per `config.standings_export.format`), written to `config.standings_export.dir`.
 - A plain-text pairings dump per round.
 - An optional webhook POST of pairings data, controlled by environment
   variables outside this file.
