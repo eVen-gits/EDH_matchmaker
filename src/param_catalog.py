@@ -10,7 +10,8 @@ Run ``python -m src.param_catalog`` to print it, or call `catalog()`. Shape::
             "<RulesetClass>": {
               "params": {<param>: <spec>},          # per-round ruleset params
               "config_fields": {<field>: <spec>},   # its CONFIG_CLASS's fields
-              "defaults": {<field>: <value>}        # values of default_from
+              "defaults": {<field>: <value>},       # values of default_from
+              "choices": {<field>: [<value>] | null} # choices_from; null = any
             }
           },
           "scoring": {"<ScoringClass>": {<param>: <spec>}},
@@ -21,7 +22,8 @@ Run ``python -m src.param_catalog`` to print it, or call `catalog()`. Shape::
 
 Each <spec> is a `ParamSpec` as a dict (see src/param_spec.py for its keys);
 `visible_when` becomes ``{param: value}``. A spec's ``default_from:
-"ruleset.X"`` is resolved per ruleset under that ruleset's "defaults".
+"ruleset.X"`` is resolved per ruleset under that ruleset's "defaults", and
+``choices_from: "ruleset.X"`` under its "choices" (PLAYOFFS -> [0, *keys]).
 """
 
 from __future__ import annotations
@@ -51,6 +53,14 @@ def _game(obj: object) -> str:
     return type(obj).__module__.split(".")[2]
 
 
+def _choices(value: Any) -> list[Any] | None:
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        return [0, *sorted(value)]
+    return list(value)
+
+
 def catalog() -> dict[str, Any]:
     """Every tournament, game, ruleset, scoring and pairing parameter spec.
 
@@ -77,6 +87,11 @@ def catalog() -> dict[str, Any]:
                 for field, spec in TournamentConfiguration.PARAM_SPEC.items()
                 if spec.default_from
                 for value in [getattr(ruleset, spec.default_from.split(".", 1)[1])]
+            },
+            "choices": {
+                field: _choices(getattr(ruleset, spec.choices_from.split(".", 1)[1]))
+                for field, spec in TournamentConfiguration.PARAM_SPEC.items()
+                if spec.choices_from and spec.choices_from.startswith("ruleset.")
             },
         }
     for name in Tournament.scoring_logic_names():

@@ -58,6 +58,7 @@ class TestParamCatalog(unittest.TestCase):
         commander = data["games"]["commander"]
         ruleset = commander["rulesets"]["CommanderRuleset"]
         self.assertEqual(ruleset["defaults"]["pod_sizes"], [4, 3])
+        self.assertIsNone(ruleset["choices"]["pod_sizes"])
         self.assertIn("global_wr_seats", ruleset["config_fields"])
         self.assertIn("wager_percent", commander["scoring"]["ScoringHareruya"])
         self.assertIn("PairingDefault", commander["pairing"])
@@ -65,6 +66,9 @@ class TestParamCatalog(unittest.TestCase):
         self.assertIn("games_to_win", mtg["rulesets"]["Mtg1v1Ruleset"]["params"])
         self.assertEqual(mtg["rulesets"]["Mtg1v1Ruleset"]["defaults"]["scoring_logic"], "Scoring1v1")
         self.assertIn("Scoring1v1", mtg["scoring"])
+        mtg_choices = mtg["rulesets"]["Mtg1v1Ruleset"]["choices"]
+        self.assertEqual(mtg_choices["pod_sizes"], [2])
+        self.assertEqual(mtg_choices["top_cut"], [0, 2, 4, 8, 16])
 
 
 if __name__ == "__main__":
