@@ -697,7 +697,10 @@ class MainWindow(QMainWindow):
                 if not file.endswith(ext.replace("*", "")):
                     file = ext.replace("*", "{}").format(file)
                 pods_str = self.core.get_pods_str()
-                self.core.export_str(pods_str, file, StandingsExport.Target.FILE)
+                try:
+                    self.core.export_str(pods_str, file, StandingsExport.Target.FILE)
+                except OSError as e:
+                    QMessageBox.warning(self, "Export failed", str(e))
 
     def init_sort_dropdown(self):
         values = [
@@ -2014,11 +2017,15 @@ class ExportStandingsDialog(QDialog):
         self.core.config.standings_export.dir = self.ui.le_export_dir.text()
         self.core.config = self.core.config
 
-        self.core.export_str(
-            self.core.get_standings_str(),
-            self.ui.le_export_dir.text(),
-            StandingsExport.Target.FILE,
-        )
+        try:
+            self.core.export_str(
+                self.core.get_standings_str(),
+                self.ui.le_export_dir.text(),
+                StandingsExport.Target.FILE,
+            )
+        except OSError as e:
+            QMessageBox.warning(self, "Export failed", str(e))
+            return
 
         self.close()
 

@@ -68,6 +68,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - File > Save As no longer crashes the app; it writes the tournament to the
   chosen file (#22).
+- Exporting standings to a bare filename (no directory) no longer crashes;
+  the file is written to the working directory. A standings auto-export that
+  fails with an OS error is now logged instead of aborting every later
+  action. The standings and pods export dialogs now show an error message for
+  an unwritable path instead of closing the app (#24).
 
 ## [3.1.0] - 2026-08-28
 
