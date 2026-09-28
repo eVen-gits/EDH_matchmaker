@@ -266,6 +266,11 @@ class IPairingLogic(ABC):
         """
         if cls.SUPPORTED_POD_SIZES is None:
             return True
+        # An empty pod_sizes means no sizes are chosen yet, so vacuous
+        # subset truth must not let a size-restricted algorithm through -
+        # only ones that support any size should be offered.
+        if not pod_sizes:
+            return False
         return set(pod_sizes).issubset(cls.SUPPORTED_POD_SIZES)
     # Loaded at class definition from the sidecar `<ClassName>.params.yaml`.
     # Per-round overrides live in config.pairing_rounds[seq]["params"].
@@ -331,6 +336,11 @@ class IScoringLogic(ABC):
         """
         if cls.SUPPORTED_POD_SIZES is None:
             return True
+        # An empty pod_sizes means no sizes are chosen yet, so vacuous
+        # subset truth must not let a size-restricted algorithm through -
+        # only ones that support any size should be offered.
+        if not pod_sizes:
+            return False
         return set(pod_sizes).issubset(cls.SUPPORTED_POD_SIZES)
 
     def __init_subclass__(cls, **kwargs: Any) -> None:

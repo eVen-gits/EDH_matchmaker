@@ -67,6 +67,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instead of the plain table or a `ValueError`. `get_standings_str()` defaults
   to the configured `standings_export.format`, so the Export > Standings dialog
   and auto-export honour the chosen format (#25).
+- File > New tournament no longer crashes on an invalid config (e.g. no pod
+  sizes, or Mtg1v1's required byes left at 0); it now shows the validation
+  message and keeps the dialog open, like the edit path already did.
+  Switching Game to Mtg1v1 also resets the hidden `max_byes` spin box to a
+  valid value, since `BYES_REQUIRED` hides it without resetting it. Emptying
+  the pod-size list no longer offers the other game's scoring/pairing
+  algorithms (#28).
 
 ### Changed
 - `PairingDefault` now measures a "small" pod against the preferred (first) pod

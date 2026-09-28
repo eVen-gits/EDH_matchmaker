@@ -1,5 +1,6 @@
 import os
 import unittest
+from unittest import mock
 
 from src.core import Tournament, TournamentAction, TournamentConfiguration
 
@@ -215,6 +216,97 @@ class TestConfigDialogRuleset(unittest.TestCase):
         parent.core = t
         dlg = self.run_ui.TournamentConfigDialog(parent, reset=False)
         self.assertFalse(dlg.ui.cb_ruleset.isEnabled())
+
+
+class TestConfigDialogInvalidConfigOnReset(unittest.TestCase):
+    """Regression tests for #28: an invalid config from the New Tournament
+    (reset) path must show the validation dialog and keep it open, exactly
+    like the edit path already does - not let the ValueError escape the Qt
+    slot and abort the whole app."""
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+            from PyQt6.QtWidgets import QApplication, QWidget
+
+            import run_ui
+        except ImportError as exc:  # pragma: no cover - env without PyQt6
+            raise unittest.SkipTest(f"PyQt6 unavailable: {exc}")
+        cls.app = QApplication.instance() or QApplication([])
+        cls.run_ui = run_ui
+        cls.QWidget = QWidget
+
+    def _dialog(self, **cfg):
+        parent = self.QWidget()
+        parent.core = Tournament(TournamentConfiguration(auto_export=False, **cfg))
+        return self.run_ui.TournamentConfigDialog(parent), parent
+
+    def _select_ruleset(self, dlg, name):
+        dlg.ui.cb_ruleset.setCurrentIndex(dlg.ui.cb_ruleset.findData(name))
+
+    def test_switch_to_mtg_resets_hidden_max_byes(self):
+        # Steps A: uncheck allow_bye / max_byes=0 on Commander, then switch
+        # to Mtg1v1 (BYES_REQUIRED). The bye widgets are hidden and
+        # cb_allow_bye is forced back on, but sb_max_byes must also be
+        # reset to a valid (>=1) value since it stays hidden but still
+        # feeds config.max_byes.
+        dlg, _ = self._dialog()
+        dlg.ui.cb_allow_bye.setChecked(False)
+        dlg.ui.sb_max_byes.setValue(0)
+        self._select_ruleset(dlg, "Mtg1v1Ruleset")
+        self.assertTrue(dlg.ui.cb_allow_bye.isChecked())
+        self.assertGreaterEqual(dlg.ui.sb_max_byes.value(), 1)
+
+        with mock.patch("run_ui.QMessageBox.critical") as mock_critical:
+            dlg.apply_choices()
+        mock_critical.assert_not_called()
+
+    def test_reset_with_invalid_config_shows_dialog_instead_of_raising(self):
+        # Steps A, forced: even if the hidden max_byes somehow stayed 0,
+        # applying it on the reset (New Tournament) path must not let the
+        # ValueError escape the slot - it must show the same validation
+        # dialog the edit path already shows, and keep the dialog open.
+        dlg, parent = self._dialog()
+        self._select_ruleset(dlg, "Mtg1v1Ruleset")
+        dlg.ui.sb_max_byes.setValue(0)  # force back to invalid post-reset
+
+        with mock.patch("run_ui.QMessageBox.critical") as mock_critical:
+            dlg.apply_choices()
+
+        mock_critical.assert_called_once()
+        # The reset branch must return before replacing parent.core - the
+        # dialog stays open on the original tournament, just like the edit
+        # path leaves parent.core.config untouched on failure.
+        self.assertIsInstance(parent.core, Tournament)
+        self.assertEqual(parent.core.config.ruleset, "CommanderRuleset")
+
+    def test_reset_with_empty_pod_sizes_shows_dialog_instead_of_raising(self):
+        # Steps B: remove every pod size on Commander, then click OK.
+        dlg, parent = self._dialog()
+        dlg._pod_size_editor.reset([])
+        self.assertEqual(dlg._pod_size_editor.values(), [])
+
+        with mock.patch("run_ui.QMessageBox.critical") as mock_critical:
+            dlg.apply_choices()
+
+        mock_critical.assert_called_once()
+        self.assertIsInstance(parent.core, Tournament)
+
+    def test_empty_pod_sizes_does_not_offer_1v1_only_algorithms(self):
+        # Also part of B: with pod_sizes emptied, the scoring/pairing
+        # dropdowns must not offer the MTG-only Scoring1v1/Pairing1v1 for
+        # what is still a Commander tournament.
+        dlg, _ = self._dialog()
+        dlg._pod_size_editor.reset([])
+        scoring_offered = [
+            dlg.ui.cb_scoringLogic.itemData(i)
+            for i in range(dlg.ui.cb_scoringLogic.count())
+        ]
+        self.assertNotIn("Scoring1v1", scoring_offered)
+        for combo in dlg._pairing_combos:
+            offered = [combo.itemData(i) for i in range(combo.count())]
+            self.assertNotIn("Pairing1v1", offered)
 
 
 if __name__ == "__main__":
