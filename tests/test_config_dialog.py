@@ -138,6 +138,12 @@ class TestConfigDialogRuleset(unittest.TestCase):
             for i in range(dlg.ui.cb_scoringLogic.count())
         ]
         self.assertIn("Scoring1v1", scoring_offered)
+        # Commander scoring logics must not leak into MTG 1v1 - their
+        # SUPPORTED_POD_SIZES excludes 2-player pods, so MTR tiebreakers
+        # (OMW) never read match points from the wrong game's scoring.
+        self.assertNotIn("ScoringDefault", scoring_offered)
+        self.assertNotIn("ScoringHareruya", scoring_offered)
+        self.assertNotIn("ScoringModifiedHareruya", scoring_offered)
 
     def test_commander_does_not_offer_1v1_scoring(self):
         dlg, _ = self._dialog()

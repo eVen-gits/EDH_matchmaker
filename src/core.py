@@ -1341,6 +1341,21 @@ class Tournament(ITournament):
                 "one bye per round."
             )
 
+        # scoring_logic should support the configured pod sizes, or its
+        # tiebreakers (e.g. MTR OMW) are computed from the wrong game's
+        # points - see IScoringLogic.SUPPORTED_POD_SIZES. The GUI prevents
+        # this (selectable_scoring_logics); only warn here, same as the
+        # pairing-logic check below, so a hand-edited or CLI config, or a
+        # test building a tournament without exercising the mismatch, still
+        # loads.
+        scoring_logic = self.get_scoring_logic(config.scoring_logic)
+        if not scoring_logic.supports_pod_sizes(config.pod_sizes):
+            Log.log(
+                f"Scoring logic {config.scoring_logic} does not support pod "
+                f"sizes {list(config.pod_sizes)}.",
+                level=Log.Level.WARNING,
+            )
+
         # ruleset_params overrides (Swiss and playoff) must validate against
         # the ruleset's own PARAM_SPEC.
         for seq, pairing_round in enumerate(config.pairing_rounds):

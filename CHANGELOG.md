@@ -81,6 +81,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   valid value, since `BYES_REQUIRED` hides it without resetting it. Emptying
   the pod-size list no longer offers the other game's scoring/pairing
   algorithms (#28).
+- Commander's scoring logics (`ScoringDefault`, `ScoringHareruya`,
+  `ScoringModifiedHareruya`) left `SUPPORTED_POD_SIZES` unset (`None`, any
+  size), so they were also offered - and loadable - for Mtg1v1's 2-player
+  pods, where the MTR tiebreakers (OMW) would then read points from the
+  wrong game's scoring. They now declare `(3, 4, 5)`, matching
+  `PairingDefault`/`PairingSnake`, so the config GUI's scoring dropdown
+  filters them out for 1v1 the same way it already filtered pairing logic.
 
 ### Changed
 - `PairingDefault` now measures a "small" pod against the preferred (first) pod

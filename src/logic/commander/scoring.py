@@ -9,6 +9,10 @@ from ...interface import IPlayer, IRound, IScoringLogic, ITournament
 
 class CommonScoring(IScoringLogic, ABC):
     _SWISS = 0  # Round.Stage.SWISS / TournamentConfiguration.TopCut.NONE value
+    # Commander pod sizes - matches PairingDefault/PairingSnake's
+    # SUPPORTED_POD_SIZES so Commander scoring isn't offered for MTG 1v1
+    # (Scoring1v1 overrides this to (2,) since it subclasses ScoringDefault).
+    SUPPORTED_POD_SIZES = (3, 4, 5)
 
     def __init__(self, name: str):
         self.name = name
