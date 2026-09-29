@@ -60,6 +60,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dropdowns re-filter when the pod sizes change.
 
 ### Fixed
+- Dropping a player who had a bye or a seat in a pod no longer removes them from
+  the tournament; they are marked dropped and stay in history and standings (#27).
 - Documented and locked in with regression tests that `pod_sizes` is an
   ordered preference list: `Tournament.get_pod_sizes()` already preferred
   earlier sizes over later ones and used a bye before backtracking to a
