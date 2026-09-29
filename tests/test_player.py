@@ -164,6 +164,19 @@ class TestPlayer(unittest.TestCase):
         self.assertEqual(r2_winner.wins(t.tour_round), 1)
         self.assertEqual(r2_winner.wins(t.rounds[0]), 0)
 
+    def test_average_seat_six_player_pod(self):
+        cfg = TournamentConfiguration(pod_sizes=[6], allow_bye=False, auto_export=False)
+        t = Tournament(cfg)
+        t.new_round()
+        t.add_player([f"P{i}" for i in range(6)])
+        t.create_pairings()
+        pod = t.tour_round.pods[0]
+        self.assertEqual(len(pod), 6)
+        t.report_win(pod.players[0])
+        t.get_standings()  # used to raise IndexError for the 5th seat
+        seats = [p.average_seat([t.rounds[0]]) for p in pod.players]
+        self.assertEqual(seats, sorted(seats, reverse=True))
+
     def test_losses_count(self):
         cfg = TournamentConfiguration(pod_sizes=[4], allow_bye=False, auto_export=False)
         t = Tournament(cfg)

@@ -1341,6 +1341,21 @@ class Tournament(ITournament):
                 "one bye per round."
             )
 
+        # scoring_logic should support the configured pod sizes, or its
+        # tiebreakers (e.g. MTR OMW) are computed from the wrong game's
+        # points - see IScoringLogic.SUPPORTED_POD_SIZES. The GUI prevents
+        # this (selectable_scoring_logics); only warn here, same as the
+        # pairing-logic check below, so a hand-edited or CLI config, or a
+        # test building a tournament without exercising the mismatch, still
+        # loads.
+        scoring_logic = self.get_scoring_logic(config.scoring_logic)
+        if not scoring_logic.supports_pod_sizes(config.pod_sizes):
+            Log.log(
+                f"Scoring logic {config.scoring_logic} does not support pod "
+                f"sizes {list(config.pod_sizes)}.",
+                level=Log.Level.WARNING,
+            )
+
         # ruleset_params overrides (Swiss and playoff) must validate against
         # the ruleset's own PARAM_SPEC.
         for seq, pairing_round in enumerate(config.pairing_rounds):
@@ -2795,7 +2810,10 @@ class Player(IPlayer):
                     wr_seats: Sequence[float] = getattr(
                         self.tour.config, "global_wr_seats"
                     )
-                    rates = wr_seats[0 : len(pod)]
+                    rates = list(wr_seats[0 : len(pod)])
+                    # Pods larger than the configured seats (e.g. 6) reuse
+                    # the last seat rate for the extra middle seats.
+                    rates += rates[-1:] * (len(pod) - 1 - len(rates))
                     norm_scale = 1 - (np.cumsum(rates) - rates[0]) / (
                         np.sum(rates) - rates[0]
                     )

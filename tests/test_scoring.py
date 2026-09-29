@@ -3,7 +3,7 @@ import random
 
 from faker import Faker
 
-from src.core import Player, Tournament, TournamentAction, TournamentConfiguration
+from src.core import Log, Player, Tournament, TournamentAction, TournamentConfiguration
 
 fkr = Faker()
 TournamentAction.LOGF = False  # type: ignore
@@ -90,11 +90,11 @@ class TestScoringPodSizeCompatibility(unittest.TestCase):
         scoring_1v1 = Tournament.get_scoring_logic("Scoring1v1")
         default = Tournament.get_scoring_logic("ScoringDefault")
         self.assertEqual(scoring_1v1.SUPPORTED_POD_SIZES, (2,))
-        self.assertIsNone(default.SUPPORTED_POD_SIZES)  # any size
+        self.assertEqual(default.SUPPORTED_POD_SIZES, (3, 4, 5, 6))
         self.assertTrue(scoring_1v1.supports_pod_sizes([2]))
         self.assertFalse(scoring_1v1.supports_pod_sizes([4, 3]))
         self.assertFalse(scoring_1v1.supports_pod_sizes([4, 3, 2]))
-        self.assertTrue(default.supports_pod_sizes([2]))
+        self.assertFalse(default.supports_pod_sizes([2]))
         self.assertTrue(default.supports_pod_sizes([4, 3]))
 
     def test_selectable_filtered_by_pod_sizes(self):
@@ -102,9 +102,32 @@ class TestScoringPodSizeCompatibility(unittest.TestCase):
             "Scoring1v1", Tournament.selectable_scoring_logics([4, 3])
         )
         self.assertIn("Scoring1v1", Tournament.selectable_scoring_logics([2]))
-        self.assertIn(
+        self.assertNotIn(
             "ScoringDefault", Tournament.selectable_scoring_logics([2])
         )
+        self.assertIn(
+            "ScoringDefault", Tournament.selectable_scoring_logics([4, 3])
+        )
+
+    def test_incompatible_scoring_logic_warns_on_load(self):
+        """A hand-edited/CLI config naming a mismatched scoring_logic still
+        loads (existing saved tournaments must keep loading), but is
+        flagged - same lenient-warn pattern as the pairing-logic check."""
+        Log.output.clear()
+        Tournament(
+            TournamentConfiguration(
+                ruleset="Mtg1v1Ruleset",
+                pod_sizes=[2],
+                scoring_logic="ScoringDefault",
+                auto_export=False,
+            )
+        )
+        warnings = [
+            e.msg
+            for e in Log.output
+            if e.level == Log.Level.WARNING and "does not support" in e.msg
+        ]
+        self.assertTrue(warnings, "expected a pod-size compatibility warning")
 
     def test_selectable_without_pod_sizes_returns_all(self):
         self.assertEqual(

@@ -9,6 +9,12 @@ from ...interface import IPlayer, IRound, IScoringLogic, ITournament
 
 class CommonScoring(IScoringLogic, ABC):
     _SWISS = 0  # Round.Stage.SWISS / TournamentConfiguration.TopCut.NONE value
+    # Commander pod sizes, including the non-default 6-player pod - so
+    # Commander scoring isn't offered for MTG 1v1 (Scoring1v1 overrides
+    # this to (2,) since it subclasses ScoringDefault). Pairing for a
+    # 6-player pod falls back to PairingRandom (src/logic/common/matching.py),
+    # since PairingDefault/PairingSnake only support (3, 4, 5).
+    SUPPORTED_POD_SIZES = (3, 4, 5, 6)
 
     def __init__(self, name: str):
         self.name = name
