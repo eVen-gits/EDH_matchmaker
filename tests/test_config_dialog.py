@@ -1,10 +1,23 @@
 import os
+import tempfile
 import unittest
 from unittest import mock
 
 from src.core import Tournament, TournamentAction, TournamentConfiguration
 
 TournamentAction.LOGF = False
+
+
+def _fresh_log(case, dlg):
+    """Point the dialog at a new temp log.
+
+    The dialog prefills the real default log, which exists: applying it in
+    reset mode would ask to overwrite it (and write into logs/).
+    """
+    d = tempfile.TemporaryDirectory()
+    case.addCleanup(d.cleanup)
+    case.addCleanup(setattr, TournamentAction, "LOGF", TournamentAction.LOGF)
+    dlg.ui.le_log_location.setText(os.path.join(d.name, "new.json"))
 
 
 class TestConfigDialogPairingRows(unittest.TestCase):
@@ -91,7 +104,9 @@ class TestConfigDialogRuleset(unittest.TestCase):
     def _dialog(self, **cfg):
         parent = self.QWidget()
         parent.core = Tournament(TournamentConfiguration(auto_export=False, **cfg))
-        return self.run_ui.TournamentConfigDialog(parent), parent
+        dlg = self.run_ui.TournamentConfigDialog(parent)
+        _fresh_log(self, dlg)
+        return dlg, parent
 
     def _select_ruleset(self, dlg, name):
         dlg.ui.cb_ruleset.setCurrentIndex(dlg.ui.cb_ruleset.findData(name))
@@ -246,7 +261,9 @@ class TestConfigDialogInvalidConfigOnReset(unittest.TestCase):
     def _dialog(self, **cfg):
         parent = self.QWidget()
         parent.core = Tournament(TournamentConfiguration(auto_export=False, **cfg))
-        return self.run_ui.TournamentConfigDialog(parent), parent
+        dlg = self.run_ui.TournamentConfigDialog(parent)
+        _fresh_log(self, dlg)
+        return dlg, parent
 
     def _select_ruleset(self, dlg, name):
         dlg.ui.cb_ruleset.setCurrentIndex(dlg.ui.cb_ruleset.findData(name))
@@ -310,6 +327,56 @@ class TestConfigDialogInvalidConfigOnReset(unittest.TestCase):
 
         mock_critical.assert_called_once()
         self.assertIs(parent.core.config, old_config)
+
+    def _existing_log(self):
+        d = tempfile.TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        path = os.path.join(d.name, "A.json")
+        with open(path, "w") as f:
+            f.write("previous tournament")
+        self.addCleanup(setattr, TournamentAction, "LOGF", TournamentAction.LOGF)
+        return path
+
+    def test_reset_onto_existing_log_asks_and_keeps_file_on_no(self):
+        # File > New prefills the current log path; OK must not silently
+        # replace that file with an empty tournament.
+        path = self._existing_log()
+        dlg, parent = self._dialog()
+        old_core = parent.core
+        dlg.ui.le_log_location.setText(path)
+
+        No = self.run_ui.QMessageBox.StandardButton.No
+        with mock.patch("run_ui.QMessageBox.question", return_value=No) as q:
+            dlg.apply_choices()
+
+        q.assert_called_once()
+        with open(path) as f:
+            self.assertEqual(f.read(), "previous tournament")
+        self.assertIs(parent.core, old_core)
+        self.assertNotEqual(TournamentAction.LOGF, path)
+
+    def test_reset_onto_existing_log_overwrites_on_yes(self):
+        path = self._existing_log()
+        dlg, parent = self._dialog()
+        dlg.ui.le_log_location.setText(path)
+
+        Yes = self.run_ui.QMessageBox.StandardButton.Yes
+        with mock.patch("run_ui.QMessageBox.question", return_value=Yes):
+            dlg.apply_choices()
+
+        with open(path) as f:
+            self.assertNotEqual(f.read(), "previous tournament")
+
+    def test_reset_onto_new_path_does_not_ask(self):
+        path = self._existing_log() + ".new"
+        dlg, _ = self._dialog()
+        dlg.ui.le_log_location.setText(path)
+
+        with mock.patch("run_ui.QMessageBox.question") as q:
+            dlg.apply_choices()
+
+        q.assert_not_called()
+        self.assertTrue(os.path.exists(path))
 
     def test_empty_pod_sizes_does_not_offer_1v1_only_algorithms(self):
         # Also part of B: with pod_sizes emptied, the scoring/pairing
