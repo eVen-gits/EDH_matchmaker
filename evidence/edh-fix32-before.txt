@@ -1,0 +1,26 @@
+/home/even/.local/lib/python3.14/site-packages/requests/__init__.py:113: RequestsDependencyWarning: urllib3 (2.8.0) or chardet (6.0.0.post1)/charset_normalizer (3.5.1) doesn't match a supported version!
+  warnings.warn(
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_____________ TestMissingOpen.test_missing_open_starts_with_round ______________
+
+self = <tests.test_ui_open_missing.TestMissingOpen testMethod=test_missing_open_starts_with_round>
+
+    def test_missing_open_starts_with_round(self):
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from PyQt6.QtWidgets import QApplication
+    
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "missing.json")
+            with mock.patch.object(sys, "argv", ["run_ui.py", "-o", path]), mock.patch.object(
+                QApplication, "exec", return_value=0
+            ), mock.patch.object(sys, "exit"):
+                state = runpy.run_path("run_ui.py", run_name="__main__")
+            core = state["core"]
+>           self.assertIsNotNone(core.tour_round)
+                                 ^^^^^^^^^^^^^^^
+E           AttributeError: 'NoneType' object has no attribute 'tour_round'
+
+tests/test_ui_open_missing.py:27: AttributeError
+=========================== short test summary info ============================
+FAILED tests/test_ui_open_missing.py::TestMissingOpen::test_missing_open_starts_with_round

@@ -60,6 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dropdowns re-filter when the pod sizes change.
 
 ### Fixed
+- Opening a nonexistent log with `-o` starts a new tournament with a current round and saves to the requested path.
 - File > New tournament asks before overwriting an existing log file (the dialog
   prefills the current log path, so OK used to silently replace it with an empty
   tournament) (#23).

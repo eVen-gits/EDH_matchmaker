@@ -581,8 +581,8 @@ class TournamentAction:
             cls.LOGF = cls.DEFAULT_LOGF
         if cls.LOGF:
             assert isinstance(cls.LOGF, str)
-            if not os.path.exists(os.path.dirname(cls.LOGF)):
-                os.makedirs(os.path.dirname(cls.LOGF))
+            if os.path.dirname(cls.LOGF):
+                os.makedirs(os.path.dirname(cls.LOGF), exist_ok=True)
             # Write to a temp file and rename over the target so a crash or
             # kill mid-write never leaves a truncated, unparseable log file.
             tmp_path = f"{cls.LOGF}.tmp"
