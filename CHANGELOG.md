@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Reject CLI tournament overrides that violate ruleset configuration validation,
+  including empty or unsupported pod sizes.
+
 ### Added
 - Params sidecars for the tournament configuration
   (`src/TournamentConfiguration.params.yaml`) and each game's config fields
