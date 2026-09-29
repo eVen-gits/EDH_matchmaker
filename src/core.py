@@ -1543,8 +1543,12 @@ class Tournament(ITournament):
                     #    p.name), level=Log.Level.WARNING)
                     return False
 
-            # If player has not played yet, it can safely be deleted without being saved
-            if p.played(self.tour_round):
+            # Only a player with no history (no seat, bye or game loss in any
+            # round) can be deleted; otherwise keep them and mark dropped.
+            if any(
+                p.uid in r._byes or p.uid in r._game_loss or p.seated(r)
+                for r in self.rounds
+            ):
                 self.tour_round.drop_player(p)
             else:
                 self._players.remove(p.uid)
