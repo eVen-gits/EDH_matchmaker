@@ -558,7 +558,7 @@ class TestPodSizeCompatibility(unittest.TestCase):
         # With 2-player pods and no explicit logics, the adaptive default must
         # never pick an incompatible logic (Snake/Default) - only Random fits.
         cfg = TournamentConfiguration(
-            pod_sizes=[2], n_rounds=3, snake_pods=True, allow_bye=True,
+            ruleset="Mtg1v1Ruleset", pod_sizes=[2], n_rounds=3, snake_pods=True, allow_bye=True,
             auto_export=False,
         )
         t = Tournament(cfg)
@@ -577,7 +577,7 @@ class TestPodSizeCompatibility(unittest.TestCase):
         # An explicit incompatible choice is honored but logged as a warning.
         Log.output.clear()
         cfg = TournamentConfiguration(
-            pod_sizes=[2], n_rounds=1, allow_bye=True, auto_export=False,
+            ruleset="Mtg1v1Ruleset", pod_sizes=[2], n_rounds=1, allow_bye=True, auto_export=False,
             pairing_rounds=[{"logic": "PairingDefault", "params": {}}],
         )
         t = Tournament(cfg)

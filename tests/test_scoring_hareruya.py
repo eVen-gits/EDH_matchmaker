@@ -345,6 +345,7 @@ class TestScoringModifiedHareruya(unittest.TestCase):
         # their records differ in order (P0: win then draw; P1: draw then win).
         t = _make_wagering_tournament(
             scoring_logic="ScoringModifiedHareruya",
+            ruleset="Mtg1v1Ruleset",
             pod_sizes=[2],
         )
         p = t.add_player([f"P{i}" for i in range(4)])

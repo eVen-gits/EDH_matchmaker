@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Refuse Commander tournaments with 2-player pods (`pod_sizes=[2]`) in the core,
+  so loaded saves, hand-edited configs and the CLI can no longer create one.
 - Reject CLI tournament overrides that violate ruleset configuration validation,
   including empty or unsupported pod sizes.
 - Export standings before the first round without an exception; unplayed players show zero points in PLAIN, CSV, and JSON.

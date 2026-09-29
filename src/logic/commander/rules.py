@@ -31,7 +31,8 @@ class CommanderRuleset(IRuleset):
     IS_COMPLETE = True
 
     DEFAULT_POD_SIZES = (4, 3)
-    ALLOWED_POD_SIZES = None
+    # Commander pods are multiplayer: 3+ (ScoringDefault covers 3-6).
+    ALLOWED_POD_SIZES = (3, 4, 5, 6)
     DEFAULT_SCORING_LOGIC = "ScoringDefault"
     # Same names, same order as today's StandingsExport.DEFAULT_FIELDS.
     DEFAULT_STANDINGS_FIELDS = (
