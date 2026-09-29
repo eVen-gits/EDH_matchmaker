@@ -3,6 +3,7 @@
 import os
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -15,11 +16,11 @@ ROOT = Path(__file__).resolve().parents[1]
 class TestCliConfigValidation(unittest.TestCase):
     def test_invalid_pod_sizes_exit_before_gui(self):
         for sizes in (("4", "3"), ()):
-            with self.subTest(sizes=sizes):
+            with self.subTest(sizes=sizes), tempfile.TemporaryDirectory() as tmp:
                 result = subprocess.run(
-                    [sys.executable, "run_ui.py", "--ruleset", "Mtg1v1Ruleset", "-s", *sizes],
-                    cwd=ROOT,
-                    env={**os.environ, "QT_QPA_PLATFORM": "offscreen"},
+                    [sys.executable, str(ROOT / "run_ui.py"), "--ruleset", "Mtg1v1Ruleset", "-s", *sizes],
+                    cwd=tmp,
+                    env={**os.environ, "QT_QPA_PLATFORM": "offscreen", "PYTHONPATH": str(ROOT)},
                     capture_output=True,
                     text=True,
                     timeout=10,
