@@ -300,14 +300,14 @@ does depend on it.
 
 ### `CommanderRuleset`
 
-The default (`config.ruleset` absent or `"CommanderRuleset"`). Every pod's
-`games` holds exactly one game; that game's `winners` is the match `result`
-directly. Standings order beyond points follows this implementation's
-existing tiebreaker chain (opponent point rate, games played, opponents
-beaten, average seat, then UID) - see `src/logic/commander/rules.py` for
-the exact tuple; this page does not restate it since it would only drift
-(see [Where parameter definitions live](#where-parameter-definitions-live-implementation-note)
-for the same rationale applied to scoring parameters).
+The default (`config.ruleset` absent or `"CommanderRuleset"`).
+The loader validates configuration before cache reuse on every load attempt.
+See [Usage](../README.md#usage) for Commander configuration restrictions.
+These restrictions do not reject saved two-player pods from manual edits.
+
+Every pod's `games` holds exactly one game. That game's `winners` is the
+match `result` directly. `CommanderRuleset.standings_keys` in
+`src/logic/commander/rules.py` defines the standings tiebreaker order.
 
 ### `Mtg1v1Ruleset`
 

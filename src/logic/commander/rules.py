@@ -22,16 +22,14 @@ class CommanderConfiguration(TournamentConfiguration):
 class CommanderRuleset(IRuleset):
     """Commander's rules: one game per pod, today's standings chain.
 
-    A pure move of pre-existing Tournament behavior into the ruleset
-    extension point (see docs/tournament-log-spec.md, "Rulesets") -
-    Commander must behave byte for byte as before this class existed. No
-    sidecar: this ruleset takes no parameters.
+    Save-format contracts: docs/tournament-log-spec.md, "Rulesets".
+    No sidecar: this ruleset takes no parameters.
     """
 
     IS_COMPLETE = True
 
     DEFAULT_POD_SIZES = (4, 3)
-    # Commander pods are multiplayer: 3+ (ScoringDefault covers 3-6).
+    # Limit configured pairings to multiplayer sizes covered by ScoringDefault.
     ALLOWED_POD_SIZES = (3, 4, 5, 6)
     DEFAULT_SCORING_LOGIC = "ScoringDefault"
     # Same names, same order as today's StandingsExport.DEFAULT_FIELDS.
