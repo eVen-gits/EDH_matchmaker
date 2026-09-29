@@ -2,8 +2,7 @@
 
 Condensed from the Magic Tournament Rules (MTR), effective Feb 27, 2026,
 last updated Jul 30, 2026. Only the rules that affect pairing, scoring,
-standings, and result entry are here. The full annotated text is in
-[`docs/mtr-annotated.md`](../../../docs/mtr-annotated.md). The source is
+standings, and result entry are here. The full text is at
 <https://blogs.magicjudges.org/rules/mtr/>.
 
 Section numbers are MTR sections. Items marked **(not MTR)** are our own
