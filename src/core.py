@@ -1581,29 +1581,27 @@ class Tournament(ITournament):
 
         This updates the player's name across all historical records in the tournament (pods, rounds).
 
+        Raises:
+            ValueError: If the new name is empty or already used by another player.
+
         Args:
             player: The player object to rename.
             new_name: The new name for the player.
         """
-        if player.name == new_name:
+        new_name = (new_name or "").strip()
+        if not new_name:
+            raise ValueError("Player name cannot be empty.")
+        old_name = player.name
+        if new_name == old_name:
             return
-        if new_name in [p.name for p in self.active_players]:
-            Log.log(
-                "\tPlayer {} already enlisted.".format(new_name),
-                level=Log.Level.WARNING,
-            )
-            return
-        if new_name:
-            player.name = new_name
-            for tour_round in self.rounds:
-                for pod in tour_round.pods:
-                    for p in pod.players:
-                        if p.name == player.name:
-                            p.name = new_name
-            Log.log(
-                "\tRenamed player {} to {}".format(player.name, new_name),
-                level=Log.Level.INFO,
-            )
+        if new_name in [p.name for p in self.players]:
+            raise ValueError("Player {} already enlisted.".format(new_name))
+        # Pods and rounds hold this same Player object, so one assignment renames everywhere.
+        player.name = new_name
+        Log.log(
+            "\tRenamed player {} to {}".format(old_name, new_name),
+            level=Log.Level.INFO,
+        )
 
     def get_pod_sizes(self, n) -> list[int] | None:
         """Determines possible pod sizes for a given number of players.
