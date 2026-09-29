@@ -221,6 +221,7 @@ class TestDropPlayerHistory(MtgUiTestCase):
         t.add_player(["A", "B", "C", "D", "E"])
         t.new_round()
         t.create_pairings()
+        assert t.tour_round is not None
         bye_uid = next(iter(t.tour_round._byes))
         bye = next(p for p in t.players if p.uid == bye_uid)
         t.random_results()
@@ -238,6 +239,7 @@ class TestDropPlayerHistory(MtgUiTestCase):
         t.add_player(["A", "B", "C", "D"])
         t.new_round()
         t.create_pairings()
+        assert t.tour_round is not None
         seated = t.tour_round.pods[0].players[0]
         self._drop(t, seated)
         self.assertIn(seated, t.players)
@@ -253,6 +255,7 @@ class TestDropPlayerHistory(MtgUiTestCase):
         t.add_player([f"P{i}" for i in range(8)])
         t.new_round()
         t.create_pairings()
+        assert t.tour_round is not None
         seated = t.tour_round.pods[0].players[0]
         self._drop(t, seated)
         self.assertIn(seated, t.players)
