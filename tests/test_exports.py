@@ -25,6 +25,44 @@ def _small_tournament():
 TournamentAction.LOGF = False  # type: ignore
 
 
+class TestBeforeFirstRound(unittest.TestCase):
+    def setUp(self):
+        self.t = Tournament(TournamentConfiguration(auto_export=False))
+        self.t.add_player(["Alice", "Bob"])
+        self.assertIsNone(self.t.tour_round)
+
+    def test_all_standings_formats(self):
+        for fmt in StandingsExport.Format:
+            with self.subTest(fmt=fmt):
+                output = self.t.get_standings_str(style=fmt)
+                self.assertIn("Alice", output)
+                self.assertIn("Bob", output)
+                if fmt == StandingsExport.Format.JSON:
+                    rows = json.loads(output)
+                    self.assertEqual([row["pts"] for row in rows], ["0", "0"])
+                elif fmt == StandingsExport.Format.CSV:
+                    rows = list(csv.DictReader(io.StringIO(output)))
+                    self.assertEqual([row["pts"] for row in rows], ["0", "0"])
+                else:
+                    self.assertIn("pts", output)
+
+    def test_gui_export_before_first_round(self):
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from PyQt6.QtWidgets import QApplication
+        import run_ui
+
+        app = QApplication.instance() or QApplication([])  # noqa: F841
+        window = run_ui.MainWindow(self.t)
+        with tempfile.TemporaryDirectory() as d:
+            dlg = run_ui.ExportStandingsDialog(window)
+            dlg.ui.le_export_dir.setText(os.path.join(d, "standings.txt"))
+            screenshot = os.environ.get("EDH_STANDINGS_SCREENSHOT", os.path.join(d, "standings-before-round.png"))
+            self.assertTrue(dlg.grab().save(screenshot))
+            dlg.export()
+            with open(os.path.join(d, "standings.txt")) as f:
+                self.assertIn("Alice", f.read())
+
+
 class TestExports(unittest.TestCase):
     def setUp(self):
         cfg = TournamentConfiguration(

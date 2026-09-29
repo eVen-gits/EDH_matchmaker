@@ -2247,10 +2247,18 @@ class Tournament(ITournament):
         lines += [
             [
                 (StandingsExport.info[f].format).format(
-                    StandingsExport.info[f].get(p, context)  # pyright: ignore[reportAny]
-                    if StandingsExport.info[f].denom is None
-                    else StandingsExport.info[f].get(p, context)
-                    * StandingsExport.info[f].denom
+                    (
+                        standings.index(p) + 1 if f == StandingsExport.Field.STANDING else 0
+                        if f not in (StandingsExport.Field.ID, StandingsExport.Field.NAME,
+                                       StandingsExport.Field.RECORD, StandingsExport.Field.SEAT_HISTORY)
+                        else (p.uid.hex if f == StandingsExport.Field.ID else p.name
+                              if f == StandingsExport.Field.NAME else "")
+                    ) if tour_round is None else (
+                        StandingsExport.info[f].get(p, context)  # pyright: ignore[reportAny]
+                        if StandingsExport.info[f].denom is None
+                        else StandingsExport.info[f].get(p, context)
+                        * StandingsExport.info[f].denom
+                    )
                 )
                 for f in fields
             ]
