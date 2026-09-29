@@ -80,8 +80,7 @@ match's winner(s) from an already-valid report.
 ## Ruleset
 
 The plugin kind that owns one game's rules: which match reports are
-valid, how a match's winner is derived, Swiss standings tiebreakers
-beyond raw points, the default Swiss pairing logic, whether seats get
+valid, how a match's winner is derived, the default Swiss pairing logic, whether seats get
 auto-balanced, and the playoff plan for a given `top_cut`. Selected by
 `config.ruleset` (default `"CommanderRuleset"`); the discovery mechanism
 is identical to `IPairingLogic`/`IScoringLogic` — see that entry below.
@@ -91,9 +90,8 @@ is identical to `IPairingLogic`/`IScoringLogic` — see that entry below.
 or game losses (`Tournament.__validate_config` rejects a config-setter
 change past that point) — a result must never be re-read under a
 different game's rules mid-tournament.
-**Invariant:** Standings tiebreakers belong on the ruleset, never on the
-scoring logic or on `Player` — see the `IPairingLogic` / `IScoringLogic`
-entry below.
+For standings ownership, see the `IPairingLogic` / `IScoringLogic` /
+`IRuleset` entry below.
 
 ## Stage
 
@@ -153,17 +151,16 @@ run (see `DEFAULT_LOGF = "logs/default.json"`).
 ## `IPairingLogic` / `IScoringLogic` / `IRuleset`
 
 The three extension points for tournament behavior: how players get
-grouped into pods (`IPairingLogic`), how results become points/standings-
-rating (`IScoringLogic`), and how one game's rules decide what a valid
+grouped into pods (`IPairingLogic`), how results become points and standings
+with scoring-specific tiebreakers (`IScoringLogic`), and how one game's rules decide what a valid
 result is, who won, and the Swiss/playoff structure (`IRuleset` — see the
 "Ruleset" entry above). All three are auto-discovered — for each game
 directory under `src/logic/`, a `matching.py`/`scoring.py`/`rules.py`
 module is picked up without touching core or GUI code.
 
-**Trap:** standings tiebreakers go on the ruleset, never on the scoring
-logic or on `Player` — `Mtg1v1Ruleset.standings_keys` owns the MTR's
-OMW/GW/OGW chain, not `Scoring1v1`, so switching a tournament's scoring
-logic never silently changes its tiebreaker order.
+The [`IScoringLogic` interface](src/interface.py) defines the standings
+extension contract. For each algorithm's standings behavior, see
+[Scoring logic](docs/tournament-log-spec.md#scoring-logic).
 
 **Lives in:** `src/interface.py`, `src/logic/<game>/matching.py`,
 `src/logic/<game>/scoring.py`, `src/logic/<game>/rules.py`

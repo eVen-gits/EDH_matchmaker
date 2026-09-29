@@ -1,13 +1,12 @@
 from __future__ import annotations
 import random
-from collections.abc import Iterable, Mapping, Sequence
-from typing import Any
+from collections.abc import Iterable, Sequence
 from uuid import UUID
 
 import numpy as np
 
 from ...core import TournamentConfiguration
-from ...interface import IGameResult, IPod, IRound, IRuleset, ITournament
+from ...interface import IGameResult, IPod, IRuleset, ITournament
 
 
 class CommanderConfiguration(TournamentConfiguration):
@@ -20,7 +19,7 @@ class CommanderConfiguration(TournamentConfiguration):
 
 
 class CommanderRuleset(IRuleset):
-    """Commander's rules: one game per pod, today's standings chain.
+    """Commander's rules: one game per pod and the playoff plan.
 
     Save-format contracts: docs/tournament-log-spec.md, "Rulesets".
     No sidecar: this ruleset takes no parameters.
@@ -97,25 +96,3 @@ class CommanderRuleset(IRuleset):
         if seq == 1:
             return "PairingSnake"
         return "PairingDefault"
-
-    def standings_keys(
-        self,
-        tour: ITournament,
-        tour_round: IRound,
-        ratings: Mapping[Any, float],
-    ) -> Mapping[UUID, tuple]:
-        return {
-            p.uid: (
-                p.rating(tour_round, ratings),  # type: ignore[call-arg]
-                len(p.games(tour_round)),
-                np.round(
-                    p.opponent_pointrate(tour_round, ratings), 10  # type: ignore[call-arg]
-                ),
-                len(p.players_beaten(tour_round)),  # type: ignore[attr-defined]
-                -p.average_seat(  # type: ignore[attr-defined]
-                    [r for r in tour.rounds if r.seq <= tour_round.seq]
-                ),
-                -p.uid if isinstance(p.uid, int) else -int(p.uid.int),
-            )
-            for p in tour.players
-        }
