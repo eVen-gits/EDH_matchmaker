@@ -7,13 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
-- Config dialog: switching the game (or scoring logic) now applies the chosen scoring's own defaults (Commander: 7/1/7) instead of carrying over the previous scoring's win/draw/bye values.
-- Refuse Commander tournaments with 2-player pods (`pod_sizes=[2]`) in the core,
-  so loaded saves, hand-edited configs and the CLI can no longer create one.
-- Reject CLI tournament overrides that violate ruleset configuration validation,
-  including empty or unsupported pod sizes.
-- Export standings before the first round without an exception; unplayed players show zero points in PLAIN, CSV, and JSON.
+## [4.0.0] - 2026-09-29
+
+### MTG 1v1 support
+4.0 adds 1v1 Magic tournaments alongside Commander: Swiss and single-elimination
+top-cut pairing, best-of-N match reporting, and Magic Tournament Rules scoring and
+tiebreakers. It also brings per-round pairing parameters, params sidecars, and many fixes.
 
 ### Added
 - Params sidecars for the tournament configuration
@@ -67,7 +66,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   screen has one tournament-wide pod-size editor, and the per-round pairing
   dropdowns re-filter when the pod sizes change.
 
+### Changed
+- `PairingDefault` now measures a "small" pod against the preferred (first) pod
+  size in `config.pod_sizes`, not the largest. For the standard `[4, 3]` this is
+  the same as before. It matters only when a larger size such as `5` is added:
+  4-player pods are no longer treated as small.
+
 ### Fixed
+- Config dialog: switching the game (or scoring logic) now applies the chosen scoring's own defaults (Commander: 7/1/7) instead of carrying over the previous scoring's win/draw/bye values.
+- Refuse Commander tournaments with 2-player pods (`pod_sizes=[2]`) in the core,
+  so loaded saves, hand-edited configs and the CLI can no longer create one.
+- Reject CLI tournament overrides that violate ruleset configuration validation,
+  including empty or unsupported pod sizes.
+- Export standings before the first round without an exception; unplayed players show zero points in PLAIN, CSV, and JSON.
 - Opening a nonexistent log with `-o` starts a new tournament with a current round and saves to the requested path.
 - File > New tournament asks before overwriting an existing log file (the dialog
   prefills the current log path, so OK used to silently replace it with an empty
@@ -118,14 +129,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is smaller than the cut (e.g. a Top 8 cut with only 5 players); missing
   seeds are now treated as already eliminated, giving the top remaining
   seeds a bye into the next round instead of an `IndexError` (#29).
-
-### Changed
-- `PairingDefault` now measures a "small" pod against the preferred (first) pod
-  size in `config.pod_sizes`, not the largest. For the standard `[4, 3]` this is
-  the same as before. It matters only when a larger size such as `5` is added:
-  4-player pods are no longer treated as small.
-
-### Fixed
 - File > Save As no longer crashes the app; it writes the tournament to the
   chosen file (#22).
 - Exporting standings to a bare filename (no directory) no longer crashes;
@@ -190,5 +193,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (it called a `TournamentConfiguration.scoring()` method that no longer
   exists); it now writes win/draw/bye into `config.scoring_params`.
 
-[Unreleased]: https://github.com/eVen-gits/EDH_matchmaker/compare/v3.1.0...HEAD
+[Unreleased]: https://github.com/eVen-gits/EDH_matchmaker/compare/v4.0.0...HEAD
+[4.0.0]: https://github.com/eVen-gits/EDH_matchmaker/compare/v3.1.0...v4.0.0
 [3.1.0]: https://github.com/eVen-gits/EDH_matchmaker/compare/v3.0.0...v3.1.0
