@@ -1515,6 +1515,7 @@ class TournamentConfigDialog(QDialog):
         assert self.ui is not None
 
         self._scoring_form: ParamForm | None = None
+        self._scoring_form_logic: str | None = None
         self._pairing_combos: list = []
         # One entry per round (aligned with _pairing_combos): the round's
         # pairing-param ParamForm, or None when its logic ships no parameters.
@@ -1667,13 +1668,22 @@ class TournamentConfigDialog(QDialog):
 
         Called on load and whenever the scoring-logic dropdown changes. The
         widgets come entirely from the algorithm's PARAM_SPEC, seeded from the
-        tournament's current scoring_params - no per-parameter GUI code.
+        tournament's current scoring_params on the first build, kept as-is when
+        only the pod sizes changed (same logic), else the logic's own defaults
+        - the old logic's values must not leak into a newly chosen one.
         """
         logic_name = self.ui.cb_scoringLogic.currentData()
         if logic_name is None:
             return
         logic = Tournament.get_scoring_logic(logic_name)
-        form = ParamForm(logic.PARAM_SPEC, logic.params(self.core))
+        if self._scoring_form is None:
+            seed = logic.params(self.core)
+        elif logic_name == self._scoring_form_logic:
+            seed = self._scoring_form.values()
+        else:
+            seed = {}
+        form = ParamForm(logic.PARAM_SPEC, seed)
+        self._scoring_form_logic = logic_name
 
         layout = self.ui.w_scoring_params.layout()
         if self._scoring_form is not None:
