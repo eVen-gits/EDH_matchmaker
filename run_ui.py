@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import os
 import sys
 
@@ -2091,18 +2092,23 @@ def apply_cli_config(core, args):
 
     Kept out of __main__ so it is importable and testable.
     """
-    if args.pod_sizes:
-        core.config.pod_sizes = args.pod_sizes
+    if not any((args.pod_sizes is not None, args.allow_bye, args.scoring is not None,
+                args.rounds is not None)):
+        return
+    config = copy.copy(core.config)
+    if args.pod_sizes is not None:
+        config.pod_sizes = args.pod_sizes
     if args.allow_bye:
-        core.config.allow_bye = True
-    if args.scoring:
+        config.allow_bye = True
+    if args.scoring is not None:
         # -x win draw bye -> ScoringDefault's params (see scoring_params).
         win, draw, bye = args.scoring
-        core.config.scoring_params.update(
-            {"win_points": win, "draw_points": draw, "bye_points": bye}
-        )
-    if args.rounds:
-        core.config.n_rounds = args.rounds
+        config.scoring_params = {**config.scoring_params,
+                                 "win_points": win, "draw_points": draw,
+                                 "bye_points": bye}
+    if args.rounds is not None:
+        config.n_rounds = args.rounds
+    core.config = config
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -2199,7 +2205,10 @@ if __name__ == "__main__":
         core = Tournament()
         core.new_round()
 
-    apply_cli_config(core, args)
+    try:
+        apply_cli_config(core, args)
+    except ValueError as exc:
+        parser.exit(2, f"Invalid CLI configuration: {exc}\n")
     if args.number_of_mock_players:
         fkr = Faker()
         core.add_player(
