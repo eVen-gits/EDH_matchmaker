@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Config dialog: switching the game (or scoring logic) now applies the chosen scoring's own defaults (Commander: 7/1/7) instead of carrying over the previous scoring's win/draw/bye values.
 - Refuse Commander tournaments with 2-player pods (`pod_sizes=[2]`) in the core,
   so loaded saves, hand-edited configs and the CLI can no longer create one.
 - Reject CLI tournament overrides that violate ruleset configuration validation,
