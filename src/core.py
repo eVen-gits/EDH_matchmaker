@@ -1581,12 +1581,12 @@ class Tournament(ITournament):
 
         This updates the player's name across all historical records in the tournament (pods, rounds).
 
-        Raises:
-            ValueError: If the new name is empty or already used by another player.
-
         Args:
             player: The player object to rename.
             new_name: The new name for the player.
+
+        Raises:
+            ValueError: If the new name is empty or already used by another player.
         """
         new_name = (new_name or "").strip()
         if not new_name:
