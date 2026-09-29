@@ -4,6 +4,7 @@ import json
 import os
 import tempfile
 import unittest
+from typing import Any, cast
 
 from src.core import (
     StandingsExport,
@@ -55,7 +56,7 @@ class TestBeforeFirstRound(unittest.TestCase):
         window = run_ui.MainWindow(self.t)
         with tempfile.TemporaryDirectory() as d:
             dlg = run_ui.ExportStandingsDialog(window)
-            dlg.ui.le_export_dir.setText(os.path.join(d, "standings.txt"))
+            cast(Any, dlg.ui).le_export_dir.setText(os.path.join(d, "standings.txt"))
             screenshot = os.environ.get("EDH_STANDINGS_SCREENSHOT", os.path.join(d, "standings-before-round.png"))
             self.assertTrue(dlg.grab().save(screenshot))
             dlg.export()
@@ -97,7 +98,7 @@ class TestExports(unittest.TestCase):
         self.assertEqual({p.name for p in self.t.players}, {d["name"] for d in data})
 
     def test_standings_str_defaults_to_config_format(self):
-        self.t.config.standings_export.format = StandingsExport.Format.JSON
+        cast(StandingsExport, self.t.config.standings_export).format = StandingsExport.Format.JSON
         json.loads(self.t.get_standings_str())
 
     def test_export_dialog_writes_chosen_format(self):
@@ -117,22 +118,26 @@ class TestExports(unittest.TestCase):
             ):
                 path = os.path.join(d, "standings" + StandingsExport.ext[fmt])
                 dlg = run_ui.ExportStandingsDialog(window)
-                dlg.ui.cb_format.setCurrentIndex(dlg.ui.cb_format.findData(fmt))
-                dlg.ui.le_export_dir.setText(path)
+                ui = cast(Any, dlg.ui)
+                ui.cb_format.setCurrentIndex(ui.cb_format.findData(fmt))
+                ui.le_export_dir.setText(path)
                 dlg.export()
                 with open(path) as f:
                     self.assertEqual(len(parse(f)), len(self.t.players) + (fmt == StandingsExport.Format.CSV))
 
     def test_pod_repr_with_context(self):
-        pod = self.t.tour_round.pods[0]
+        tour_round = self.t.tour_round
+        assert tour_round is not None
+        pod = tour_round.pods[0]
         context = TournamentContext(
-            self.t, self.t.tour_round, self.t.get_standings(self.t.tour_round)
+            self.t, tour_round, self.t.get_standings(tour_round)
         )
         result = pod.__repr__(context=context)
         self.assertIsInstance(result, str)
         self.assertGreater(len(result), 0)
 
     def test_pod_repr_without_context(self):
+        assert self.t.tour_round is not None
         pod = self.t.tour_round.pods[0]
         result = pod.__repr__()
         self.assertIsInstance(result, str)
@@ -194,7 +199,9 @@ class TestStandingsFields(unittest.TestCase):
 
     def setUp(self):
         self.t = _small_tournament()
-        self.tour_round = self.t.tour_round
+        tour_round = self.t.tour_round
+        assert tour_round is not None
+        self.tour_round = tour_round
         self.context = TournamentContext(
             self.t, self.tour_round, self.t.get_standings(self.tour_round)
         )
