@@ -184,6 +184,28 @@ class TestConfigDialogRuleset(unittest.TestCase):
         ]
         self.assertNotIn("Scoring1v1", scoring_offered)
 
+    def test_switch_to_commander_applies_commander_default_scoring(self):
+        dlg, _ = self._dialog(
+            ruleset="Mtg1v1Ruleset",
+            scoring_logic="Scoring1v1",
+            scoring_params={"win_points": 3, "draw_points": 1, "bye_points": 3},
+        )
+        self._select_ruleset(dlg, "CommanderRuleset")
+
+        self.assertEqual(dlg.ui.cb_scoringLogic.currentData(), "ScoringDefault")
+        self.assertEqual(
+            dlg._scoring_form.values(),
+            {"win_points": 7, "draw_points": 1, "bye_points": 7},
+        )
+
+    def test_pod_size_edit_keeps_custom_scoring_values(self):
+        dlg, _ = self._dialog(
+            scoring_params={"win_points": 5, "draw_points": 1, "bye_points": 4}
+        )
+        self.assertEqual(dlg._scoring_form.values()["win_points"], 5)
+        dlg._on_pod_sizes_changed()
+        self.assertEqual(dlg._scoring_form.values()["win_points"], 5)
+
     def test_mtg_playoff_ruleset_params_applied(self):
         dlg, parent = self._dialog()
         self._select_ruleset(dlg, "Mtg1v1Ruleset")
