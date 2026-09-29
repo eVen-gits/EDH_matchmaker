@@ -90,8 +90,8 @@ is identical to `IPairingLogic`/`IScoringLogic` — see that entry below.
 or game losses (`Tournament.__validate_config` rejects a config-setter
 change past that point) — a result must never be re-read under a
 different game's rules mid-tournament.
-**Invariant:** Scoring logic owns standings points, tiebreakers, and their
-export columns, not the ruleset or `Player`.
+For standings ownership, see the `IPairingLogic` / `IScoringLogic` /
+`IRuleset` entry below.
 
 ## Stage
 
@@ -158,10 +158,9 @@ result is, who won, and the Swiss/playoff structure (`IRuleset` — see the
 directory under `src/logic/`, a `matching.py`/`scoring.py`/`rules.py`
 module is picked up without touching core or GUI code.
 
-**Trap:** Standings tiebreakers go on the scoring logic, not the ruleset
-or `Player`. `Scoring1v1.standings_keys` owns the MTR OMW/GW/OGW chain.
-Switching scoring logic changes the tiebreaker chain. Both Hareruya
-systems use points only, with UID order for stable exact ties.
+The [`IScoringLogic` interface](src/interface.py) defines the standings
+extension contract. For each algorithm's standings behavior, see
+[Scoring logic](docs/tournament-log-spec.md#scoring-logic).
 
 **Lives in:** `src/interface.py`, `src/logic/<game>/matching.py`,
 `src/logic/<game>/scoring.py`, `src/logic/<game>/rules.py`

@@ -305,11 +305,8 @@ See [Usage](../README.md#usage) for Commander configuration restrictions.
 These restrictions do not reject saved two-player pods from manual edits.
 
 Every pod's `games` holds exactly one game. That game's `winners` is the
-match `result` directly. `ScoringDefault.standings_keys` in
-`src/logic/commander/scoring.py` defines the default standings tiebreaker
-order. `Scoring1v1` owns the MTR OMW/GW/OGW chain and its percentage floor.
-Both Hareruya scoring systems use points only. All scoring systems use
-UID order to keep exact ties stable, not as a competitive tiebreaker.
+match `result` directly. Standings follow the selected
+[scoring logic](#scoring-logic).
 
 ### `Mtg1v1Ruleset`
 
@@ -464,7 +461,21 @@ one of the formulas selected by `config.scoring_logic`. All formulas
 only accumulate points for Swiss-stage rounds
 (`stage` / `rounds[].stage` value `0`, see
 [`top_cut` and `stage` values](#top_cut-and-stage-values)); a
-non-Swiss round ends the accumulation for both.
+non-Swiss round ends the accumulation.
+
+The selected scoring logic also defines the Swiss standings order:
+
+- `ScoringDefault`: points, games played, opponent point rate, players
+  beaten, then lower average seat advantage. Its `standings_keys` method in
+  `src/logic/commander/scoring.py` defines this order.
+- `Scoring1v1`: points, then the MTR OMW/GW/OGW chain and percentage floor
+  specified in [the MTR reference](../src/logic/mtg/mtr-1v1-spec.md#3-standings-and-tiebreakers-31-appendix-c).
+  Its standings exports include OMW, GW, and OGW columns.
+- `ScoringHareruya` and `ScoringModifiedHareruya`: points only, without
+  competitive tiebreakers.
+
+All shipped scoring systems use UID order to keep exact ties stable,
+not as a competitive tiebreaker.
 
 ### `ScoringDefault`
 
@@ -581,8 +592,7 @@ player's stack up to the round in question. A reader implementing
 this must build the whole tournament's running stacks together, not
 player by player.
 
-`pointrate` (used for standings tie-breaking, see
-[Reference implementation](#reference-implementation)) has no exact
+`pointrate` (a player statistic, not a Hareruya standings tiebreaker) has no exact
 `0`-`1` bound under this formula, since a single win is not capped at
 a fixed maximum the way `ScoringDefault`'s is. EDH_matchmaker's
 reference implementation approximates it as
