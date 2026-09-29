@@ -1,4 +1,0 @@
-
-tests/test_config_dialog.py:196: AssertionError
-=========================== short test summary info ============================
-FAILED tests/test_config_dialog.py::TestConfigDialogRuleset::test_switch_to_commander_applies_commander_default_scoring
