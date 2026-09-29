@@ -198,10 +198,6 @@ class TestPlayerListTiebreakerColumns(unittest.TestCase):
         self.assertFalse(any("OMW" in text for text in texts2))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestDropPlayerHistory(MtgUiTestCase):
     """Issue #27: dropping a bye or seated player must keep them in history."""
 
@@ -247,3 +243,22 @@ class TestDropPlayerHistory(MtgUiTestCase):
         self.assertIn(seated, t.players)
         self.assertIn(seated, t.tour_round.dropped_players)
         self.assertIn(seated, t.tour_round.pods[0].players)
+
+    def test_drop_seated_player_commander(self):
+        t = Tournament(
+            TournamentConfiguration(
+                ruleset="CommanderRuleset", auto_export=False, n_rounds=3
+            )
+        )
+        t.add_player([f"P{i}" for i in range(8)])
+        t.new_round()
+        t.create_pairings()
+        seated = t.tour_round.pods[0].players[0]
+        self._drop(t, seated)
+        self.assertIn(seated, t.players)
+        self.assertIn(seated, t.tour_round.dropped_players)
+        self.assertIn(seated, t.tour_round.pods[0].players)
+
+
+if __name__ == "__main__":
+    unittest.main()
