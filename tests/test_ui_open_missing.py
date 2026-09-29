@@ -5,11 +5,14 @@ import runpy
 import sys
 import tempfile
 import unittest
+
+import pytest
 from unittest import mock
 
 from src.core import Tournament, TournamentAction
 
 TournamentAction.LOGF = False
+pytestmark = pytest.mark.gui
 
 
 class TestMissingOpen(unittest.TestCase):

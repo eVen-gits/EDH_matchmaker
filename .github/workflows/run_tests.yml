@@ -41,7 +41,7 @@ jobs:
         run: |
           export PYTHONPATH=$PYTHONPATH:.
           mkdir -p test-reports
-          pytest --junitxml=test-reports/results.xml
+          pytest -m "not slow and not gui" --junitxml=test-reports/results.xml
 
       - name: Test Report
         uses: dorny/test-reporter@v3

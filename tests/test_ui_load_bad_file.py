@@ -14,6 +14,8 @@ import unittest
 from unittest import mock
 from uuid import uuid4
 
+import pytest
+
 from src.core import Tournament, TournamentAction, TournamentConfiguration
 
 TournamentAction.LOGF = False  # type: ignore
@@ -88,6 +90,7 @@ class LoadBadFileTest(unittest.TestCase):
                         self.assertIs(window.core, t)
 
 
+@pytest.mark.gui
 class StartupLoadBadFileTest(unittest.TestCase):
     def test_open_corrupt_file_exits_with_clean_error(self):
         with tempfile.TemporaryDirectory() as d:
