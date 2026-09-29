@@ -80,11 +80,12 @@ class LoadBadFileTest(unittest.TestCase):
                     self.run_ui.QMessageBox, "critical"
                 ) as mock_critical,
             ):
-                window.load_tour()
-
-        mock_critical.assert_called_once()
-        self.assertIn("pod_sizes", str(mock_critical.call_args))
-        self.assertIs(window.core, t)
+                for attempt in range(2):
+                    with self.subTest(attempt=attempt):
+                        window.load_tour()
+                        self.assertEqual(mock_critical.call_count, attempt + 1)
+                        self.assertIn("pod_sizes", str(mock_critical.call_args))
+                        self.assertIs(window.core, t)
 
 
 class StartupLoadBadFileTest(unittest.TestCase):
