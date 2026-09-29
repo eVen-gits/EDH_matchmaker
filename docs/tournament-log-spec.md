@@ -193,10 +193,10 @@ draw, or a pending game).
 | `match_wr_seats` | array of float | `Mtg1v1Ruleset` only; optional, default in `Mtg1v1Configuration` (`src/logic/mtg/rules.py`). Relative chance each seat (play, draw) wins a decided simulated match. |
 | `match_draw_rate` | float | `Mtg1v1Ruleset` only; optional, default in `Mtg1v1Configuration`. Chance a simulated Swiss match ends drawn (playoff matches never draw). |
 | `top_cut` | int | The playoff cut size. See [`top_cut` and `stage` values](#top_cut-and-stage-values). `0` means no playoff cut (Swiss only). |
-| `scoring_logic` | string | optional, default `"ScoringDefault"`. Which formula computes player points. See [Scoring logic](#scoring-logic). |
+| `scoring_logic` | string | optional, default `"ScoringDefault"`. Which algorithm computes player points and standings tiebreakers. See [Scoring logic](#scoring-logic). |
 | `scoring_params` | object | optional, default `{}`. Parameters for whichever algorithm `scoring_logic` names - field names, types, and defaults are owned by that algorithm, not by this format. See [Scoring logic](#scoring-logic) for the fields each shipped algorithm reads. |
 | `pairing_rounds` | array of object | optional, default `[]`. The pairing configuration per Swiss round, one object per round: `{"logic": <name or null>, "params": {<field>: value}, "ruleset_params": {<field>: value}}`. `logic` is the pairing-logic name (or `null` / a missing/short list to use the ruleset's adaptive default - see [Rulesets](#rulesets)). `params` holds that pairing logic's overrides; a missing field uses the logic's default. `ruleset_params` holds the tournament's ruleset's overrides for this round (for example a per-round match format); a missing field uses the ruleset's default. A configured `logic` should support the tournament's `pod_sizes` - see [Pairing logic](#pairing-logic). Top-cut rounds ignore `logic`/`params`, but not `ruleset_params` - see `playoff_rounds`. |
-| `ruleset` | string | optional, default `"CommanderRuleset"`. Which class owns this tournament's game rules: match-report validation, standings tiebreakers, and the playoff plan. See [Rulesets](#rulesets). |
+| `ruleset` | string | optional, default `"CommanderRuleset"`. Which class owns this tournament's game rules: match-report validation, match winners, and the playoff plan. See [Rulesets](#rulesets). |
 | `playoff_rounds` | object | optional, default `{}`. Ruleset param overrides per playoff stage, keyed by stage value as a string (see [`top_cut` and `stage` values](#top_cut-and-stage-values)): `{"<stage>": {"ruleset_params": {<field>: value}}}`. A stage not in the ruleset's current playoff plan is ignored. |
 
 `standings_export` fields:
@@ -291,12 +291,11 @@ in any pod that round.
 `config.ruleset` names the class (a `src/logic/<game>/rules.py` `IRuleset`
 implementation) that owns this tournament's game-specific rules: which
 match reports are valid for a pod (`games`, see [Pod objects](#pod-objects)
-above), how a match's winners are derived from a report, the Swiss
-tiebreaker order beyond raw points, and the playoff plan for a given
-`top_cut`. A reader that only needs to display `pods[].result` and
-`rounds[].byes`/`game_loss` does not need to know the ruleset; recomputing
-Swiss standings order (beyond primary points) or replaying a playoff plan
-does depend on it.
+above), how a match's winners are derived from a report, and the playoff
+plan for a given `top_cut`. A reader that only displays `pods[].result`
+and `rounds[].byes`/`game_loss` does not need to know the ruleset.
+Replaying a playoff plan depends on the ruleset. Swiss standings order
+and tiebreaker export columns belong to the selected scoring logic.
 
 ### `CommanderRuleset`
 
@@ -306,8 +305,11 @@ See [Usage](../README.md#usage) for Commander configuration restrictions.
 These restrictions do not reject saved two-player pods from manual edits.
 
 Every pod's `games` holds exactly one game. That game's `winners` is the
-match `result` directly. `CommanderRuleset.standings_keys` in
-`src/logic/commander/rules.py` defines the standings tiebreaker order.
+match `result` directly. `ScoringDefault.standings_keys` in
+`src/logic/commander/scoring.py` defines the default standings tiebreaker
+order. `Scoring1v1` owns the MTR OMW/GW/OGW chain and its percentage floor.
+Both Hareruya scoring systems use points only. All scoring systems use
+UID order to keep exact ties stable, not as a competitive tiebreaker.
 
 ### `Mtg1v1Ruleset`
 

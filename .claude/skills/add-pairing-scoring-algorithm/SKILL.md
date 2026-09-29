@@ -16,11 +16,10 @@ likely misunderstood the task.**
 
 **A brand-new game needs a `rules.py` with an `IRuleset`** (`IS_COMPLETE =
 True`), not just a `matching.py`/`scoring.py` — the ruleset is what decides
-whether a reported match result is valid, who won it, and the Swiss
-standings tiebreaker order beyond raw points. Do not put tiebreakers on a
-scoring algorithm or on `Player`; that's ruleset work, even if it feels
-like a scoring concern — see `Mtg1v1Ruleset.standings_keys`
-(`src/logic/mtg/rules.py`) for the pattern.
+whether a reported match result is valid, who won it, and the playoff plan.
+Scoring algorithms own points, standings tiebreakers, and their export
+columns. Do not put tiebreakers on the ruleset or `Player`.
+See `Scoring1v1.standings_keys` (`src/logic/mtg/scoring.py`) for the pattern.
 
 Use `src/logic/commander/matching.py` and `src/logic/commander/scoring.py`
 as the reference implementations throughout — they show the established

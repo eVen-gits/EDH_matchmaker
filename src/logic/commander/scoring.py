@@ -2,8 +2,11 @@ from __future__ import annotations
 import itertools
 import random
 from abc import ABC
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from typing import Any
+from uuid import UUID
+
+import numpy as np
 
 from ...interface import IPlayer, IRound, IScoringLogic, ITournament
 
@@ -97,6 +100,28 @@ class ScoringDefault(CommonScoring):
         self, tour: ITournament, tour_round: IRound
     ) -> dict[Any, float]:
         return {p.uid: self.rating(p, tour_round) for p in tour.players}
+
+    def standings_keys(
+        self,
+        tour: ITournament,
+        tour_round: IRound,
+        ratings: Mapping[Any, float],
+    ) -> Mapping[UUID, tuple]:
+        return {
+            p.uid: (
+                p.rating(tour_round, ratings),  # type: ignore[call-arg]
+                len(p.games(tour_round)),
+                np.round(
+                    p.opponent_pointrate(tour_round, ratings), 10  # type: ignore[call-arg]
+                ),
+                len(p.players_beaten(tour_round)),  # type: ignore[attr-defined]
+                -p.average_seat(  # type: ignore[attr-defined]
+                    [r for r in tour.rounds if r.seq <= tour_round.seq]
+                ),
+                -p.uid if isinstance(p.uid, int) else -int(p.uid.int),
+            )
+            for p in tour.players
+        }
 
     def pointrate_denominator(self, tour_round: IRound) -> float:
         # A win is assumed to be the maximum possible score for one
