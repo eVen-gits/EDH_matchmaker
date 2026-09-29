@@ -17,7 +17,7 @@ class TestShippedParamSpecs(unittest.TestCase):
         logic = Tournament.get_scoring_logic("ScoringDefault")
         self.assertEqual(
             logic.DEFAULT_PARAMS,
-            {"win_points": 5, "draw_points": 1, "bye_points": 4},
+            {"win_points": 7, "draw_points": 1, "bye_points": 7},
         )
         # Types matter: these feed StandingsExport's "{:d}" formatting.
         for value in logic.DEFAULT_PARAMS.values():
@@ -121,6 +121,28 @@ class TestLoaderValidation(unittest.TestCase):
                 "k:\n  default: 2\n  type: int\n  min: 0\n  max: 1\n"
                 "  description: x\n",
             )
+
+    def test_list_type_loads_and_validates_items(self):
+        spec = self._load(
+            "Good",
+            "k:\n  default: [1, 2]\n  type: list\n  item_type: int\n  min: 1\n"
+            "  description: x\n",
+        )
+        self.assertEqual(spec["k"].widget, "listedit")
+        with self.assertRaises(ValueError):  # item below min
+            self._load("Bad", "k:\n  default: [0]\n  type: list\n  item_type: int\n"
+                       "  min: 1\n  description: x\n")
+        with self.assertRaises(ValueError):  # list without item_type
+            self._load("Bad", "k:\n  default: []\n  type: list\n  description: x\n")
+
+    def test_default_from(self):
+        spec = self._load(
+            "Good", "k:\n  type: int\n  default_from: ruleset.X\n  description: x\n"
+        )
+        self.assertIsNone(spec["k"].default)
+        with self.assertRaises(ValueError):  # both default and default_from
+            self._load("Bad", "k:\n  default: 1\n  default_from: ruleset.X\n"
+                       "  description: x\n")
 
     def test_no_sidecar_returns_empty(self):
         cls = type("Nope", (), {"__module__": "builtins"})

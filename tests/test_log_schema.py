@@ -69,7 +69,7 @@ class TestLogSchema(unittest.TestCase):
         log_path = "logs/tournament-state-699863dcebe4eb89e31bc50b-2026-02-25.json"
         if not os.path.exists(log_path):
             self.skipTest("Real tournament file not available")
-            
+
         validator = Draft202012Validator(_load_schema())
         with open(log_path) as f:
             data = json.load(f)

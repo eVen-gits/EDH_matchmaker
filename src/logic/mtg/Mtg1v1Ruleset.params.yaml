@@ -1,0 +1,10 @@
+games_to_win:
+  default: 2
+  type: int
+  min: 1
+  max: 4
+  label: Games to win
+  description: >
+    Game wins a player needs to win the match in this round (Magic Tournament
+    Rules 2.1): 2 is best of three, 3 best of five, 4 best of seven. Drawn
+    games do not count toward it. A report may end below it when time is called.
