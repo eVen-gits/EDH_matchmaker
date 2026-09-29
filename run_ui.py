@@ -1869,7 +1869,22 @@ class TournamentConfigDialog(QDialog):
                 "No scoring logic supports the chosen pod sizes.",
             )
             return
-        TournamentAction.LOGF = self.ui.le_log_location.text()
+        log_path = self.ui.le_log_location.text()
+        # A new tournament is stored immediately, so an existing file at the
+        # chosen path (the dialog prefills the current log) would be lost.
+        if (
+            self.reset
+            and os.path.exists(log_path)
+            and QMessageBox.question(
+                self,
+                "Overwrite log?",
+                f"{log_path} already exists and will be overwritten by the "
+                "new tournament. Continue?",
+            )
+            != QMessageBox.StandardButton.Yes
+        ):
+            return
+        TournamentAction.LOGF = log_path
         self.config = TournamentConfiguration(
             ruleset=self.ui.cb_ruleset.currentData(),
             allow_bye=self.cb_allow_bye.isChecked(),
