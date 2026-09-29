@@ -2243,23 +2243,25 @@ class Tournament(ITournament):
             standings=standings,
         )
 
+        def value(f: StandingsExport.Field, p: Player) -> Any:
+            if tour_round is None:
+                if f == StandingsExport.Field.STANDING:
+                    return standings.index(p) + 1
+                if f == StandingsExport.Field.ID:
+                    return p.uid.hex
+                if f == StandingsExport.Field.NAME:
+                    return p.name
+                if f in (StandingsExport.Field.RECORD, StandingsExport.Field.SEAT_HISTORY):
+                    return ""
+                return 0
+            info = StandingsExport.info[f]
+            v = info.get(p, context)  # pyright: ignore[reportAny]
+            return v if info.denom is None else v * info.denom
+
         lines = [[StandingsExport.info[f].name for f in fields]]
         lines += [
             [
-                (StandingsExport.info[f].format).format(
-                    (
-                        standings.index(p) + 1 if f == StandingsExport.Field.STANDING else 0
-                        if f not in (StandingsExport.Field.ID, StandingsExport.Field.NAME,
-                                       StandingsExport.Field.RECORD, StandingsExport.Field.SEAT_HISTORY)
-                        else (p.uid.hex if f == StandingsExport.Field.ID else p.name
-                              if f == StandingsExport.Field.NAME else "")
-                    ) if tour_round is None else (
-                        StandingsExport.info[f].get(p, context)  # pyright: ignore[reportAny]
-                        if StandingsExport.info[f].denom is None
-                        else StandingsExport.info[f].get(p, context)
-                        * StandingsExport.info[f].denom
-                    )
-                )
+                StandingsExport.info[f].format.format(value(f, p))
                 for f in fields
             ]
             for p in standings
