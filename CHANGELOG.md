@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Reject CLI tournament overrides that violate ruleset configuration validation,
   including empty or unsupported pod sizes.
+- Export standings before the first round without an exception; unplayed players show zero points in PLAIN, CSV, and JSON.
 
 ### Added
 - Params sidecars for the tournament configuration
