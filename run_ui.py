@@ -758,10 +758,12 @@ class MainWindow(QMainWindow):
             pop_menu.addAction(delete_player_action)
             delete_player_action.triggered.connect(lambda: self.lva_remove_player())
 
-            # TODO: Rename player option
-            # rename_player_action = QAction('Rename player')
-            # pop_menu.addAction(rename_player_action)
-            # rename_player_action.triggered.connect(self.lva_rename_player)
+            if not multiple:
+                rename_player_action = QAction("Rename player...", self)
+                pop_menu.addAction(rename_player_action)
+                rename_player_action.triggered.connect(
+                    lambda: self.lva_rename_player()
+                )
 
             if self.core.tour_round:
                 if self.core.tour_round.pods:
@@ -813,13 +815,20 @@ class MainWindow(QMainWindow):
             # self.ui_create_player_list()
             self.restore_ui()
 
-    def lva_rename_player(self):
-        # TODO:
-        raise NotImplementedError()
-        curRow = self.ui.lv_players.currentRow()
-        item = self.ui.lv_players.item(curRow)
-        item.setFlags(item.flags() | Qt.ItemFlag.ItemIsEditable)
-        item.setText(item.player.name)
+    @UILog.with_status
+    def lva_rename_player(self, new_name: str | None = None):
+        item = self.ui.lv_players.currentItem()
+        if item is None:
+            return
+        player = item.data(Qt.ItemDataRole.UserRole)
+        if new_name is None:
+            new_name, ok = QInputDialog.getText(
+                self, "Rename player", "New name:", text=player.name
+            )
+            if not ok:
+                return
+        self.core.rename_player(player, new_name)
+        self.restore_ui()
 
     def lva_move_to_pod(self, pod: Pod):
         self.move_players_to_pod(
