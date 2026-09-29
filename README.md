@@ -59,6 +59,12 @@ Or with additional options:
 python run_ui.py --help
 ```
 
+Commander configuration accepts pod sizes of 3, 4, 5, or 6 players.
+This restriction applies to new tournaments, configuration changes, CLI
+options, and every attempt to load a saved tournament. Manual pod edits
+can still leave two players in a pod. Use the 1v1 Magic ruleset for
+configured two-player pairings.
+
 ## Contributing
 
 Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct, and the process for submitting pull requests.

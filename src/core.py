@@ -1104,9 +1104,7 @@ class Tournament(ITournament):
         """
         if config is None:
             config = TournamentConfiguration()
-        super().__init__(uid=uid)
         self.__config = config
-        # self.CACHE[self.uid] = self
 
         self.PLAYER_CACHE: dict[UUID, Player] = {}
         self.POD_CACHE: dict[UUID, Pod] = {}
@@ -1125,6 +1123,7 @@ class Tournament(ITournament):
         # object, so the "ruleset changed after results exist" rule never
         # fires here, only via the config setter.
         self.__validate_config(config)
+        super().__init__(uid=uid)
 
         # Direct setting - don't want to overwrite old log file
         # self.new_round()
@@ -1316,8 +1315,19 @@ class Tournament(ITournament):
                 "Tournament has already reached the maximum number of rounds."
             )
 
-        # Unknown ruleset name.
-        ruleset = self.get_ruleset(config.ruleset)
+        self.__validate_config_values(config)
+
+        if self.has_results and config.ruleset != self.config.ruleset:
+            raise ValueError(
+                "Cannot change ruleset after the tournament has pods, byes, "
+                "or game losses."
+            )
+
+        return True
+
+    @classmethod
+    def __validate_config_values(cls, config: TournamentConfiguration) -> None:
+        ruleset = cls.get_ruleset(config.ruleset)
 
         # pod_sizes must be non-empty and a subset of the ruleset's allowed sizes.
         if not config.pod_sizes:
@@ -1348,7 +1358,7 @@ class Tournament(ITournament):
         # pairing-logic check below, so a hand-edited or CLI config, or a
         # test building a tournament without exercising the mismatch, still
         # loads.
-        scoring_logic = self.get_scoring_logic(config.scoring_logic)
+        scoring_logic = cls.get_scoring_logic(config.scoring_logic)
         if not scoring_logic.supports_pod_sizes(config.pod_sizes):
             Log.log(
                 f"Scoring logic {config.scoring_logic} does not support pod "
@@ -1374,15 +1384,6 @@ class Tournament(ITournament):
                     overrides,
                     where=f"playoff_rounds[{stage}].ruleset_params",
                 )
-
-        # A result must never be re-read under another game's rules.
-        if self.has_results and config.ruleset != self.config.ruleset:
-            raise ValueError(
-                "Cannot change ruleset after the tournament has pods, byes, "
-                "or game losses."
-            )
-
-        return True
 
     @property
     def config(self) -> TournamentConfiguration:
@@ -2413,6 +2414,7 @@ class Tournament(ITournament):
             )
 
         config = TournamentConfiguration.inflate(data["config"])
+        cls.__validate_config_values(config)
         tour_uid = UUID(data["uid"])
         if tour_uid in Tournament.CACHE:
             tour = Tournament.CACHE[tour_uid]
