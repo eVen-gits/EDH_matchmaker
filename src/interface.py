@@ -312,7 +312,7 @@ class IPairingLogic(ABC):
 
 
 class IScoringLogic(ABC):
-    """Interface for scoring logic (how player points are computed)."""
+    """Interface for points, standings tiebreakers, and their export columns."""
 
     IS_COMPLETE: bool = False
     name: str
@@ -376,6 +376,31 @@ class IScoringLogic(ABC):
         """
         ...
 
+    def standings_keys(
+        self,
+        tour: ITournament,
+        tour_round: IRound,
+        ratings: Mapping[Any, float],
+    ) -> Mapping[UUID, tuple]:
+        """Swiss sort keys, descending: points, then scoring tiebreakers.
+
+        The default has no tiebreakers. UID order keeps exact ties stable
+        without assigning competitive significance to that order.
+        """
+        return {
+            p.uid: (
+                ratings.get(p.uid, 0),
+                -p.uid if isinstance(p.uid, int) else -int(p.uid.int),
+            )
+            for p in tour.players
+        }
+
+    def standings_columns(
+        self, tour: ITournament, tour_round: IRound
+    ) -> list[tuple[str, Mapping[UUID, str]]]:
+        """Extra standings-export columns: (header, formatted cells by UID)."""
+        return []
+
     @abstractmethod
     def pointrate_denominator(self, tour_round: IRound) -> float:
         """The value a player's rating is divided by to get a 0-1 pointrate.
@@ -390,7 +415,7 @@ class IScoringLogic(ABC):
 
 
 class IRuleset(ABC):
-    """Interface for a game's rules: match reports, standings, playoffs.
+    """Interface for a game's rules: match reports and playoffs.
 
     Same plugin shape as IScoringLogic/IPairingLogic (IS_COMPLETE, name,
     PARAM_SPEC/DEFAULT_PARAMS loaded from the sidecar in
@@ -494,27 +519,6 @@ class IRuleset(ABC):
         """Default pairing logic for Swiss round seq when
         config.pairing_rounds sets none."""
         ...
-
-    @abstractmethod
-    def standings_keys(
-        self,
-        tour: ITournament,
-        tour_round: IRound,
-        ratings: Mapping[Any, float],
-    ) -> Mapping[UUID, tuple]:
-        """One sort key per player, compared descending. Swiss rounds only.
-
-        `ratings` is the scoring logic's field map; the first element of
-        each key should be the rating.
-        """
-        ...
-
-    def standings_columns(
-        self, tour: ITournament, tour_round: IRound
-    ) -> list[tuple[str, Mapping[UUID, str]]]:
-        """Extra standings-export columns: (header, formatted cell per
-        player). Default: none."""
-        return []
 
 
 class IStandingsExport(ABC):

@@ -407,8 +407,8 @@ class GeneratePlayersDialog(QDialog):
 
 def _player_text(player: Player, p_fmt, context: TournamentContext, cols) -> str:
     """A player list item's display text: the usual repr tokens, plus one
-    " | HEADER value" per ruleset standings column (e.g. MTG's OMW/GW/OGW;
-    Commander's standings_columns is empty, so this is a no-op there)."""
+    " | HEADER value" per scoring standings column (e.g. MTG's OMW/GW/OGW;
+    ScoringDefault's standings_columns is empty, so this is a no-op there)."""
     text = player.__repr__(p_fmt, context=context)
     for header, cells in cols:
         text += f" | {header} {cells.get(player.uid, '')}"
@@ -970,8 +970,9 @@ class MainWindow(QMainWindow):
             tour_round = self.core.tour_round
             standings = self.core.get_standings(tour_round)
             context = TournamentContext(self.core, tour_round, standings)
+            scoring = self.core.get_scoring_logic(self.core.config.scoring_logic)
             cols = (
-                self.core.ruleset.standings_columns(self.core, tour_round)
+                scoring.standings_columns(self.core, tour_round)
                 if tour_round
                 else []
             )
@@ -1093,8 +1094,9 @@ class MainWindow(QMainWindow):
             tour_round,
             self.core.get_standings(tour_round),
         )
+        scoring = self.core.get_scoring_logic(self.core.config.scoring_logic)
         cols = (
-            self.core.ruleset.standings_columns(self.core, tour_round)
+            scoring.standings_columns(self.core, tour_round)
             if tour_round
             else []
         )
@@ -1129,8 +1131,9 @@ class MainWindow(QMainWindow):
         tour_round = self.core.tour_round
         standings = self.core.get_standings(tour_round)
         context = TournamentContext(self.core, tour_round, standings)
+        scoring = self.core.get_scoring_logic(self.core.config.scoring_logic)
         cols = (
-            self.core.ruleset.standings_columns(self.core, tour_round)
+            scoring.standings_columns(self.core, tour_round)
             if tour_round
             else []
         )

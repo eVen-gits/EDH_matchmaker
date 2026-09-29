@@ -2152,7 +2152,8 @@ class Tournament(ITournament):
             # ranking chain, so the sort does not recompute it once per player
             # (~players x opponents times) - costly under wagering scoring.
             ratings = self.field_ratings(tour_round)
-            keys = self.ruleset.standings_keys(self, tour_round, ratings)
+            scoring = self.get_scoring_logic(self.config.scoring_logic)
+            keys = scoring.standings_keys(self, tour_round, ratings)
             standings = sorted(
                 self.players,
                 key=lambda x: keys[x.uid],
@@ -2267,9 +2268,9 @@ class Tournament(ITournament):
             ]
             for p in standings
         ]
-        # Ruleset-specific columns (e.g. MTG's OMW/GW/OGW) after the
-        # core fields - only the round's ruleset can format these.
-        extra_columns = self.ruleset.standings_columns(self, tour_round) if tour_round else []
+        # Scoring-specific tiebreaker columns follow the core fields.
+        scoring = self.get_scoring_logic(self.config.scoring_logic)
+        extra_columns = scoring.standings_columns(self, tour_round) if tour_round else []
         if extra_columns:
             lines[0] += [header for header, _ in extra_columns]
             for i, p in enumerate(standings):

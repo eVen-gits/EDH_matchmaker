@@ -7,7 +7,8 @@ from unittest import mock
 from src.core import Pod, StandingsExport, Tournament, TournamentAction, TournamentConfiguration
 from src.interface import IGameResult
 from src.logic.mtg.matching import bracket_seed_order
-from src.logic.mtg.rules import FLOOR, Mtg1v1Configuration, Mtg1v1Ruleset, games_from_score, mean_pct, mtr_stats, pct
+from src.logic.mtg.rules import Mtg1v1Configuration, Mtg1v1Ruleset, games_from_score
+from src.logic.mtg.scoring import FLOOR, mean_pct, mtr_stats, pct
 
 TournamentAction.LOGF = False  # type: ignore
 
