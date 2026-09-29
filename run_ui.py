@@ -1585,8 +1585,8 @@ class TournamentConfigDialog(QDialog):
 
         Runs once on load (initial=True, seeded from self.core.config) and
         again whenever the user changes cb_ruleset (initial=False, reset to
-        that ruleset's own defaults - see the "Decisions" in the plan this
-        implements).
+        that ruleset's own defaults, so switching rulesets discards the old
+        ruleset's edits).
         """
         name = self.ui.cb_ruleset.currentData()
         if name is None:
@@ -1860,8 +1860,8 @@ class TournamentConfigDialog(QDialog):
 
     def _changed_ruleset_params(self, form: ParamForm | None) -> dict:
         """A ruleset-param form's values, minus any equal to that ruleset's
-        own default (implementation plan 4.2: the sidecar default stays the
-        tournament default, only overrides are stored)."""
+        own default, so the sidecar default stays the tournament default and
+        only overrides are stored)."""
         if form is None:
             return {}
         ruleset_name = self.ui.cb_ruleset.currentData()
