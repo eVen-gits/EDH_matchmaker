@@ -7,12 +7,15 @@ import tempfile
 import unittest
 from unittest import mock
 
-from src.core import TournamentAction
+from src.core import Tournament, TournamentAction
 
 TournamentAction.LOGF = False
 
 
 class TestMissingOpen(unittest.TestCase):
+    def setUp(self):
+        self.addCleanup(setattr, TournamentAction, "LOGF", TournamentAction.LOGF)
+
     def test_missing_open_starts_with_round(self):
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
         from PyQt6.QtWidgets import QApplication
@@ -29,3 +32,11 @@ class TestMissingOpen(unittest.TestCase):
             self.assertIsNotNone(core.tour_round.dropped_players)
             self.assertEqual(TournamentAction.LOGF, path)
             state["window"].close()
+
+    def test_store_bare_filename(self):
+        self.addCleanup(os.chdir, os.getcwd())
+        with tempfile.TemporaryDirectory() as directory:
+            os.chdir(directory)
+            TournamentAction.LOGF = "missing.json"
+            TournamentAction.store(Tournament())
+            self.assertTrue(os.path.exists(os.path.join(directory, "missing.json")))
