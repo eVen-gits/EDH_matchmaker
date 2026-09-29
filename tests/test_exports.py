@@ -6,6 +6,8 @@ import tempfile
 import unittest
 from typing import Any, cast
 
+import pytest
+
 from src.core import (
     StandingsExport,
     Tournament,
@@ -47,6 +49,7 @@ class TestBeforeFirstRound(unittest.TestCase):
                 else:
                     self.assertIn("pts", output)
 
+    @pytest.mark.gui
     def test_gui_export_before_first_round(self):
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
         from PyQt6.QtWidgets import QApplication

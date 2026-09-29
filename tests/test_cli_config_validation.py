@@ -5,11 +5,14 @@ import subprocess
 import sys
 import tempfile
 import unittest
+
+import pytest
 from pathlib import Path
 
 from src.core import TournamentAction
 
 TournamentAction.LOGF = False
+pytestmark = pytest.mark.gui
 ROOT = Path(__file__).resolve().parents[1]
 
 
