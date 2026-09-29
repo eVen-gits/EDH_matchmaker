@@ -32,11 +32,6 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install Qt system libraries
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libegl1 libgl1 libxkbcommon0 libfontconfig1 libdbus-1-3 libglib2.0-0
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -45,7 +40,6 @@ jobs:
       - name: Run tests
         run: |
           export PYTHONPATH=$PYTHONPATH:.
-          export QT_QPA_PLATFORM=offscreen
           mkdir -p test-reports
           pytest --junitxml=test-reports/results.xml
 
