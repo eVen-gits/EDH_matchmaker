@@ -200,3 +200,50 @@ class TestPlayerListTiebreakerColumns(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestDropPlayerHistory(MtgUiTestCase):
+    """Issue #27: dropping a bye or seated player must keep them in history."""
+
+    def _drop(self, t, player):
+        window = self.run_ui.MainWindow(t)
+        with mock.patch("run_ui.QMessageBox.warning") as warning:
+            window.drop_player(player)  # would raise ValueError before the fix
+        warning.assert_not_called()
+        window.ui_update_player_list()
+        shot = os.environ.get("DROP_SCREENSHOT")
+        if shot:
+            window.grab().save(shot)
+        return window
+
+    def test_drop_bye_player(self):
+        t = Tournament(
+            TournamentConfiguration(
+                ruleset="Mtg1v1Ruleset", auto_export=False, n_rounds=3
+            )
+        )
+        t.add_player(["A", "B", "C", "D", "E"])
+        t.new_round()
+        t.create_pairings()
+        bye_uid = next(iter(t.tour_round._byes))
+        bye = next(p for p in t.players if p.uid == bye_uid)
+        t.random_results()
+        self._drop(t, bye)
+        self.assertIn(bye, t.players)
+        self.assertIn(bye, t.tour_round.dropped_players)
+        self.assertIn(bye_uid, t.tour_round._byes)
+
+    def test_drop_seated_player(self):
+        t = Tournament(
+            TournamentConfiguration(
+                ruleset="Mtg1v1Ruleset", auto_export=False, n_rounds=3
+            )
+        )
+        t.add_player(["A", "B", "C", "D"])
+        t.new_round()
+        t.create_pairings()
+        seated = t.tour_round.pods[0].players[0]
+        self._drop(t, seated)
+        self.assertIn(seated, t.players)
+        self.assertIn(seated, t.tour_round.dropped_players)
+        self.assertIn(seated, t.tour_round.pods[0].players)
