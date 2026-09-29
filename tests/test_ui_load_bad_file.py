@@ -5,12 +5,14 @@ process on any exception escaping a slot) and must leave the current
 tournament and TournamentAction.LOGF unchanged. Qt runs offscreen.
 """
 
+import json
 import os
 import subprocess
 import sys
 import tempfile
 import unittest
 from unittest import mock
+from uuid import uuid4
 
 from src.core import Tournament, TournamentAction, TournamentConfiguration
 
@@ -56,6 +58,34 @@ class LoadBadFileTest(unittest.TestCase):
             mock_critical.assert_called_once()
             self.assertIs(window.core, t)
             self.assertEqual(TournamentAction.LOGF, "logs/default.json")
+
+    def test_load_two_player_commander_save_is_refused(self):
+        t = Tournament(TournamentConfiguration(auto_export=False))
+        window = self.run_ui.MainWindow(t)
+        data = t.serialize()
+        data["uid"] = str(uuid4())  # not the cached tournament
+        data["config"]["pod_sizes"] = [2]
+
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "old.json")
+            with open(path, "w") as f:
+                json.dump(data, f)
+            with (
+                mock.patch.object(
+                    self.run_ui.QFileDialog,
+                    "getOpenFileName",
+                    return_value=(path, "*.json"),
+                ),
+                mock.patch.object(
+                    self.run_ui.QMessageBox, "critical"
+                ) as mock_critical,
+            ):
+                for attempt in range(2):
+                    with self.subTest(attempt=attempt):
+                        window.load_tour()
+                        self.assertEqual(mock_critical.call_count, attempt + 1)
+                        self.assertIn("pod_sizes", str(mock_critical.call_args))
+                        self.assertIs(window.core, t)
 
 
 class StartupLoadBadFileTest(unittest.TestCase):

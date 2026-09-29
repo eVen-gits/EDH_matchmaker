@@ -11,10 +11,10 @@ genuine trap get an entry.
 
 ## Pod
 
-A group of players (2 for 1v1, 3 or 4 for Commander) paired to play a match
-together in a given round. A match is one or more games — see the "Game vs.
-match" entry below — collapsing to exactly one game by default, which is why
-Commander never needed to distinguish the two.
+A group of players paired to play a match together in a given round.
+See [Usage](README.md#usage) for Commander's configuration restrictions.
+A match is one or more games (see "Game vs. match" below), with exactly
+one game for Commander.
 
 **Lives in:** `src/core.py` (`Pod`), `src/interface.py` (`IPod`)
 **Invariant:** `config.pod_sizes` is an ordered preference list, not a set —

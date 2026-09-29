@@ -58,7 +58,7 @@ class TestParamCatalog(unittest.TestCase):
         commander = data["games"]["commander"]
         ruleset = commander["rulesets"]["CommanderRuleset"]
         self.assertEqual(ruleset["defaults"]["pod_sizes"], [4, 3])
-        self.assertIsNone(ruleset["choices"]["pod_sizes"])
+        self.assertEqual(ruleset["choices"]["pod_sizes"], [3, 4, 5, 6])
         self.assertIn("global_wr_seats", ruleset["config_fields"])
         self.assertIn("wager_percent", commander["scoring"]["ScoringHareruya"])
         self.assertIn("PairingDefault", commander["pairing"])

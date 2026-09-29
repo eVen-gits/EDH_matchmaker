@@ -9,7 +9,7 @@ self = <tests.test_ui_open_missing.TestMissingOpen testMethod=test_missing_open_
     def test_missing_open_starts_with_round(self):
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
         from PyQt6.QtWidgets import QApplication
-    
+
         with tempfile.TemporaryDirectory() as directory:
             path = os.path.join(directory, "missing.json")
             with mock.patch.object(sys, "argv", ["run_ui.py", "-o", path]), mock.patch.object(
