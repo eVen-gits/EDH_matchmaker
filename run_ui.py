@@ -2178,6 +2178,10 @@ if __name__ == "__main__":
 
     if args.open:
         core = load_startup_log(args.open)
+        if core is None:
+            TournamentAction.LOGF = args.open
+            core = Tournament()
+            core.new_round()
     elif args.ruleset:
         # A new game, not a continuation - do not fall back to the last log.
         core = Tournament(config=TournamentConfiguration(ruleset=args.ruleset))

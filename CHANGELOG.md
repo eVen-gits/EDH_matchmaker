@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Opening a nonexistent log with `-o` starts a new tournament with a current round and saves to the requested path.
+
 ### Added
 - Params sidecars for the tournament configuration
   (`src/TournamentConfiguration.params.yaml`) and each game's config fields
