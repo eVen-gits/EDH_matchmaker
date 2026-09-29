@@ -26,6 +26,7 @@ PYTHONPATH=. pytest
 
 `pytest.ini` skips slow and performance tests by default. Run them with
 `pytest -m slow` or `pytest tests/test_performance.py -m performance`.
+GUI tests (marked `gui`) run locally only; CI deselects them with `-m "not slow and not gui"`.
 
 ### Lint & type checking
 
