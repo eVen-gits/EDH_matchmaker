@@ -9,6 +9,32 @@ fkr = Faker()
 TournamentAction.LOGF = False  # type: ignore
 
 
+class TestSnakePodsMigration(unittest.TestCase):
+    """snake_pods is deprecated (read, never written) - see the "1.1 -> 1.2"
+    section of docs/tournament-log-spec.md."""
+
+    def test_old_format_snake_pods_false_pins_round_2_to_default(self):
+        config = TournamentConfiguration.inflate(
+            {
+                "pod_sizes": [4, 3],
+                "allow_bye": True,
+                "snake_pods": False,
+                "n_rounds": 3,
+                "max_byes": 2,
+                "auto_export": False,
+                "standings_export": {"fields": [], "format": 0, "dir": ""},
+                "global_wr_seats": [0.25, 0.2, 0.15, 0.1],
+                "top_cut": 0,
+            }
+        )
+        self.assertEqual(config.pairing_logics[1], "PairingDefault")
+
+    def test_new_config_round_2_defaults_to_snake(self):
+        t = Tournament(TournamentConfiguration(auto_export=False, n_rounds=3))
+        self.assertEqual(t.ruleset.swiss_pairing_logic(t, 1), "PairingSnake")
+        self.assertNotIn("snake_pods", t.config.serialize())
+
+
 class TestTournamentPodSizing(unittest.TestCase):
     def test_correct_pod_sizing_43_nobye(self):
         t = Tournament(
@@ -180,6 +206,44 @@ class TestTournamentPodSizing(unittest.TestCase):
                 t.add_player(fkr.name())
 
 
+class TestPodSizeOrderPreference(unittest.TestCase):
+    """pod_sizes is an ordered preference list: earlier sizes are preferred
+    over later ones, and a bye is used before backtracking to a later,
+    evenly-dividing size - see CONTEXT.md's "Pod" entry."""
+
+    def test_3_6_prefers_3(self):
+        t = Tournament(
+            TournamentConfiguration(
+                pod_sizes=[3, 6], allow_bye=True, max_byes=2, auto_export=False
+            )
+        )
+        self.assertEqual(t.get_pod_sizes(6), [3, 3])
+
+    def test_6_3_prefers_6(self):
+        t = Tournament(
+            TournamentConfiguration(
+                pod_sizes=[6, 3], allow_bye=True, max_byes=2, auto_export=False
+            )
+        )
+        self.assertEqual(t.get_pod_sizes(6), [6])
+
+    def test_4_3_six_players_prefers_4_plus_byes(self):
+        t = Tournament(
+            TournamentConfiguration(
+                pod_sizes=[4, 3], allow_bye=True, max_byes=2, auto_export=False
+            )
+        )
+        self.assertEqual(t.get_pod_sizes(6), [4])
+
+    def test_3_4_six_players_prefers_two_pods_of_3(self):
+        t = Tournament(
+            TournamentConfiguration(
+                pod_sizes=[3, 4], allow_bye=True, max_byes=2, auto_export=False
+            )
+        )
+        self.assertEqual(t.get_pod_sizes(6), [3, 3])
+
+
 class TestRoundCreation(unittest.TestCase):
     def test_modified_n_rounds(self) -> None:
         config = TournamentConfiguration(
@@ -221,13 +285,13 @@ class TestRoundCreation(unittest.TestCase):
         # win/bye/draw_points are ScoringDefault's own defaults now (not
         # eagerly baked into a fresh config) - an unconfigured config
         # defers to them via scoring_params being empty.
-        from src.scoring_logic.examples import ScoringDefault
+        from src.logic.commander.scoring import ScoringDefault
 
         cfg = TournamentConfiguration()
         self.assertEqual(cfg.scoring_params, {})
         self.assertEqual(
             ScoringDefault.DEFAULT_PARAMS,
-            {"win_points": 5, "bye_points": 4, "draw_points": 1},
+            {"win_points": 7, "bye_points": 7, "draw_points": 1},
         )
 
 

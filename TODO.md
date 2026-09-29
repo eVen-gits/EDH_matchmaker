@@ -8,7 +8,11 @@
 * [x] Id generator doesn't get restored
 
 ## Misc improvements
+* [ ] Default nastavitve popravit
+* [ ] Starting table number (offset)
 * [ ] Discard default.log if mismatching file format
+* [ ] Lobby vs confirm
+* [ ] Lock player to table
 * [ ] Search function
 * [ ] Model based item view for player list
 * [ ] Window title should show tournament name, round, log path etc.

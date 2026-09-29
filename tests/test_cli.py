@@ -1,15 +1,13 @@
 import types
 import unittest
 
-from src.core import Player, Tournament, TournamentAction, TournamentConfiguration
+from src.core import Tournament, TournamentAction, TournamentConfiguration
 
 TournamentAction.LOGF = False
 
 
 def _args(**over):
-    base = dict(
-        pod_sizes=None, allow_bye=False, scoring=None, snake=False, rounds=None
-    )
+    base = dict(pod_sizes=None, allow_bye=False, scoring=None, rounds=None)
     base.update(over)
     return types.SimpleNamespace(**base)
 
@@ -47,10 +45,9 @@ class TestApplyCliConfig(unittest.TestCase):
 
     def test_other_flags(self):
         t = self._tour()
-        self.apply(t, _args(pod_sizes=[3, 4], rounds=7, snake=True, allow_bye=True))
+        self.apply(t, _args(pod_sizes=[3, 4], rounds=7, allow_bye=True))
         self.assertEqual(t.config.pod_sizes, [3, 4])
         self.assertEqual(t.config.n_rounds, 7)
-        self.assertTrue(t.config.snake_pods)
         self.assertTrue(t.config.allow_bye)
 
     def test_no_args_no_change(self):
@@ -58,6 +55,34 @@ class TestApplyCliConfig(unittest.TestCase):
         before = t.config.serialize()
         self.apply(t, _args())
         self.assertEqual(t.config.serialize(), before)
+
+
+class TestArgParser(unittest.TestCase):
+    """The --ruleset flag and its -o/--open conflict."""
+
+    @classmethod
+    def setUpClass(cls):
+        try:
+            import run_ui
+        except ImportError as exc:  # pragma: no cover - env without PyQt6
+            raise unittest.SkipTest(f"PyQt6 unavailable: {exc}")
+        cls.parser = run_ui.build_arg_parser()
+
+    def test_ruleset_flag_parses(self):
+        args = self.parser.parse_args(["--ruleset", "Mtg1v1Ruleset"])
+        self.assertEqual(args.ruleset, "Mtg1v1Ruleset")
+
+    def test_ruleset_defaults_to_none(self):
+        args = self.parser.parse_args([])
+        self.assertIsNone(args.ruleset)
+
+    def test_open_together_with_ruleset_errors(self):
+        args = self.parser.parse_args(["-o", "foo.json", "--ruleset", "Mtg1v1Ruleset"])
+        with self.assertRaises(SystemExit):
+            if args.open and args.ruleset:
+                self.parser.error(
+                    "argument --ruleset: not allowed with argument -o/--open"
+                )
 
 
 if __name__ == "__main__":

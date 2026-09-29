@@ -143,14 +143,18 @@ class TestMatching(unittest.TestCase):
 
                     for i, pod in enumerate(t.tour_round.pods):
                         single_result = result[i].count(True) == 1
-                        for j, player in enumerate(pod.players):
-                            if result[i][j]:
-                                pod.set_result(
-                                    player,
-                                    Player.EResult.WIN
-                                    if single_result
-                                    else Player.EResult.DRAW,
-                                )
+                        winners = [
+                            player
+                            for j, player in enumerate(pod.players)
+                            if result[i][j]
+                        ]
+                        if winners:
+                            t.tour_round.set_result(
+                                winners,
+                                Player.EResult.WIN
+                                if single_result
+                                else Player.EResult.DRAW,
+                            )
 
                     t.create_pairings()
                     repeat_pairings = t.tour_round.repeat_pairings()
@@ -426,8 +430,12 @@ class TestPairingLogicsConfig(unittest.TestCase):
         self.assertEqual(
             restored.pairing_rounds,
             [
-                {"logic": "PairingRandom", "params": {}},
-                {"logic": "PairingDefault", "params": {"rematch_penalty_exponent": 4}},
+                {"logic": "PairingRandom", "params": {}, "ruleset_params": {}},
+                {
+                    "logic": "PairingDefault",
+                    "params": {"rematch_penalty_exponent": 4},
+                    "ruleset_params": {},
+                },
             ],
         )
         # A stale empty {} for params coerces to no entries.
@@ -520,9 +528,9 @@ class TestPodSizeCompatibility(unittest.TestCase):
             Tournament.selectable_pairing_logics([5, 4, 3]),
             ["PairingDefault", "PairingRandom", "PairingSnake"],
         )
-        # Only Random supports 2-player pods among current algorithms.
+        # Pairing1v1 and Random support 2-player pods among current algorithms.
         self.assertEqual(
-            Tournament.selectable_pairing_logics([2]), ["PairingRandom"]
+            Tournament.selectable_pairing_logics([2]), ["Pairing1v1", "PairingRandom"]
         )
         self.assertEqual(
             Tournament.selectable_pairing_logics([4, 3, 2]), ["PairingRandom"]
@@ -531,7 +539,7 @@ class TestPodSizeCompatibility(unittest.TestCase):
     def test_selectable_without_pod_sizes_returns_all(self):
         self.assertEqual(
             Tournament.selectable_pairing_logics(),
-            ["PairingDefault", "PairingRandom", "PairingSnake"],
+            ["Pairing1v1", "PairingDefault", "PairingRandom", "PairingSnake"],
         )
 
     def test_supported_pod_sizes_are_valid(self):
@@ -550,7 +558,7 @@ class TestPodSizeCompatibility(unittest.TestCase):
         # With 2-player pods and no explicit logics, the adaptive default must
         # never pick an incompatible logic (Snake/Default) - only Random fits.
         cfg = TournamentConfiguration(
-            pod_sizes=[2], n_rounds=3, snake_pods=True, allow_bye=True,
+            ruleset="Mtg1v1Ruleset", pod_sizes=[2], n_rounds=3, snake_pods=True, allow_bye=True,
             auto_export=False,
         )
         t = Tournament(cfg)
@@ -569,7 +577,7 @@ class TestPodSizeCompatibility(unittest.TestCase):
         # An explicit incompatible choice is honored but logged as a warning.
         Log.output.clear()
         cfg = TournamentConfiguration(
-            pod_sizes=[2], n_rounds=1, allow_bye=True, auto_export=False,
+            ruleset="Mtg1v1Ruleset", pod_sizes=[2], n_rounds=1, allow_bye=True, auto_export=False,
             pairing_rounds=[{"logic": "PairingDefault", "params": {}}],
         )
         t = Tournament(cfg)

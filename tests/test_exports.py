@@ -1,4 +1,12 @@
+import csv
+import io
+import json
+import os
+import tempfile
 import unittest
+from typing import Any, cast
+
+import pytest
 
 from src.core import (
     StandingsExport,
@@ -18,6 +26,45 @@ def _small_tournament():
     return t
 
 TournamentAction.LOGF = False  # type: ignore
+
+
+class TestBeforeFirstRound(unittest.TestCase):
+    def setUp(self):
+        self.t = Tournament(TournamentConfiguration(auto_export=False))
+        self.t.add_player(["Alice", "Bob"])
+        self.assertIsNone(self.t.tour_round)
+
+    def test_all_standings_formats(self):
+        for fmt in StandingsExport.Format:
+            with self.subTest(fmt=fmt):
+                output = self.t.get_standings_str(style=fmt)
+                self.assertIn("Alice", output)
+                self.assertIn("Bob", output)
+                if fmt == StandingsExport.Format.JSON:
+                    rows = json.loads(output)
+                    self.assertEqual([row["pts"] for row in rows], ["0", "0"])
+                elif fmt == StandingsExport.Format.CSV:
+                    rows = list(csv.DictReader(io.StringIO(output)))
+                    self.assertEqual([row["pts"] for row in rows], ["0", "0"])
+                else:
+                    self.assertIn("pts", output)
+
+    @pytest.mark.gui
+    def test_gui_export_before_first_round(self):
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        from PyQt6.QtWidgets import QApplication
+        import run_ui
+
+        app = QApplication.instance() or QApplication([])  # noqa: F841
+        window = run_ui.MainWindow(self.t)
+        with tempfile.TemporaryDirectory() as d:
+            dlg = run_ui.ExportStandingsDialog(window)
+            cast(Any, dlg.ui).le_export_dir.setText(os.path.join(d, "standings.txt"))
+            screenshot = os.environ.get("EDH_STANDINGS_SCREENSHOT", os.path.join(d, "standings-before-round.png"))
+            self.assertTrue(dlg.grab().save(screenshot))
+            dlg.export()
+            with open(os.path.join(d, "standings.txt")) as f:
+                self.assertIn("Alice", f.read())
 
 
 class TestExports(unittest.TestCase):
@@ -41,26 +88,59 @@ class TestExports(unittest.TestCase):
         for p in self.t.players:
             self.assertIn(p.name, result)
 
-    def test_standings_str_csv_not_implemented(self):
-        # CSV is not yet implemented — documents expected behavior
-        with self.assertRaises((ValueError, Exception)):
-            self.t.get_standings_str(style=StandingsExport.Format.CSV)
+    def test_standings_str_csv(self):
+        rows = list(csv.reader(io.StringIO(
+            self.t.get_standings_str(style=StandingsExport.Format.CSV))))
+        self.assertEqual(len(rows), len(self.t.players) + 1)
+        for p in self.t.players:
+            self.assertIn(p.name, [c for r in rows for c in r])
 
-    def test_standings_str_json_not_implemented(self):
-        # JSON is not yet implemented — documents expected behavior
-        with self.assertRaises((ValueError, Exception)):
-            self.t.get_standings_str(style=StandingsExport.Format.JSON)
+    def test_standings_str_json(self):
+        data = json.loads(self.t.get_standings_str(style=StandingsExport.Format.JSON))
+        self.assertEqual(len(data), len(self.t.players))
+        self.assertEqual({p.name for p in self.t.players}, {d["name"] for d in data})
+
+    def test_standings_str_defaults_to_config_format(self):
+        cast(StandingsExport, self.t.config.standings_export).format = StandingsExport.Format.JSON
+        json.loads(self.t.get_standings_str())
+
+    def test_export_dialog_writes_chosen_format(self):
+        # Issue #25: the dialog ignored its Format choice and wrote PLAIN.
+        os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+        try:
+            from PyQt6.QtWidgets import QApplication
+            import run_ui
+        except ImportError as exc:  # pragma: no cover - env without PyQt6
+            self.skipTest(f"PyQt6 unavailable: {exc}")
+        app = QApplication.instance() or QApplication([])  # noqa: F841
+        window = run_ui.MainWindow(self.t)
+        with tempfile.TemporaryDirectory() as d:
+            for fmt, parse in (
+                (StandingsExport.Format.JSON, json.load),
+                (StandingsExport.Format.CSV, lambda f: list(csv.reader(f))),
+            ):
+                path = os.path.join(d, "standings" + StandingsExport.ext[fmt])
+                dlg = run_ui.ExportStandingsDialog(window)
+                ui = cast(Any, dlg.ui)
+                ui.cb_format.setCurrentIndex(ui.cb_format.findData(fmt))
+                ui.le_export_dir.setText(path)
+                dlg.export()
+                with open(path) as f:
+                    self.assertEqual(len(parse(f)), len(self.t.players) + (fmt == StandingsExport.Format.CSV))
 
     def test_pod_repr_with_context(self):
-        pod = self.t.tour_round.pods[0]
+        tour_round = self.t.tour_round
+        assert tour_round is not None
+        pod = tour_round.pods[0]
         context = TournamentContext(
-            self.t, self.t.tour_round, self.t.get_standings(self.t.tour_round)
+            self.t, tour_round, self.t.get_standings(tour_round)
         )
         result = pod.__repr__(context=context)
         self.assertIsInstance(result, str)
         self.assertGreater(len(result), 0)
 
     def test_pod_repr_without_context(self):
+        assert self.t.tour_round is not None
         pod = self.t.tour_round.pods[0]
         result = pod.__repr__()
         self.assertIsInstance(result, str)
@@ -122,7 +202,9 @@ class TestStandingsFields(unittest.TestCase):
 
     def setUp(self):
         self.t = _small_tournament()
-        self.tour_round = self.t.tour_round
+        tour_round = self.t.tour_round
+        assert tour_round is not None
+        self.tour_round = tour_round
         self.context = TournamentContext(
             self.t, self.tour_round, self.t.get_standings(self.tour_round)
         )
@@ -160,3 +242,31 @@ class TestStandingsFields(unittest.TestCase):
         # Header uses lowercase field .name attributes
         self.assertIn("name", result)
         self.assertIn("pts", result)
+
+
+class TestExportPath(unittest.TestCase):
+    """Regression for #24: a bare filename as the export path."""
+
+    def test_bare_filename_writes_to_cwd(self):
+        import os
+        import tempfile
+
+        t = _small_tournament()
+        with tempfile.TemporaryDirectory() as d:
+            cwd = os.getcwd()
+            os.chdir(d)
+            try:
+                t.export_str("x", "standings.txt", StandingsExport.Target.FILE)
+                self.assertTrue(os.path.exists("standings.txt"))
+            finally:
+                os.chdir(cwd)
+
+    def test_unwritable_auto_export_path_does_not_break_actions(self):
+        import os
+        import tempfile
+
+        t = _small_tournament()
+        t.config.auto_export = True
+        with tempfile.NamedTemporaryFile() as f:
+            t.config.standings_export.dir = os.path.join(f.name, "standings.txt")
+            t.add_player(["Late Player"])  # must not raise

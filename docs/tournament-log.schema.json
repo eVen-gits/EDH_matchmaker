@@ -45,14 +45,14 @@
     },
     "stageOrTopCut": {
       "type": "integer",
-      "enum": [0, 4, 7, 10, 13, 16, 40]
+      "enum": [0, 2, 4, 7, 8, 10, 13, 16, 40]
     },
     "config": {
       "type": "object",
       "additionalProperties": true,
       "required": [
-        "pod_sizes", "allow_bye", "snake_pods", "n_rounds", "max_byes",
-        "auto_export", "standings_export", "global_wr_seats", "top_cut"
+        "pod_sizes", "allow_bye", "n_rounds", "max_byes",
+        "auto_export", "standings_export", "top_cut"
       ],
       "properties": {
         "pod_sizes": {
@@ -61,20 +61,62 @@
           "minItems": 1
         },
         "allow_bye": { "type": "boolean" },
-        "snake_pods": { "type": "boolean" },
+        "snake_pods": {
+          "type": "boolean",
+          "description": "Deprecated (read, never written): old logs used this to choose round 2's Swiss pairing. Round 2 is always PairingSnake now (CommanderRuleset.swiss_pairing_logic); an old snake_pods: false pins round 2 to PairingDefault via pairing_rounds instead."
+        },
         "n_rounds": { "type": "integer", "minimum": 0 },
         "max_byes": { "type": "integer", "minimum": 0 },
         "auto_export": { "type": "boolean" },
         "standings_export": { "$ref": "#/$defs/standingsExport" },
         "global_wr_seats": {
           "type": "array",
-          "items": { "type": "number" }
+          "items": { "type": "number" },
+          "description": "CommanderRuleset only (CommanderConfiguration)."
+        },
+        "match_wr_seats": {
+          "type": "array",
+          "items": { "type": "number", "minimum": 0 },
+          "description": "Mtg1v1Ruleset only (Mtg1v1Configuration)."
+        },
+        "match_draw_rate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Mtg1v1Ruleset only (Mtg1v1Configuration)."
         },
         "top_cut": { "$ref": "#/$defs/stageOrTopCut" },
         "scoring_logic": { "type": "string" },
         "scoring_params": {
           "type": "object",
           "description": "Field names and defaults are owned by whichever class scoring_logic names - see the Scoring logic section of tournament-log-spec.md. Deliberately schema-free: a new scoring algorithm's params don't require a schema change here."
+        },
+        "ruleset": {
+          "type": "string",
+          "description": "Class name of the IRuleset owning this tournament's game rules - see the Rulesets section of tournament-log-spec.md."
+        },
+        "pairing_rounds": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/pairingRound" }
+        },
+        "playoff_rounds": {
+          "type": "object",
+          "description": "Ruleset param overrides per playoff stage, keyed by stage value as a string (see stageOrTopCut). Deliberately schema-free per key: {\"ruleset_params\": {...}}."
+        }
+      }
+    },
+    "pairingRound": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "logic": { "type": ["string", "null"] },
+        "params": {
+          "type": "object",
+          "description": "Field names and defaults are owned by whichever pairing class `logic` names - deliberately schema-free."
+        },
+        "ruleset_params": {
+          "type": "object",
+          "description": "Field names and defaults are owned by the tournament's ruleset - deliberately schema-free."
         }
       }
     },
@@ -134,7 +176,24 @@
         "table": { "type": "integer" },
         "cap": { "type": "integer", "minimum": 1 },
         "result": { "$ref": "#/$defs/uidArray" },
+        "games": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/game" }
+        },
         "players": { "$ref": "#/$defs/uidArray" }
+      }
+    },
+    "game": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["winners"],
+      "properties": {
+        "winners": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/uid" },
+          "uniqueItems": true,
+          "minItems": 1
+        }
       }
     }
   }

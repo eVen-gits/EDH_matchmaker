@@ -1,0 +1,41 @@
+name: Type Check
+
+on:
+  push:
+    branches: [ "master" ]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'pyrightconfig.json'
+      - '.github/workflows/typecheck.yml'
+  pull_request:
+    branches: [ "master" ]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'pyrightconfig.json'
+
+jobs:
+  pyright:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # Advisory only: ~245 pre-existing errors across the codebase (pyright
+      # was never enforced before this job existed). Flip continue-on-error
+      # to false once the backlog is cleared and this should gate for real.
+      - name: Run pyright
+        continue-on-error: true
+        uses: jakebailey/pyright-action@v2
