@@ -1862,6 +1862,13 @@ class TournamentConfigDialog(QDialog):
             self.ui.le_log_location.setText(file)
 
     def apply_choices(self):
+        if self.ui.cb_scoringLogic.currentData() is None:
+            QMessageBox.critical(
+                self,
+                "Error",
+                "No scoring logic supports the chosen pod sizes.",
+            )
+            return
         TournamentAction.LOGF = self.ui.le_log_location.text()
         self.config = TournamentConfiguration(
             ruleset=self.ui.cb_ruleset.currentData(),
