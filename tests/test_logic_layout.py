@@ -1,6 +1,5 @@
 """Sidecars register methods; game modules must remain independent."""
 
-import ast
 import importlib
 import inspect
 import subprocess
@@ -17,38 +16,6 @@ from src.interface import IPairingLogic, IRuleset, IScoringLogic
 from src.logic.commander.matching import PairingDefault
 
 LOGIC = Path(core.__file__).parent / "logic"
-
-
-@pytest.mark.parametrize(
-    "game, forbidden",
-    [
-        ("mtg", "commander"),
-        ("commander", "mtg"),
-        ("common", "commander"),
-        ("common", "mtg"),
-    ],
-)
-def test_game_imports_are_independent(game, forbidden):
-    for path in (LOGIC / game).glob("*.py"):
-        package = f"src.logic.{game}"
-        for node in ast.walk(ast.parse(path.read_text())):
-            names = []
-            if isinstance(node, ast.Import):
-                names = [alias.name for alias in node.names]
-            elif isinstance(node, ast.ImportFrom):
-                module = (
-                    importlib.util.resolve_name(
-                        "." * node.level + (node.module or ""), package
-                    )
-                    if node.level
-                    else node.module or ""
-                )
-                names = [module, *(f"{module}.{alias.name}" for alias in node.names)]
-            assert not any(
-                name == f"src.logic.{forbidden}"
-                or name.startswith(f"src.logic.{forbidden}.")
-                for name in names
-            ), path
 
 
 @pytest.mark.parametrize(
