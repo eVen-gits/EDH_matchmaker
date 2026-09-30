@@ -99,7 +99,7 @@ For standings ownership, see the `IPairingLogic` / `IScoringLogic` /
 players still in contention when that stage begins (`TOP_4`, `TOP_8`,
 …) — not a size specific to any one game. The same stage value produces a
 different pod layout per ruleset: Commander's `TOP_4` is one 4-player pod
-(`PairingTop4`); MTG's `TOP_4` is two 2-player pods, a semifinal
+(`PairingTopCut`); MTG's `TOP_4` is two 2-player pods, a semifinal
 (`PairingBracket`). Which stage values a ruleset accepts as `top_cut` is
 that ruleset's `PLAYOFFS` mapping's keys.
 
@@ -154,8 +154,9 @@ The three extension points for tournament behavior: how players get
 grouped into pods (`IPairingLogic`), how results become points and standings
 with scoring-specific tiebreakers (`IScoringLogic`), and how one game's rules decide what a valid
 result is, who won, and the Swiss/playoff structure (`IRuleset` — see the
-"Ruleset" entry above). For registration requirements, see
-[parameter definitions](docs/tournament-log-spec.md#where-parameter-definitions-live-implementation-note).
+"Ruleset" entry above). All three are auto-discovered — for each game
+directory under `src/logic/`, a `matching.py`/`scoring.py`/`rules.py`
+module is picked up without touching core or GUI code.
 
 The [`IScoringLogic` interface](src/interface.py) defines the standings
 extension contract. For each algorithm's standings behavior, see
@@ -166,8 +167,9 @@ extension contract. For each algorithm's standings behavior, see
 **Invariant:** A new implementation is *not* offered to the config GUI
 unless `IS_COMPLETE = True` is set — an in-progress algorithm left at the
 default `IS_COMPLETE = False` stays invisible rather than half-working.
-For game independence and shared base classes, see the
-[algorithm development skill](.claude/skills/add-pairing-scoring-algorithm/SKILL.md).
+**Invariant:** Game directories never import from each other. Code two
+games share (`CommonPairing`, `CommonScoring`, `FixedPointsScoring`) lives
+in `src/logic/common/` (`tests/test_logic_layout.py` enforces this).
 
 ## `SUPPORTED_POD_SIZES`
 
@@ -193,7 +195,7 @@ omission.
 Whether a pairing-logic class is offered as a user choice in the config GUI.
 
 **Lives in:** `src/interface.py` (`IPairingLogic.SELECTABLE`)
-**Invariant:** Top-cut pairing logic (`PairingTopN` family) sets
+**Invariant:** Top-cut pairing logic (`PairingTopCut`) sets
 `SELECTABLE = False` — it's chosen automatically by tournament stage, not by
 the user, even though `IS_COMPLETE = True`. Don't add a top-cut algorithm to
 a user-facing picker; that's the tournament stage's job.

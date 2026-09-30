@@ -14,7 +14,7 @@ class Pairing1v1(CommonPairing):
     smallest pair-downs, the bye to the lowest-ranked player without one)
     are exact priorities a greedy fill can't guarantee, but a matching
     can. The shared CommonPairing base supplies rating helpers. This
-    algorithm has no tunable parameters; its sidecar declares an empty mapping.
+    algorithm has no tunable parameters, so it ships no sidecar.
     """
 
     IS_COMPLETE = True
@@ -28,7 +28,8 @@ class Pairing1v1(CommonPairing):
         # back to the full graph when the matching is not perfect.
         # Imported here, not at module level, so a missing networkx install
         # only breaks MTG Swiss pairing, not discovery of the whole mtg
-        # package (discovery imports modules to resolve sidecar class names).
+        # package (matching.py/scoring.py are imported wholesale to find
+        # every IS_COMPLETE class in them).
         import networkx as nx
 
         ratings = self.field_ratings(tour_round)
@@ -172,7 +173,7 @@ class PairingBracket(CommonPairing):
     """Single-elimination playoff bracket (spec 4, MTR 10.4).
 
     Chosen automatically per playoff stage by Mtg1v1Ruleset.PLAYOFFS, never
-    offered to the user (SELECTABLE = False). The
+    offered to the user (SELECTABLE = False) - so it ships no sidecar. The
     bracket is seeded once, at the cut, and never reseeded: every stage
     recomputes the same seed list from the final Swiss standings, filtered
     to players who were still active when the first playoff round was

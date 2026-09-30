@@ -237,124 +237,52 @@ class PairingDefault(CommonPairing):
         return players
 
 
-class PairingTop4(CommonPairing):
+class PairingTopCut(CommonPairing):
+    """Commander top-cut pairing for every stage of CommanderRuleset.PLAYOFFS.
+
+    The cut size is the round's stage (Round.Stage value), never a user
+    setting. The TOP_4 final seats all four finalists in one pod; larger
+    cuts give the top seeds byes (_BYES) and snake-seat the rest.
+    """
+
     IS_COMPLETE = True
     SELECTABLE = False  # top-cut pairing, chosen automatically by stage
+
+    # Seeded byes per cut size.
+    _BYES = {4: 0, 7: 3, 10: 2, 13: 1, 16: 0, 40: 16}
+
+    # The per-cut classes this one replaced, still named in saved logs.
+    ALIASES = (
+        "PairingTop4", "PairingTop7", "PairingTop10",
+        "PairingTop13", "PairingTop16", "PairingTop40",
+    )
+
+    @override
+    def advance_topcut(self, tour_round: IRound, standings: list[IPlayer]) -> None:
+        n_byes = self._BYES[tour_round.stage.value]  # pyright: ignore[reportAttributeAccessIssue]
+        for p in standings[:n_byes]:
+            p.set_result(tour_round, IPlayer.EResult.BYE)
 
     @override
     def make_pairings(
         self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]
     ) -> set[IPlayer]:
-        prev_round = tour_round.tour.previous_round(tour_round)
-        standings = tour_round.tour.get_standings(prev_round)
-        assignable_players = sorted(
-            tour_round.active_players, key=lambda x: standings.index(x)
-        )
+        if tour_round.stage.value == 4:  # pyright: ignore[reportAttributeAccessIssue]
+            prev_round = tour_round.tour.previous_round(tour_round)  # pyright: ignore[reportAttributeAccessIssue]
+            standings = tour_round.tour.get_standings(prev_round)
+            for p in sorted(tour_round.active_players, key=standings.index):
+                pods[0].add_player(p)
+            return players
 
-        for p in assignable_players:
-            pods[0].add_player(p)
-
-        return players
-
-
-class PairingSemiCommon(CommonPairing):
-    N_BYES = -1
-    SELECTABLE = False  # top-cut pairing base, chosen automatically by stage
-
-    @override
-    def advance_topcut(self, tour_round: IRound, standings: list[IPlayer]) -> None:
-        byes = [standings[i] for i in range(self.N_BYES)]
-
-        for p in byes:
-            p.set_result(tour_round, IPlayer.EResult.BYE)
-
-    @staticmethod
-    def make_pairings(
-        n_byes: int, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]
-    ) -> set[IPlayer]:
         standings = tour_round.tour.get_standings(tour_round)
-
         assignable_players = sorted(
             (tour_round.active_players - set(tour_round.byes)),
-            key=lambda x: standings.index(x),
+            key=standings.index,
         )
-
         n_pods = len(pods)
-        pod_size = len(assignable_players) // n_pods
         for i, p in enumerate(assignable_players):
             pass_num = i // n_pods
             pos = i % n_pods
             pod_idx = pos if pass_num % 2 == 0 else (n_pods - 1 - pos)
             pods[pod_idx].add_player(p)
-        return players
-
-
-class PairingTop7(PairingSemiCommon):
-    IS_COMPLETE = True
-    N_BYES = 3
-
-    @override
-    def make_pairings(
-        self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]
-    ) -> set[IPlayer]:
-        players = PairingSemiCommon.make_pairings(
-            self.N_BYES, tour_round=tour_round, players=players, pods=pods
-        )
-        return players
-
-
-class PairingTop10(PairingSemiCommon):
-    IS_COMPLETE = True
-    N_BYES = 2
-
-    @override
-    def make_pairings(
-        self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]
-    ) -> set[IPlayer]:
-        players = PairingSemiCommon.make_pairings(
-            self.N_BYES, tour_round=tour_round, players=players, pods=pods
-        )
-
-        return players
-
-
-class PairingTop13(PairingSemiCommon):
-    IS_COMPLETE = True
-    N_BYES = 1
-
-    @override
-    def make_pairings(
-        self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]
-    ) -> set[IPlayer]:
-        players = PairingSemiCommon.make_pairings(
-            self.N_BYES, tour_round=tour_round, players=players, pods=pods
-        )
-        return players
-
-
-class PairingTop16(PairingSemiCommon):
-    IS_COMPLETE = True
-    N_BYES = 0
-
-    @override
-    def make_pairings(
-        self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]
-    ) -> set[IPlayer]:
-        players = PairingSemiCommon.make_pairings(
-            self.N_BYES, tour_round=tour_round, players=players, pods=pods
-        )
-        return players
-
-
-class PairingTop40(PairingSemiCommon):
-    IS_COMPLETE = True
-    N_BYES = 16
-
-    @override
-    def make_pairings(
-        self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]
-    ) -> set[IPlayer]:
-        players = PairingSemiCommon.make_pairings(
-            self.N_BYES, tour_round=tour_round, players=players, pods=pods
-        )
         return players

@@ -651,15 +651,11 @@ To add a new scoring or pairing algorithm with tunable parameters:
    with `item_type`; `default_from: ruleset.X` takes the default from the
    selected ruleset, and `choices_from` names where runtime choices come from
    (see `src/param_spec.py`).
-3. Give each concrete subclass its own sidecar with its full parameter contract.
-   The loader supports MRO inheritance, but discovery requires the class's own file.
+3. A subclass with no sidecar of its own inherits its parent's parameters (as
+   `ScoringModifiedHareruya` inherits `ScoringHareruya`'s).
 
-Every discoverable pairing method, scoring method, and ruleset requires its own
-sidecar, including non-selectable top-cut methods. A method without parameters
-uses `{}`. Discovery resolves sidecar names to concrete classes with
-`IS_COMPLETE = True` in the same directory's `matching.py`, `scoring.py`, or
-`rules.py`. It warns about missing sidecars and unmatched names.
-The tournament configuration fields are described the same way, in
+An algorithm with no parameters needs no sidecar file. The tournament
+configuration fields are described the same way, in
 `src/TournamentConfiguration.params.yaml` and each game's `CONFIG_CLASS`
 sidecar. `python -m src.param_catalog` prints every spec, grouped by game, as
 JSON for a front end.

@@ -391,7 +391,7 @@ class TestPairingLogicsConfig(unittest.TestCase):
             t.new_round()
         t.create_pairings()  # next round is the TOP_4 cut
         self.assertEqual(t.tour_round.stage, Round.Stage.TOP_4)
-        self.assertEqual(t.tour_round.logic.name, "PairingTop4")
+        self.assertEqual(t.tour_round.logic.name, "PairingTopCut")
 
     def test_serialize_roundtrip_and_backward_compat(self):
         import json

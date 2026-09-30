@@ -56,8 +56,9 @@ scanning (`docs:`, `fix:`, `CI:`). Keep the subject line short; put the
 Rules that need human/agent judgment rather than mechanical enforcement.
 See `CONTEXT.md` for the terms referenced here.
 
-- **Auto-discovery, not hand-wiring.** For registration requirements, see
-  [parameter definitions](docs/tournament-log-spec.md#where-parameter-definitions-live-implementation-note).
+- **Auto-discovery, not hand-wiring.** A new scoring or pairing algorithm
+  needs a class (`IS_COMPLETE = True`) plus a `<ClassName>.params.yaml`
+  sidecar if it has parameters — never a core or GUI change to register it.
 - **The params sidecar is the source of truth**, not a hardcoded default in
   the class. If you add or change a parameter, update the sidecar in the
   same commit.

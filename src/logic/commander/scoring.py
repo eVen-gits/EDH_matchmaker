@@ -53,7 +53,8 @@ class ScoringHareruya(CommonScoring):
     IS_COMPLETE: bool = True
     SUPPORTED_POD_SIZES = (3, 4, 5, 6)
 
-    # Parameters live in each concrete class's own sidecar.
+    # Parameters live in the sidecar ScoringHareruya.params.yaml.
+    # ScoringModifiedHareruya inherits this spec (it ships no sidecar).
 
     def compute_ratings(
         self, tour: ITournament, tour_round: IRound
