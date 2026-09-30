@@ -35,4 +35,3 @@ assert not any(name.startswith('src.logic.{forbidden}.') for name in sys.modules
         ],
         check=True,
     )
-

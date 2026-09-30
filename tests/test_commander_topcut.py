@@ -95,5 +95,3 @@ class TestTopCutMatchesFormerClasses(unittest.TestCase):
             self.assertEqual(
                 Tournament.get_pairing_logic(f"PairingTop{n}").name, "PairingTopCut"
             )
-
-
