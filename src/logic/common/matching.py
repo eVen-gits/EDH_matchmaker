@@ -3,7 +3,7 @@ import random
 from collections.abc import Sequence
 
 from ...interface import IPlayer, IPod, IRound
-from ..commander.matching import CommonPairing
+from .pairing import CommonPairing
 
 from typing_extensions import override
 

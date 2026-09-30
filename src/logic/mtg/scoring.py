@@ -6,7 +6,7 @@ from typing import Any
 from uuid import UUID
 
 from ...interface import IPlayer, IRound, ITournament
-from ..commander import scoring as _commander_scoring
+from ..common.scoring import CommonScoring, FixedPointsScoring
 
 # As written in the Magic Tournament Rules (3.1, Appendix C) - not 1/3.
 FLOOR = Fraction(33, 100)
@@ -54,7 +54,7 @@ class MtrStats:
 def _swiss_rounds_up_to(tour: ITournament, tour_round: IRound) -> Iterator[IRound]:
     """Yields Swiss rounds through tour_round; a playoff ends accumulation."""
     for i_tour_round in tour.rounds:
-        if i_tour_round.stage.value != _commander_scoring.CommonScoring._SWISS:
+        if i_tour_round.stage.value != CommonScoring._SWISS:
             break
         yield i_tour_round
         if i_tour_round == tour_round:
@@ -96,7 +96,7 @@ def mtr_stats(tour: ITournament, player: IPlayer, tour_round: IRound) -> MtrStat
     return MtrStats(match_points, rounds_played, game_points, games_played, tuple(opponents))
 
 
-class Scoring1v1(_commander_scoring.ScoringDefault):
+class Scoring1v1(FixedPointsScoring):
     """Match points and MTR tiebreakers for 1v1 Magic tournaments.
 
     Magic Tournament Rules Appendix C ("Match Points"): 3 points for a

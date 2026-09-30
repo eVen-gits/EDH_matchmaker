@@ -1,0 +1,68 @@
+# Parameters for ScoringHareruya (and, by inheritance, ScoringModifiedHareruya).
+# This file is the source of truth for the algorithm's parameter names,
+# defaults, ranges, and descriptions.
+wager_percent:
+  default: 0.07
+  type: float
+  min: 0
+  max: 1
+  step: 0.01
+  scale: 100      # stored as a fraction, shown as a percentage
+  suffix: "%"
+  label: Wager %
+  description: >
+    Fraction of a player's current stack wagered into the pot each pod. Every
+    seated player wagers this share; the pot is the sum of those wagers.
+
+wagering_starting_points:
+  default: 1000
+  type: int
+  min: 1
+  step: 100
+  label: Starting points
+  description: The point stack every player starts with before round 1.
+
+draw_redistribution_fraction:
+  default: 1.0
+  type: float
+  min: 0
+  max: 1
+  step: 0.05
+  label: Draw redistribution (R)
+  description: >
+    Fraction of the pot that drawers receive back. At 1.0 the full pot is
+    split among drawers. At 0.0 a draw pays nothing and the pot is discarded.
+
+draw_distribution_shape:
+  default: 1.0
+  type: float
+  min: 0
+  max: 1
+  step: 0.05
+  label: Draw shape (S)
+  description: >
+    Blends the draw payout between an equal split and a wager-proportional
+    split. At 1.0 drawers split the pot evenly. At 0.0 each drawer is paid in
+    proportion to the size of their own wager.
+
+redistribute_discarded_draw_points:
+  default: false
+  type: bool
+  label: Reclaim discarded draw points
+  description: >
+    When on, the pot left over after the redistribution fraction (the
+    (1 - R) share) is reclaimed instead of discarded. When off, that share
+    leaves the economy.
+
+draw_discard_pod_fraction:
+  default: 1.0
+  type: float
+  min: 0
+  max: 1
+  step: 0.05
+  label: Reclaim pod share
+  visible_when: {redistribute_discarded_draw_points: true}
+  description: >
+    Only used when reclaim is on. Splits the reclaimed points between a bonus
+    to this pod's drawers (this fraction) and an equal per-capita dividend to
+    every player in the tournament (the remainder).

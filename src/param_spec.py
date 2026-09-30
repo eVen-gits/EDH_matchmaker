@@ -117,8 +117,8 @@ def _sidecar_path(cls: type) -> Path | None:
     """Returns the ``<ClassName>.params.yaml`` beside the class's module.
 
     Walks the MRO so a subclass with no file of its own inherits the first
-    ancestor that does (for example ScoringModifiedHareruya reuses
-    ScoringHareruya's spec). Returns None if no file exists in the MRO.
+    ancestor that does. Discovery separately requires each concrete method's
+    own file. Returns None if no file exists in the MRO.
     """
     for ancestor in cls.__mro__:
         module = sys.modules.get(ancestor.__module__)
@@ -154,7 +154,11 @@ def load_param_spec(cls: type, inherit: bool = True) -> dict[str, ParamSpec]:
     if path is None:
         return {}
 
-    raw = yaml.safe_load(path.read_text()) or {}
+    # An explicit empty mapping declares no parameters. Empty YAML remains
+    # supported, but false scalar values and lists are not mappings.
+    raw = yaml.safe_load(path.read_text())
+    if raw is None:
+        raw = {}
     if not isinstance(raw, dict):
         raise ValueError(f"{path}: top level must be a mapping of parameter names.")
 

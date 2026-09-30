@@ -18,10 +18,13 @@ same directory as the module that defines the class (e.g.
 `src/logic/commander/ScoringHareruya.params.yaml` next to
 `src/logic/commander/scoring.py`).
 
-A subclass that doesn't ship its own sidecar automatically inherits its
-parent's — the loader walks the class MRO to find one. Only add a new file
-when the subclass's parameters actually differ from the parent's; don't
-copy a sidecar unchanged just because the class is new.
+Every discoverable pairing method, scoring method, and ruleset requires its
+own sidecar. This includes subclasses and non-selectable top-cut methods.
+Discovery registers concrete, complete classes from these files.
+For a method without parameters, write an explicit empty mapping: `{}`.
+For a parameterized subclass, declare its full parameter contract in its own file.
+The loader still supports MRO inheritance for classes without sidecars, but
+discovery does not register those classes.
 
 ## Field contract
 

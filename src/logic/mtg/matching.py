@@ -2,23 +2,19 @@ from __future__ import annotations
 import random
 from typing import Any
 
-from ..commander import matching as _commander_matching
+from ..common.pairing import CommonPairing
 from ...interface import IPlayer, IPod, IRound
 
 
-class Pairing1v1(_commander_matching.CommonPairing):
+class Pairing1v1(CommonPairing):
     """Swiss pairing for 1v1 (2-player pod) Magic tournaments.
 
     A maximum-weight perfect matching (networkx), not Commander's greedy
     pod-fill: spec 4.1's rules (no rematch when avoidable, fewest and
     smallest pair-downs, the bye to the lowest-ranked player without one)
     are exact priorities a greedy fill can't guarantee, but a matching
-    can. Subclasses CommonPairing directly (not commander's PairingDefault
-    - see the CommonPairing import note in matching.py's own module
-    docstring pattern): this algorithm doesn't reuse PairingDefault's sort
-    key or pod-fit scoring, so it ships no sidecar of its own (no
-    rematch_penalty_exponent / small_pod_penalty - those are
-    PairingDefault-specific).
+    can. The shared CommonPairing base supplies rating helpers. This
+    algorithm has no tunable parameters; its sidecar declares an empty mapping.
     """
 
     IS_COMPLETE = True
@@ -32,8 +28,7 @@ class Pairing1v1(_commander_matching.CommonPairing):
         # back to the full graph when the matching is not perfect.
         # Imported here, not at module level, so a missing networkx install
         # only breaks MTG Swiss pairing, not discovery of the whole mtg
-        # package (matching.py/scoring.py are imported wholesale to find
-        # every IS_COMPLETE class in them).
+        # package (discovery imports modules to resolve sidecar class names).
         import networkx as nx
 
         ratings = self.field_ratings(tour_round)
@@ -173,7 +168,7 @@ def bracket_seed_order(n: int) -> list[int]:
     return order
 
 
-class PairingBracket(_commander_matching.CommonPairing):
+class PairingBracket(CommonPairing):
     """Single-elimination playoff bracket (spec 4, MTR 10.4).
 
     Chosen automatically per playoff stage by Mtg1v1Ruleset.PLAYOFFS, never

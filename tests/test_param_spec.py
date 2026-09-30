@@ -50,8 +50,8 @@ class TestShippedParamSpecs(unittest.TestCase):
         self.assertEqual((wager.min, wager.max), (0, 1))
         self.assertEqual(wager.label, "Wager %")
 
-    def test_modified_inherits_hareruya_spec(self):
-        # ScoringModifiedHareruya ships no sidecar; it must inherit its parent's.
+    def test_modified_preserves_hareruya_spec(self):
+        # Its required sidecar preserves the same parameter contract.
         modified = Tournament.get_scoring_logic("ScoringModifiedHareruya")
         hareruya = Tournament.get_scoring_logic("ScoringHareruya")
         self.assertEqual(modified.PARAM_SPEC, hareruya.PARAM_SPEC)
@@ -71,7 +71,7 @@ class TestShippedParamSpecs(unittest.TestCase):
         self.assertEqual(spec.type, "int")
         self.assertEqual((spec.min, spec.max), (1, 4))
 
-    def test_pairing_logic_without_sidecar_has_empty_spec(self):
+    def test_pairing_logic_with_empty_sidecar_has_empty_spec(self):
         logic = Tournament.get_pairing_logic("PairingRandom")
         self.assertEqual(logic.PARAM_SPEC, {})
         self.assertEqual(logic.DEFAULT_PARAMS, {})
@@ -79,6 +79,14 @@ class TestShippedParamSpecs(unittest.TestCase):
 
 class TestLoaderValidation(unittest.TestCase):
     """load_param_spec discovers a class's sidecar and rejects malformed ones."""
+
+    def test_explicit_empty_mapping(self):
+        self.assertEqual(self._load("NoParams", "{}\n"), {})
+
+    def test_false_values_are_not_empty_mappings(self):
+        for text in ("[]", "false", "0", "''"):
+            with self.subTest(text=text), self.assertRaisesRegex(ValueError, "top level must be a mapping"):
+                self._load("Bad", text)
 
     def _load(self, class_name, yaml_text):
         # Build a throwaway class whose module lives in a temp dir, drop a

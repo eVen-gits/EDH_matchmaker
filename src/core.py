@@ -8,6 +8,7 @@ import copy
 import csv
 import functools
 import importlib
+import inspect
 import io
 import json
 import math
@@ -933,40 +934,79 @@ class Tournament(ITournament):
     def _discover_logic(
         cls, filename: str, base: type, cache: dict[str, Any]
     ) -> None:
-        """Populates cache from every src/logic/<game>/<filename> module.
+        """Register concrete methods named by their own sidecars.
 
-        Each game directory under src/logic/ may ship a matching.py (pairing
-        logic) and/or a scoring.py (scoring logic); every class in it that
-        implements `base` and sets IS_COMPLETE = True is instantiated and
-        cached by class name.
+        The conventional modules supply class definitions, not registration.
+        Config sidecars share these directories but do not register methods.
+        Warn about missing sidecars and sidecars without a matching class.
         """
-        base_dir = Path(__file__).parent.parent
-        logic_dir = base_dir / "src" / "logic"
+        logic_dir = Path(__file__).parent / "logic"
         for game_dir in sorted(p for p in logic_dir.iterdir() if p.is_dir()):
-            if not (game_dir / filename).is_file():
-                continue
-            module_name = f"src.logic.{game_dir.name}.{filename[:-len('.py')]}"
-            try:
-                module = importlib.import_module(module_name)
-                for name, obj in module.__dict__.items():
-                    if (
-                        isinstance(obj, type)
-                        and issubclass(obj, base)
-                        and obj is not base
-                        and obj.IS_COMPLETE
-                    ):
-                        if obj.__name__ in cache:
-                            raise ValueError(f"{obj.__name__} already exists")
-                        cache[obj.__name__] = obj(name=f"{obj.__name__}")
-            except Exception as e:
+            classes: dict[str, type] = {}
+            for module_file in ("matching.py", "scoring.py", "rules.py"):
+                if not (game_dir / module_file).is_file():
+                    continue
+                module_name = f"src.logic.{game_dir.name}.{module_file[:-3]}"
+                try:
+                    module = importlib.import_module(module_name)
+                except Exception as e:
+                    Log.log(
+                        f"Failed to import logic module {module_name}: {e}",
+                        level=Log.Level.WARNING,
+                    )
+                    continue
+                for obj in vars(module).values():
+                    if isinstance(obj, type) and obj.__module__ == module_name:
+                        classes[obj.__name__] = obj
+
+            candidates = {
+                name: obj
+                for name, obj in classes.items()
+                if issubclass(obj, base)
+                and obj is not base
+                and obj.__module__.endswith(f".{filename[:-3]}")
+                and obj.IS_COMPLETE
+                and not inspect.isabstract(obj)
+            }
+            sidecars = {
+                path.name.removesuffix(".params.yaml"): path
+                for path in sorted(game_dir.glob("*.params.yaml"))
+            }
+            for name in candidates.keys() - sidecars.keys():
                 Log.log(
-                    f"Failed to import logic module {module_name}: {e}",
+                    f"Complete method {game_dir.name}.{name} has no own sidecar",
                     level=Log.Level.WARNING,
                 )
+            for name, path in sidecars.items():
+                obj = classes.get(name)
+                if obj is None:
+                    Log.log(
+                        f"Sidecar {path} has no matching class",
+                        level=Log.Level.WARNING,
+                    )
+                    continue
+                if issubclass(obj, TournamentConfiguration):
+                    continue
+                if name not in candidates:
+                    if issubclass(obj, base):
+                        Log.log(
+                            f"Sidecar {path} does not name a complete concrete method",
+                            level=Log.Level.WARNING,
+                        )
+                    continue
+                try:
+                    if name in cache:
+                        raise ValueError(f"{name} already exists")
+                    cache[name] = obj(name=name)
+                except Exception as e:
+                    Log.log(
+                        f"Failed to register sidecar {path}: {e}",
+                        level=Log.Level.WARNING,
+                    )
 
     @classmethod
     def discover_pairing_logic(cls) -> None:
-        """Discover and cache all pairing logic implementations from src/logic/*/matching.py."""
+        """Discover pairing methods from their own src/logic/*/*.params.yaml files."""
         if cls._pairing_logic_cache:
             return
         cls._discover_logic("matching.py", IPairingLogic, cls._pairing_logic_cache)
@@ -1009,7 +1049,7 @@ class Tournament(ITournament):
 
     @classmethod
     def discover_scoring_logic(cls) -> None:
-        """Discover and cache all scoring logic implementations from src/logic/*/scoring.py."""
+        """Discover scoring methods from their own src/logic/*/*.params.yaml files."""
         if cls._scoring_logic_cache:
             return
         cls._discover_logic("scoring.py", IScoringLogic, cls._scoring_logic_cache)
@@ -1056,7 +1096,7 @@ class Tournament(ITournament):
 
     @classmethod
     def discover_ruleset(cls) -> None:
-        """Discover and cache all ruleset implementations from src/logic/*/rules.py."""
+        """Discover rulesets from their own src/logic/*/*.params.yaml files."""
         if cls._ruleset_cache:
             return
         cls._discover_logic("rules.py", IRuleset, cls._ruleset_cache)
@@ -3431,7 +3471,7 @@ class Round(IRound):
         TOP_40 = 40
 
         @staticmethod
-        def is_playoff(stage: Stage) -> bool:
+        def is_playoff(stage: Round.Stage) -> bool:
             return stage != Round.Stage.SWISS
 
     def __init__(
