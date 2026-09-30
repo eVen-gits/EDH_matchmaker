@@ -46,12 +46,12 @@ class CommanderRuleset(IRuleset):
     CONFIG_CLASS = CommanderConfiguration
 
     PLAYOFFS = {
-        4: ((4, "PairingTop4"),),
-        7: ((7, "PairingTop7"), (4, "PairingTop4")),
-        10: ((10, "PairingTop10"), (4, "PairingTop4")),
-        13: ((13, "PairingTop13"), (4, "PairingTop4")),
-        16: ((16, "PairingTop16"), (4, "PairingTop4")),
-        40: ((40, "PairingTop40"), (16, "PairingTop16"), (4, "PairingTop4")),
+        4: ((4, "PairingTopCut"),),
+        7: ((7, "PairingTopCut"), (4, "PairingTopCut")),
+        10: ((10, "PairingTopCut"), (4, "PairingTopCut")),
+        13: ((13, "PairingTopCut"), (4, "PairingTopCut")),
+        16: ((16, "PairingTopCut"), (4, "PairingTopCut")),
+        40: ((40, "PairingTopCut"), (16, "PairingTopCut"), (4, "PairingTopCut")),
     }
 
     def validate_report(self, pod: IPod, games: list[IGameResult]) -> None:

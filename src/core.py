@@ -983,10 +983,12 @@ class Tournament(ITournament):
         """
         cls.discover_pairing_logic()
 
-        if logic_name not in cls._pairing_logic_cache:
-            raise ValueError(f"Unknown pairing logic: {logic_name}")
-
-        return cls._pairing_logic_cache[logic_name]
+        if logic_name in cls._pairing_logic_cache:
+            return cls._pairing_logic_cache[logic_name]
+        for logic in cls._pairing_logic_cache.values():
+            if logic_name in logic.ALIASES:
+                return logic
+        raise ValueError(f"Unknown pairing logic: {logic_name}")
 
     @classmethod
     def selectable_pairing_logics(
@@ -3431,7 +3433,7 @@ class Round(IRound):
         TOP_40 = 40
 
         @staticmethod
-        def is_playoff(stage: Stage) -> bool:
+        def is_playoff(stage: Round.Stage) -> bool:
             return stage != Round.Stage.SWISS
 
     def __init__(

@@ -99,7 +99,7 @@ For standings ownership, see the `IPairingLogic` / `IScoringLogic` /
 players still in contention when that stage begins (`TOP_4`, `TOP_8`,
 …) — not a size specific to any one game. The same stage value produces a
 different pod layout per ruleset: Commander's `TOP_4` is one 4-player pod
-(`PairingTop4`); MTG's `TOP_4` is two 2-player pods, a semifinal
+(`PairingTopCut`); MTG's `TOP_4` is two 2-player pods, a semifinal
 (`PairingBracket`). Which stage values a ruleset accepts as `top_cut` is
 that ruleset's `PLAYOFFS` mapping's keys.
 
@@ -167,19 +167,9 @@ extension contract. For each algorithm's standings behavior, see
 **Invariant:** A new implementation is *not* offered to the config GUI
 unless `IS_COMPLETE = True` is set — an in-progress algorithm left at the
 default `IS_COMPLETE = False` stays invisible rather than half-working.
-**Invariant:** One game's `matching.py`/`scoring.py`/`rules.py` may
-subclass another game's class directly (`mtg.scoring.Scoring1v1`
-subclasses `commander.scoring.ScoringDefault`, for example) to reuse a
-formula that isn't actually game-specific. Doing this safely requires
-importing the *module*, not the class
-(`from ..commander import scoring as _commander_scoring`, then
-`class Scoring1v1(_commander_scoring.ScoringDefault)`) — importing the
-class by name also binds it in the subclassing module's namespace, and
-since the discovery scan (`Tournament._discover_logic`) keys registered
-classes by `obj.__name__` (not the import alias), an already-`IS_COMPLETE`
-parent class showing up in two modules' `__dict__` collides and silently
-drops that whole module from discovery (caught, logged as a warning, easy
-to miss).
+**Invariant:** Game directories never import from each other. Code two
+games share (`CommonPairing`, `CommonScoring`, `FixedPointsScoring`) lives
+in `src/logic/common/` (`tests/test_logic_layout.py` enforces this).
 
 ## `SUPPORTED_POD_SIZES`
 
@@ -205,7 +195,7 @@ omission.
 Whether a pairing-logic class is offered as a user choice in the config GUI.
 
 **Lives in:** `src/interface.py` (`IPairingLogic.SELECTABLE`)
-**Invariant:** Top-cut pairing logic (`PairingTopN` family) sets
+**Invariant:** Top-cut pairing logic (`PairingTopCut`) sets
 `SELECTABLE = False` — it's chosen automatically by tournament stage, not by
 the user, even though `IS_COMPLETE = True`. Don't add a top-cut algorithm to
 a user-facing picker; that's the tournament stage's job.

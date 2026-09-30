@@ -255,6 +255,9 @@ class IPairingLogic(ABC):
     # The tournament's pod sizes must all be supported for this algorithm to be
     # offered - see supports_pod_sizes and Tournament.selectable_pairing_logics.
     SUPPORTED_POD_SIZES: tuple[int, ...] | None = None
+    # Former class names this logic replaced. Saved logs name each round's
+    # logic, so Tournament.get_pairing_logic resolves these to this logic.
+    ALIASES: tuple[str, ...] = ()
     name: str
 
     @classmethod

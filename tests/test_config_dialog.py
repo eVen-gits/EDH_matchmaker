@@ -80,7 +80,7 @@ class TestConfigDialogPairingRows(unittest.TestCase):
         dlg, _ = self._dialog(n_rounds=2)
         combo = dlg._pairing_combos[0]
         offered = [combo.itemData(i) for i in range(combo.count())]
-        self.assertNotIn("PairingTop4", offered)
+        self.assertNotIn("PairingTopCut", offered)
         self.assertIn("PairingRandom", offered)
 
 

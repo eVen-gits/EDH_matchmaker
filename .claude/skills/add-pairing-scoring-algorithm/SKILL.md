@@ -33,10 +33,12 @@ shape for this repo.
    game. Either way, the file only needs the class inside it — discovery is
    automatic.
 
-2. **Subclass the shared base, not the raw interface.** If the game
-   directory already has a `CommonPairing`/`CommonScoring` base class,
-   subclass that instead of `IPairingLogic`/`IScoringLogic` directly — it
-   carries reusable helpers you almost certainly need:
+2. **Subclass the shared base, not the raw interface.** Subclass
+   `CommonPairing` (`src/logic/common/pairing.py`) or `CommonScoring` /
+   `FixedPointsScoring` (`src/logic/common/scoring.py`) instead of
+   `IPairingLogic`/`IScoringLogic` directly. Import shared code only from
+   `common`, never from another game's directory. The bases carry reusable
+   helpers you almost certainly need:
    - Pairing: `field_ratings()`, `evaluate_pod()`,
      `bye_matching()`/`assign_byes()`.
    - Scoring: `_swiss_rounds_up_to()`, `rating()`.
@@ -53,8 +55,8 @@ shape for this repo.
    to decide fallback behavior, so an inaccurate `None` is a correctness
    bug, not just a lie in a docstring.
 
-5. **Set `SELECTABLE = False` only for top-cut algorithms** (the
-   `PairingTopN` family's pattern) — ones chosen automatically by
+5. **Set `SELECTABLE = False` only for top-cut algorithms** (Commander's
+   `PairingTopCut` pattern) — ones chosen automatically by
    tournament stage rather than offered to the user in the config GUI.
    Regular Swiss pairing/scoring algorithms should leave this at its
    default.

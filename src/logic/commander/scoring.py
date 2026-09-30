@@ -1,105 +1,24 @@
 from __future__ import annotations
 import itertools
 import random
-from abc import ABC
 from collections.abc import Iterator, Mapping
 from typing import Any
 from uuid import UUID
 
 import numpy as np
 
-from ...interface import IPlayer, IRound, IScoringLogic, ITournament
-
-class CommonScoring(IScoringLogic, ABC):
-    _SWISS = 0  # Round.Stage.SWISS / TournamentConfiguration.TopCut.NONE value
-    # Commander pod sizes, including the non-default 6-player pod - so
-    # Commander scoring isn't offered for MTG 1v1 (Scoring1v1 overrides
-    # this to (2,) since it subclasses ScoringDefault). Pairing for a
-    # 6-player pod falls back to PairingRandom (src/logic/common/matching.py),
-    # since PairingDefault/PairingSnake only support (3, 4, 5).
-    SUPPORTED_POD_SIZES = (3, 4, 5, 6)
-
-    def __init__(self, name: str):
-        self.name = name
-
-    def _swiss_rounds_up_to(
-        self, tour: ITournament, tour_round: IRound
-    ) -> Iterator[IRound]:
-        """Yields Swiss-stage rounds in order, stopping after tour_round.
-
-        Both concrete scoring logics only accumulate points for Swiss
-        rounds - a round whose stage is not SWISS (e.g. a top-cut
-        playoff round) ends the accumulation, matching the pre-existing
-        Tournament.rating() behavior this replaces.
-        """
-        for i_tour_round in tour.rounds:
-            if i_tour_round.stage.value != self._SWISS:
-                break
-            yield i_tour_round
-            if i_tour_round == tour_round:
-                break
-
-    def rating(self, player: IPlayer, tour_round: IRound) -> float:
-        # Shared fallback for scoring logics whose economy is
-        # interdependent across players (e.g. ScoringHareruya), where
-        # answering one player's query requires replaying everyone's.
-        # ScoringDefault overrides this with a cheap, independent path.
-        return self.compute_ratings(player.tour, tour_round).get(player.uid, 0)
-
-    def params(self, tour: ITournament) -> dict[str, Any]:
-        """This algorithm's params, tournament overrides on top of its own defaults.
-
-        Cold path only (call once, not per player/opponent) - it allocates
-        a merged dict. On a hot path, use _param() instead.
-        """
-        config = tour.config  # type: ignore[attr-defined]
-        return {**self.DEFAULT_PARAMS, **config.scoring_params}
-
-    def _param(self, tour: ITournament, key: str) -> Any:
-        """Single-param lookup with no allocation - for the rating/pointrate hot path."""
-        config = tour.config  # type: ignore[attr-defined]
-        return config.scoring_params.get(key, self.DEFAULT_PARAMS[key])
+from ...interface import IPlayer, IRound, ITournament
+from ..common.scoring import CommonScoring, FixedPointsScoring
 
 
-class ScoringDefault(CommonScoring):
+class ScoringDefault(FixedPointsScoring):
     """Fixed win/draw/bye point constants - the original, pre-plugin behavior."""
 
     IS_COMPLETE: bool = True
+    SUPPORTED_POD_SIZES = (3, 4, 5, 6)
 
     # Parameters (names, defaults, descriptions) live in the sidecar
     # ScoringDefault.params.yaml; DEFAULT_PARAMS is derived from it.
-
-    def rating(self, player: IPlayer, tour_round: IRound) -> float:
-        # Independent per player - O(rounds), not O(players * rounds).
-        # Deliberately NOT implemented via compute_ratings(): every
-        # player's Default rating is independent of every other
-        # player's, so replaying the whole tournament just to answer
-        # one player's query would be pure waste on the hottest path
-        # in the app (get_standings() calls this once per player).
-        # _param(), not params(): this runs per player, so it must not
-        # allocate a merged dict on every call.
-        tour = player.tour
-        win_points = self._param(tour, "win_points")
-        draw_points = self._param(tour, "draw_points")
-        bye_points = self._param(tour, "bye_points")
-        # Kept as int, not 0.0: win/draw/bye_points are ints, and
-        # StandingsExport's RATING column formats with "{:d}" - this
-        # must stay byte-identical to the pre-plugin behavior.
-        points: float = 0
-        for i_tour_round in self._swiss_rounds_up_to(tour, tour_round):
-            round_result = player.result(i_tour_round)
-            if round_result == IPlayer.EResult.WIN:
-                points += win_points
-            elif round_result == IPlayer.EResult.DRAW:
-                points += draw_points
-            elif round_result == IPlayer.EResult.BYE:
-                points += bye_points
-        return points
-
-    def compute_ratings(
-        self, tour: ITournament, tour_round: IRound
-    ) -> dict[Any, float]:
-        return {p.uid: self.rating(p, tour_round) for p in tour.players}
 
     def standings_keys(
         self,
@@ -123,11 +42,6 @@ class ScoringDefault(CommonScoring):
             for p in tour.players
         }
 
-    def pointrate_denominator(self, tour_round: IRound) -> float:
-        # A win is assumed to be the maximum possible score for one
-        # round, so the max total after N rounds is win_points * N.
-        return self._param(tour_round.tour, "win_points") * (tour_round.seq + 1)
-
 
 class ScoringHareruya(CommonScoring):
     """Percentage-of-stack wagering, winner-takes-pot, configurable draw payout.
@@ -137,6 +51,7 @@ class ScoringHareruya(CommonScoring):
     """
 
     IS_COMPLETE: bool = True
+    SUPPORTED_POD_SIZES = (3, 4, 5, 6)
 
     # Parameters live in the sidecar ScoringHareruya.params.yaml.
     # ScoringModifiedHareruya inherits this spec (it ships no sidecar).
