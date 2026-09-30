@@ -4,6 +4,7 @@ import argparse
 import copy
 import os
 import sys
+import traceback
 
 
 # import names
@@ -2195,7 +2196,21 @@ def load_startup_log(*logdir: str) -> Tournament | None:
         sys.exit(f"Failed to load tournament from {path}: {e}")
 
 
+def show_unhandled_exception(exc_type, exc, tb) -> None:
+    """`sys.excepthook` that logs and shows the error instead of aborting.
+
+    PyQt6 calls `qFatal` (SIGABRT) when an exception escapes a slot and
+    `sys.excepthook` is still the default, so the app must install this one.
+    """
+    if issubclass(exc_type, KeyboardInterrupt):
+        sys.__excepthook__(exc_type, exc, tb)
+        return
+    traceback.print_exception(exc_type, exc, tb)
+    QMessageBox.critical(None, "Unexpected error", f"{exc_type.__name__}: {exc}")
+
+
 if __name__ == "__main__":
+    sys.excepthook = show_unhandled_exception
     parser = build_arg_parser()
     args, unknown = parser.parse_known_args()
 
