@@ -1,4 +1,0 @@
-
-tests/test_excepthook.py:35: AssertionError
-=========================== short test summary info ============================
-FAILED tests/test_excepthook.py::ExceptHookTest::test_slot_exception_shows_dialog_and_app_survives
