@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- An unhandled exception in the GUI now shows an error dialog and is printed to
+  the console, instead of aborting the app.
+
 ## [4.0.0] - 2026-09-29
 
 ### MTG 1v1 support
