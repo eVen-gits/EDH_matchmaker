@@ -500,9 +500,9 @@ player's.
 
 ### `Scoring1v1`
 
-Identical formula to `ScoringDefault` (`Scoring1v1` subclasses it directly,
-`src/logic/mtg/scoring.py`) - the pod win/draw/bye a round's rating sums
-over are unchanged. Only the `scoring_params` defaults differ, matching the
+Identical points formula to `ScoringDefault`: both inherit `FixedPointsScoring`
+from `src/logic/common/scoring.py`. The pod win/draw/bye results that a round's
+rating sums over are unchanged. Only the `scoring_params` defaults differ, matching the
 Magic Tournament Rules' match points (Appendix C) instead of Commander's:
 
 | Field | Type | Default | Description |
@@ -802,7 +802,7 @@ wants working code to compare against:
 
 `ScoringDefault`, `ScoringHareruya`, and `ScoringModifiedHareruya` (all
 in `src/logic/commander/scoring.py`), and `Scoring1v1`
-(`src/logic/mtg/scoring.py`, subclassing `ScoringDefault`) implement the
+(`src/logic/mtg/scoring.py`) implement the
 formulas from [Scoring logic](#scoring-logic); they are not part of the
 JSON schema themselves, only the `config.scoring_logic` string that names
 one of them.

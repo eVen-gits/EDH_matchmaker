@@ -154,9 +154,8 @@ The three extension points for tournament behavior: how players get
 grouped into pods (`IPairingLogic`), how results become points and standings
 with scoring-specific tiebreakers (`IScoringLogic`), and how one game's rules decide what a valid
 result is, who won, and the Swiss/playoff structure (`IRuleset` — see the
-"Ruleset" entry above). All three are auto-discovered — for each game
-directory under `src/logic/`, a `matching.py`/`scoring.py`/`rules.py`
-module is picked up without touching core or GUI code.
+"Ruleset" entry above). For registration requirements, see
+[parameter definitions](docs/tournament-log-spec.md#where-parameter-definitions-live-implementation-note).
 
 The [`IScoringLogic` interface](src/interface.py) defines the standings
 extension contract. For each algorithm's standings behavior, see
@@ -167,19 +166,8 @@ extension contract. For each algorithm's standings behavior, see
 **Invariant:** A new implementation is *not* offered to the config GUI
 unless `IS_COMPLETE = True` is set — an in-progress algorithm left at the
 default `IS_COMPLETE = False` stays invisible rather than half-working.
-**Invariant:** One game's `matching.py`/`scoring.py`/`rules.py` may
-subclass another game's class directly (`mtg.scoring.Scoring1v1`
-subclasses `commander.scoring.ScoringDefault`, for example) to reuse a
-formula that isn't actually game-specific. Doing this safely requires
-importing the *module*, not the class
-(`from ..commander import scoring as _commander_scoring`, then
-`class Scoring1v1(_commander_scoring.ScoringDefault)`) — importing the
-class by name also binds it in the subclassing module's namespace, and
-since the discovery scan (`Tournament._discover_logic`) keys registered
-classes by `obj.__name__` (not the import alias), an already-`IS_COMPLETE`
-parent class showing up in two modules' `__dict__` collides and silently
-drops that whole module from discovery (caught, logged as a warning, easy
-to miss).
+For game independence and shared base classes, see the
+[algorithm development skill](.claude/skills/add-pairing-scoring-algorithm/SKILL.md).
 
 ## `SUPPORTED_POD_SIZES`
 

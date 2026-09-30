@@ -172,7 +172,7 @@ class PairingBracket(CommonPairing):
     """Single-elimination playoff bracket (spec 4, MTR 10.4).
 
     Chosen automatically per playoff stage by Mtg1v1Ruleset.PLAYOFFS, never
-    offered to the user (SELECTABLE = False) - so it ships no sidecar. The
+    offered to the user (SELECTABLE = False). The
     bracket is seeded once, at the cut, and never reseeded: every stage
     recomputes the same seed list from the final Swiss standings, filtered
     to players who were still active when the first playoff round was
