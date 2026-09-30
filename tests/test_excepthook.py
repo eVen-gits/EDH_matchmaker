@@ -5,6 +5,10 @@ import subprocess
 import sys
 import unittest
 
+import pytest
+
+pytestmark = pytest.mark.gui
+
 SCRIPT = """
 import sys
 from unittest import mock
