@@ -10,6 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - An unhandled exception in the GUI now shows an error dialog and is printed to
   the console, instead of aborting the app.
+- Concurrent actions no longer race on a shared temp file when writing the
+  action log.
+
+### Changed
+- The action log (and standings/pods auto-export) is now off by default for
+  library use; set `TournamentAction.LOGF` to a path to enable it. The GUI
+  still writes `logs/default.json`.
 
 ## [4.0.0] - 2026-09-29
 
