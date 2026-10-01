@@ -605,11 +605,11 @@ class TournamentAction:
         logdir = os.path.dirname(logf)
         if logdir:
             os.makedirs(logdir, exist_ok=True)
-        data = tournament.serialize()
         # Write to a unique temp file and rename over the target so a crash
         # mid-write never leaves a truncated log, and concurrent stores never
         # share a temp file.
         with cls._LOCK:
+            data = tournament.serialize()
             fd, tmp_path = tempfile.mkstemp(dir=logdir or ".", suffix=".tmp")
             try:
                 with os.fdopen(fd, "w") as f:
