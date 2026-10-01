@@ -25,7 +25,7 @@ class PairingLogicLookupTest(unittest.TestCase):
         t.add_player([f"P{i}" for i in range(8)])
         expected = t.pairing_logic_name_for(0)
         t.new_round()
-        self.assertEqual(t.last_round.logic.name  # pyright: ignore[reportOptionalMemberAccess], expected)
+        self.assertEqual(t.last_round.logic.name, expected)  # pyright: ignore[reportOptionalMemberAccess]
 
     def test_top_cut_stage(self):
         t = Tournament(
