@@ -1,18 +1,12 @@
+-r requirements-core.txt
 mkdocs
 mkdocs-material
 mkdocstrings[python]
 jellyfish
 names
 PyQt6
-tqdm
-numpy
 qt-material
-faker
-typing_extensions
-requests
 pytest
 pytest-cov
 pre-commit
 jsonschema
-PyYAML
-networkx

@@ -1,0 +1,10 @@
+# Runtime-only dependencies: exactly what `import src.core` and the 1v1/Commander
+# logic need, with no GUI, docs or dev tools. Wrappers should install this file.
+# CI (core-requirements job) builds an env from only this list, so keep it exact.
+numpy
+requests
+tqdm
+typing_extensions
+faker
+PyYAML
+networkx

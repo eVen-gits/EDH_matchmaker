@@ -46,6 +46,9 @@ multiplayer pods) and 1v1 Magic. A tournament's game is an explicit choice
    pip install -r requirements.txt
    ```
 
+   To embed the engine (no GUI, docs or dev tools), install only the runtime
+   list instead: `pip install -r requirements-core.txt`.
+
 ## Usage
 
 Run the user interface:
