@@ -13,6 +13,7 @@ import json
 import math
 import os
 import random
+import tempfile
 import threading
 from collections.abc import Iterable, Mapping
 from datetime import datetime, timezone
@@ -94,7 +95,7 @@ class PodsExport(DataExport):
             except (KeyError, ValueError):
                 tour_round = None
             if self.config.auto_export:
-                logf = TournamentAction.LOGF
+                logf = TournamentAction.log_path(self)
                 if logf and tour_round:
                     # Export pods to a file named {tournament_name}_round_{round_number}.txt
                     # And also export it into {log_directory}/pods.txt
@@ -545,8 +546,14 @@ class Log:
 class TournamentAction:
     """Serializable action that will be stored in tournament log and can be restored"""
 
+    # None: each tournament logs to its own file (Tournament.log_path, else
+    # LOG_DIR/tournament_<uid>.json). A str: every tournament logs to that
+    # path (the GUI's single log). False: no log at all, for wrappers that
+    # keep state elsewhere.
     LOGF: bool | str | None = None
     DEFAULT_LOGF = "logs/default.json"
+    LOG_DIR = "logs"
+    _LOCK = threading.Lock()
 
     @classmethod
     def action(cls, func: _F) -> _F:
@@ -571,24 +578,46 @@ class TournamentAction:
         return cast(_F, wrapper)
 
     @classmethod
+    def log_path(cls, tournament: Tournament) -> str | None:
+        """Returns the tournament's log file path, or None when logging is off.
+
+        Args:
+            tournament: The tournament whose log path to resolve.
+        """
+        if cls.LOGF is False:
+            return None
+        if tournament.log_path:
+            return tournament.log_path
+        if isinstance(cls.LOGF, str):
+            return cls.LOGF
+        return os.path.join(cls.LOG_DIR, f"tournament_{tournament.uid.hex}.json")
+
+    @classmethod
     def store(cls, tournament: Tournament):
-        """Stores the tournament state to a log file.
+        """Stores the tournament state to its log file.
 
         Args:
             tournament: The tournament instance to store.
         """
-        if cls.LOGF is None:
-            cls.LOGF = cls.DEFAULT_LOGF
-        if cls.LOGF:
-            assert isinstance(cls.LOGF, str)
-            if os.path.dirname(cls.LOGF):
-                os.makedirs(os.path.dirname(cls.LOGF), exist_ok=True)
-            # Write to a temp file and rename over the target so a crash or
-            # kill mid-write never leaves a truncated, unparseable log file.
-            tmp_path = f"{cls.LOGF}.tmp"
-            with open(tmp_path, "w") as f:
-                json.dump(tournament.serialize(), f, indent=4)
-            os.replace(tmp_path, cls.LOGF)
+        logf = cls.log_path(tournament)
+        if not logf:
+            return
+        logdir = os.path.dirname(logf)
+        if logdir:
+            os.makedirs(logdir, exist_ok=True)
+        # Write to a unique temp file and rename over the target so a crash
+        # mid-write never leaves a truncated log, and concurrent stores never
+        # share a temp file.
+        with cls._LOCK:
+            data = tournament.serialize()
+            fd, tmp_path = tempfile.mkstemp(dir=logdir or ".", suffix=".tmp")
+            try:
+                with os.fdopen(fd, "w") as f:
+                    json.dump(data, f, indent=4)
+                os.replace(tmp_path, logf)
+            except BaseException:
+                os.unlink(tmp_path)
+                raise
 
     @classmethod
     def load(cls, logdir="logs/default.json") -> Tournament | None:
@@ -601,17 +630,13 @@ class TournamentAction:
             The loaded tournament instance, or None if the file does not exist.
 
         Raises:
-            Exception: If the file cannot be parsed or inflated; LOGF is then
-                left unchanged.
+            Exception: If the file cannot be parsed or inflated.
         """
         if os.path.exists(logdir):
-            # Parse before touching LOGF: on failure the current tournament's
-            # log path must stay unchanged, or the next autosave overwrites
-            # a log file that never finished loading.
             with open(logdir, "r") as f:
                 tour_json = json.load(f)
             tour = Tournament.inflate(tour_json)
-            cls.LOGF = logdir
+            tour.log_path = logdir
             return tour
         return None
 
@@ -1118,6 +1143,8 @@ class Tournament(ITournament):
         # self._disabled: list[UUID] = list()  # Players disabled from top cut (but still in tournament)
         self._round: UUID | None = None
         self.created_at: datetime = datetime.now(timezone.utc)
+        # Per-tournament log file override; see TournamentAction.log_path.
+        self.log_path: str | None = None
 
         # Validates ruleset/pod_sizes/top_cut/ruleset_params on construction
         # (including inflate(), which constructs via this __init__ before

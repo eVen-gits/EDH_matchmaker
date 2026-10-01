@@ -10,6 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - An unhandled exception in the GUI now shows an error dialog and is printed to
   the console, instead of aborting the app.
+- Concurrent actions no longer race on a shared temp file when writing the
+  action log.
+
+### Changed
+- Outside the GUI, each tournament now writes its own log file,
+  `logs/tournament_<uid>.json`, instead of sharing `logs/default.json`. Set
+  `Tournament.log_path` to choose the file, or `TournamentAction.LOGF = False`
+  to turn logging off. The GUI still writes `logs/default.json`.
 
 ## [4.0.0] - 2026-09-29
 

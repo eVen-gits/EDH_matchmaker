@@ -146,7 +146,9 @@ method runs.
 per-instance — it's global mutable state for "where to write the log."
 Tests that build a `Tournament` must set `TournamentAction.LOGF = False` at
 module top, or a real log file gets written under `logs/` during the test
-run (see `DEFAULT_LOGF = "logs/default.json"`).
+run. By default (`None`) each tournament logs to its own file,
+`Tournament.log_path` or `logs/tournament_<uid>.json`; the GUI sets it to
+`DEFAULT_LOGF = "logs/default.json"`.
 
 ## `IPairingLogic` / `IScoringLogic` / `IRuleset`
 

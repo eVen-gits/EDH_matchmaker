@@ -1202,6 +1202,7 @@ class MainWindow(QMainWindow):
             if not file.endswith(ext.replace("*", "")):
                 file = ext.replace("*", "{}").format(file)
             TournamentAction.LOGF = file
+            self.core.log_path = None
             TournamentAction.store(self.core)
 
     def new_tour(self):
@@ -1226,6 +1227,7 @@ class MainWindow(QMainWindow):
                 QMessageBox.critical(self, "Failed to load tournament", str(e))
                 return
             if loaded is not None:
+                TournamentAction.LOGF = file
                 self.core = loaded
             else:
                 self.core = Tournament()
@@ -1909,6 +1911,7 @@ class TournamentConfigDialog(QDialog):
         ):
             return
         TournamentAction.LOGF = log_path
+        self.core.log_path = None
         self.config = TournamentConfiguration(
             ruleset=self.ui.cb_ruleset.currentData(),
             allow_bye=self.cb_allow_bye.isChecked(),
@@ -2218,11 +2221,12 @@ if __name__ == "__main__":
         parser.error("argument --ruleset: not allowed with argument -o/--open")
 
     app = QApplication(sys.argv)
+    TournamentAction.LOGF = TournamentAction.DEFAULT_LOGF
 
     if args.open:
+        TournamentAction.LOGF = args.open
         core = load_startup_log(args.open)
         if core is None:
-            TournamentAction.LOGF = args.open
             core = Tournament()
             core.new_round()
     elif args.ruleset:
