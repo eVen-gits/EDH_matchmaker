@@ -62,8 +62,9 @@ See `CONTEXT.md` for the terms referenced here.
 - **The params sidecar is the source of truth**, not a hardcoded default in
   the class. If you add or change a parameter, update the sidecar in the
   same commit.
-- **The action log is off unless `TournamentAction.LOGF` is set** to a
-  path. A test that sets it must restore it afterwards.
+- **`TournamentAction.LOGF = False`** must be set at the top of any test
+  module that builds a `Tournament`, or the test writes a real log file
+  under `logs/` as a side effect.
 - **`docs/tournament-log-spec.md` and the `*.params.yaml` sidecars are
   authoritative** for save format, scoring formulas, and algorithm
   parameters. `CLAUDE.md` deliberately doesn't restate their values — they

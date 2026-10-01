@@ -14,9 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   action log.
 
 ### Changed
-- The action log (and standings/pods auto-export) is now off by default for
-  library use; set `TournamentAction.LOGF` to a path to enable it. The GUI
-  still writes `logs/default.json`.
+- Outside the GUI, each tournament now writes its own log file,
+  `logs/tournament_<uid>.json`, instead of sharing `logs/default.json`. Set
+  `Tournament.log_path` to choose the file, or `TournamentAction.LOGF = False`
+  to turn logging off. The GUI still writes `logs/default.json`.
 
 ## [4.0.0] - 2026-09-29
 

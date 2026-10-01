@@ -95,7 +95,7 @@ class PodsExport(DataExport):
             except (KeyError, ValueError):
                 tour_round = None
             if self.config.auto_export:
-                logf = TournamentAction.LOGF
+                logf = TournamentAction.log_path(self)
                 if logf and tour_round:
                     # Export pods to a file named {tournament_name}_round_{round_number}.txt
                     # And also export it into {log_directory}/pods.txt
@@ -404,8 +404,7 @@ class StandingsExport(DataExport, IStandingsExport):
             self: Tournament, *original_args, **original_kwargs
         ):
             ret = func(self, *original_args, **original_kwargs)
-            # Like pods auto-export, only runs when the action log is enabled.
-            if self.config.auto_export and TournamentAction.LOGF:
+            if self.config.auto_export:
                 try:
                     self.export_str(
                         self.get_standings_str(),
@@ -547,9 +546,13 @@ class Log:
 class TournamentAction:
     """Serializable action that will be stored in tournament log and can be restored"""
 
-    # None/False = no action log (library default); the GUI opts in with a path.
+    # None: each tournament logs to its own file (Tournament.log_path, else
+    # LOG_DIR/tournament_<uid>.json). A str: every tournament logs to that
+    # path (the GUI's single log). False: no log at all, for wrappers that
+    # keep state elsewhere.
     LOGF: bool | str | None = None
     DEFAULT_LOGF = "logs/default.json"
+    LOG_DIR = "logs"
     _LOCK = threading.Lock()
 
     @classmethod
@@ -575,16 +578,30 @@ class TournamentAction:
         return cast(_F, wrapper)
 
     @classmethod
+    def log_path(cls, tournament: Tournament) -> str | None:
+        """Returns the tournament's log file path, or None when logging is off.
+
+        Args:
+            tournament: The tournament whose log path to resolve.
+        """
+        if cls.LOGF is False:
+            return None
+        if tournament.log_path:
+            return tournament.log_path
+        if isinstance(cls.LOGF, str):
+            return cls.LOGF
+        return os.path.join(cls.LOG_DIR, f"tournament_{tournament.uid.hex}.json")
+
+    @classmethod
     def store(cls, tournament: Tournament):
-        """Stores the tournament state to a log file.
+        """Stores the tournament state to its log file.
 
         Args:
             tournament: The tournament instance to store.
         """
-        logf = cls.LOGF
+        logf = cls.log_path(tournament)
         if not logf:
             return
-        assert isinstance(logf, str)
         logdir = os.path.dirname(logf)
         if logdir:
             os.makedirs(logdir, exist_ok=True)
@@ -1130,6 +1147,8 @@ class Tournament(ITournament):
         # self._disabled: list[UUID] = list()  # Players disabled from top cut (but still in tournament)
         self._round: UUID | None = None
         self.created_at: datetime = datetime.now(timezone.utc)
+        # Per-tournament log file override; see TournamentAction.log_path.
+        self.log_path: str | None = None
 
         # Validates ruleset/pod_sizes/top_cut/ruleset_params on construction
         # (including inflate(), which constructs via this __init__ before

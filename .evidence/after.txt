@@ -1,0 +1,4 @@
+/home/even/.local/lib/python3.14/site-packages/requests/__init__.py:113: RequestsDependencyWarning: urllib3 (2.8.0) or chardet (6.0.0.post1)/charset_normalizer (3.5.1) doesn't match a supported version!
+  warnings.warn(
+.....                                                                    [100%]
+5 passed in 0.15s

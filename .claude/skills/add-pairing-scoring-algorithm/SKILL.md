@@ -96,8 +96,10 @@ shape for this repo.
      `random_results()` — rather than unit-testing `make_pairings`/
      `compute_ratings` in isolation. Follow the shape of
      `tests/test_pairing.py` or `tests/test_scoring_hareruya.py`.
-   - The action log is off unless `TournamentAction.LOGF` is set to a
-     path; a test that sets it must restore it.
+   - **Any test module that constructs a `Tournament` must set
+     `TournamentAction.LOGF = False  # type: ignore` at the top of the
+     file, right after imports.** Without it, the test suite writes a real
+     file under `logs/` on every run.
 
 10. **Docstrings are Google style** (this repo uses mkdocstrings). If the
     algorithm implements a nonstandard scoring formula, cite
