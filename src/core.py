@@ -1745,6 +1745,33 @@ class Tournament(ITournament):
             return None
         return (stage, logic)
 
+    def pairing_logic_name_for(
+        self, seq: int, prev_stage: Round.Stage | None = None
+    ) -> str | None:
+        """Names the pairing logic round `seq` will use, as stored Pairings.logic names it.
+
+        Args:
+            seq: The 0-indexed sequence number of the round.
+            prev_stage: The stage of the preceding round. Defaults to the stage
+                of round seq - 1, existing or as it would be created.
+
+        Returns:
+            The logic name (e.g. "PairingSnake", "PairingTopCut"), or None if no
+            round would be created at that position.
+        """
+        if prev_stage is None and seq > 0:
+            if seq <= len(self.rounds):
+                prev_stage = self.rounds[seq - 1].stage
+            else:
+                prev_stage = self.rounds[-1].stage if self.rounds else None
+                for i in range(len(self.rounds), seq):
+                    step = self.__compute_stage_and_logic(i, prev_stage)
+                    if step is None:
+                        return None
+                    prev_stage = step[0]
+        result = self.__compute_stage_and_logic(seq, prev_stage)
+        return result[1].name if result else None
+
     def __initialize_round(self) -> bool:
         """Initializes a new round in the tournament.
 
