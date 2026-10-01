@@ -13,6 +13,7 @@ import json
 import math
 import os
 import random
+import tempfile
 import threading
 from collections.abc import Iterable, Mapping
 from datetime import datetime, timezone
@@ -403,7 +404,8 @@ class StandingsExport(DataExport, IStandingsExport):
             self: Tournament, *original_args, **original_kwargs
         ):
             ret = func(self, *original_args, **original_kwargs)
-            if self.config.auto_export:
+            # Like pods auto-export, only runs when the action log is enabled.
+            if self.config.auto_export and TournamentAction.LOGF:
                 try:
                     self.export_str(
                         self.get_standings_str(),
@@ -545,8 +547,10 @@ class Log:
 class TournamentAction:
     """Serializable action that will be stored in tournament log and can be restored"""
 
+    # None/False = no action log (library default); the GUI opts in with a path.
     LOGF: bool | str | None = None
     DEFAULT_LOGF = "logs/default.json"
+    _LOCK = threading.Lock()
 
     @classmethod
     def action(cls, func: _F) -> _F:
@@ -577,18 +581,26 @@ class TournamentAction:
         Args:
             tournament: The tournament instance to store.
         """
-        if cls.LOGF is None:
-            cls.LOGF = cls.DEFAULT_LOGF
-        if cls.LOGF:
-            assert isinstance(cls.LOGF, str)
-            if os.path.dirname(cls.LOGF):
-                os.makedirs(os.path.dirname(cls.LOGF), exist_ok=True)
-            # Write to a temp file and rename over the target so a crash or
-            # kill mid-write never leaves a truncated, unparseable log file.
-            tmp_path = f"{cls.LOGF}.tmp"
-            with open(tmp_path, "w") as f:
-                json.dump(tournament.serialize(), f, indent=4)
-            os.replace(tmp_path, cls.LOGF)
+        logf = cls.LOGF
+        if not logf:
+            return
+        assert isinstance(logf, str)
+        logdir = os.path.dirname(logf)
+        if logdir:
+            os.makedirs(logdir, exist_ok=True)
+        data = tournament.serialize()
+        # Write to a unique temp file and rename over the target so a crash
+        # mid-write never leaves a truncated log, and concurrent stores never
+        # share a temp file.
+        with cls._LOCK:
+            fd, tmp_path = tempfile.mkstemp(dir=logdir or ".", suffix=".tmp")
+            try:
+                with os.fdopen(fd, "w") as f:
+                    json.dump(data, f, indent=4)
+                os.replace(tmp_path, logf)
+            except BaseException:
+                os.unlink(tmp_path)
+                raise
 
     @classmethod
     def load(cls, logdir="logs/default.json") -> Tournament | None:

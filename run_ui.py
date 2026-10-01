@@ -2218,6 +2218,7 @@ if __name__ == "__main__":
         parser.error("argument --ruleset: not allowed with argument -o/--open")
 
     app = QApplication(sys.argv)
+    TournamentAction.LOGF = TournamentAction.DEFAULT_LOGF
 
     if args.open:
         core = load_startup_log(args.open)

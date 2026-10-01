@@ -144,9 +144,9 @@ method runs.
 **Lives in:** `src/core.py` (`TournamentAction`)
 **Invariant:** `TournamentAction.LOGF` is a *class attribute*, not
 per-instance — it's global mutable state for "where to write the log."
-Tests that build a `Tournament` must set `TournamentAction.LOGF = False` at
-module top, or a real log file gets written under `logs/` during the test
-run (see `DEFAULT_LOGF = "logs/default.json"`).
+It is `None` (no log written) by default; the GUI opts in by setting it to
+`DEFAULT_LOGF = "logs/default.json"` at startup. Standings and pods
+auto-export also run only while it is set.
 
 ## `IPairingLogic` / `IScoringLogic` / `IRuleset`
 

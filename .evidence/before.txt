@@ -1,0 +1,61 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+___________ TestActionLog.test_concurrent_actions_on_two_tournaments ___________
+
+self = <tests.test_action_log.TestActionLog testMethod=test_concurrent_actions_on_two_tournaments>
+
+    def test_concurrent_actions_on_two_tournaments(self):
+        with tempfile.TemporaryDirectory() as d:
+            TournamentAction.LOGF = os.path.join(d, "log.json")
+            errors = []
+    
+            def work(prefix):
+                try:
+                    t = Tournament()
+                    for i in range(40):
+                        t.add_player([f"{prefix}{i}"])
+                except Exception as e:
+                    errors.append(e)
+    
+            threads = [threading.Thread(target=work, args=(p,)) for p in "AB"]
+            for th in threads:
+                th.start()
+            for th in threads:
+                th.join()
+>           self.assertEqual(errors, [])
+E           AssertionError: Lists differ: [FileNotFoundError(2, 'No such file or directory')] != []
+E           
+E           First list contains 1 additional elements.
+E           First extra element 0:
+E           FileNotFoundError(2, 'No such file or directory')
+E           
+E           - [FileNotFoundError(2, 'No such file or directory')]
+E           + []
+
+tests/test_action_log.py:41: AssertionError
+______________________ TestActionLog.test_off_by_default _______________________
+
+self = <tests.test_action_log.TestActionLog testMethod=test_off_by_default>
+
+    def test_off_by_default(self):
+        TournamentAction.LOGF = None
+        with tempfile.TemporaryDirectory() as d:
+            cwd = os.getcwd()
+            os.chdir(d)
+            self.addCleanup(os.chdir, cwd)
+            Tournament().add_player(["A", "B"])
+>           self.assertEqual(os.listdir(d), [])
+E           AssertionError: Lists differ: ['logs'] != []
+E           
+E           First list contains 1 additional elements.
+E           First extra element 0:
+E           'logs'
+E           
+E           - ['logs']
+E           + []
+
+tests/test_action_log.py:21: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_action_log.py::TestActionLog::test_concurrent_actions_on_two_tournaments
+FAILED tests/test_action_log.py::TestActionLog::test_off_by_default - Asserti...
+2 failed in 0.12s
