@@ -35,6 +35,7 @@ class PairingLogicLookupTest(unittest.TestCase):
         )
         t.add_player([f"P{i}" for i in range(8)])
         self.assertEqual(t.pairing_logic_name_for(2, Round.Stage.SWISS), "PairingTopCut")
+        self.assertEqual(t.pairing_logic_name_for(2), "PairingTopCut")
 
     def test_no_round_after_swiss_without_cut(self):
         t = Tournament(
@@ -43,6 +44,7 @@ class PairingLogicLookupTest(unittest.TestCase):
             )
         )
         self.assertIsNone(t.pairing_logic_name_for(2, Round.Stage.SWISS))
+        self.assertIsNone(t.pairing_logic_name_for(2))
 
     def test_1v1(self):
         t = Tournament(

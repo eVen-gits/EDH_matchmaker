@@ -1753,14 +1753,18 @@ class Tournament(ITournament):
         Args:
             seq: The 0-indexed sequence number of the round.
             prev_stage: The stage of the preceding round. Defaults to the stage
-                of the existing round seq - 1, if there is one.
+                of the existing round seq - 1, if there is one, else to the
+                last Swiss stage when seq is past the Swiss rounds.
 
         Returns:
             The logic name (e.g. "PairingSnake", "PairingTopCut"), or None if no
             round would be created at that position.
         """
-        if prev_stage is None and 0 < seq <= len(self.rounds):
-            prev_stage = self.rounds[seq - 1].stage
+        if prev_stage is None and seq > 0:
+            if seq <= len(self.rounds):
+                prev_stage = self.rounds[seq - 1].stage
+            elif seq >= self.config.n_rounds:
+                prev_stage = Round.Stage.SWISS
         result = self.__compute_stage_and_logic(seq, prev_stage)
         return result[1].name if result else None
 
