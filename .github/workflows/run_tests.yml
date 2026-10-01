@@ -6,13 +6,15 @@ on:
     paths:
       - 'src/**'
       - 'tests/**'
-      - 'requirements.txt'
+      - 'requirements*.txt'
       - '.github/workflows/run_tests.yml'
   pull_request:
     branches: [ "master" ]
     paths:
       - 'src/**'
       - 'tests/**'
+      - 'requirements*.txt'
+      - '.github/workflows/run_tests.yml'
 
 permissions:
   contents: read
@@ -20,6 +22,27 @@ permissions:
   actions: read
 
 jobs:
+  CoreRequirements:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install runtime requirements only
+        run: pip install -r requirements-core.txt
+      - name: Import core and run a 1v1 pairing
+        run: |
+          PYTHONPATH=. python - <<'PY'
+          from src.core import Tournament, TournamentAction, TournamentConfiguration
+          TournamentAction.LOGF = False
+          t = Tournament(TournamentConfiguration(ruleset="Mtg1v1Ruleset", auto_export=False, n_rounds=2))
+          t.add_player(["A", "B", "C", "D"])
+          t.new_round()
+          t.create_pairings()
+          assert len(t.tour_round.pods) == 2
+          PY
+
   Test:
     runs-on: ubuntu-latest
 
