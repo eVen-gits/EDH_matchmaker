@@ -41,3 +41,26 @@ class TestPod(unittest.TestCase):
             ValueError, "Order must not contain duplicate integers"
         ):
             self.pod.reorder_players([0, 1, 2, 2])
+
+    def test_win_matches_record_result(self):
+        from src.interface import IGameResult, IPlayer
+
+        a = self.pod.players[0]
+        with self.assertWarnsRegex(DeprecationWarning, "record_result"):
+            self.pod.set_result(a, IPlayer.EResult.WIN)
+        old = (self.pod.games, self.t.tour_round.pods[0].result_type)
+        self.pod.reset_result()
+        self.pod.record_result([IGameResult(frozenset({a.uid}))])
+        self.assertEqual(old, (self.pod.games, self.pod.result_type))
+
+    def test_draw_accumulates_like_record_result(self):
+        from src.interface import IGameResult, IPlayer
+
+        a, b = self.pod.players[:2]
+        with self.assertWarns(DeprecationWarning):
+            self.pod.set_result(a, IPlayer.EResult.DRAW)
+            self.pod.set_result(b, IPlayer.EResult.DRAW)
+        old = self.pod.games
+        self.pod.record_result([IGameResult(frozenset({a.uid, b.uid}))])
+        self.assertEqual(old, self.pod.games)
+        self.assertEqual(self.pod.result, {a, b})

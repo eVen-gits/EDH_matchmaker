@@ -3150,6 +3150,29 @@ class Pod(IPod):
         self.tour.ruleset.validate_report(self, games)
         self._games = list(games)
 
+    def set_result(self, player: Player, result: IPlayer.EResult) -> None:
+        """Deprecated: pre-record_result API, kept for old callers.
+
+        WIN reports player as the match winner; DRAW adds player to the
+        pod's drawn players. Other results are ignored (bye/loss flags
+        live on Round.set_result).
+        """
+        warnings.warn(
+            "Pod.set_result is deprecated; use Pod.record_result.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        if result == IPlayer.EResult.WIN:
+            winners = {player.uid}
+        elif result == IPlayer.EResult.DRAW:
+            # A lone DRAW reads as a win until a second drawer joins.
+            winners = {player.uid} | self._result
+        else:
+            return
+        self.record_result(
+            self.tour.ruleset.report_from_winners(self, frozenset(winners))
+        )
+
     def remove_result(self, player: Player):
         """Strips a player from every recorded game; drops any game entry
         that becomes empty as a result."""
