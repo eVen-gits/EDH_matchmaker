@@ -630,17 +630,13 @@ class TournamentAction:
             The loaded tournament instance, or None if the file does not exist.
 
         Raises:
-            Exception: If the file cannot be parsed or inflated; LOGF is then
-                left unchanged.
+            Exception: If the file cannot be parsed or inflated.
         """
         if os.path.exists(logdir):
-            # Parse before touching LOGF: on failure the current tournament's
-            # log path must stay unchanged, or the next autosave overwrites
-            # a log file that never finished loading.
             with open(logdir, "r") as f:
                 tour_json = json.load(f)
             tour = Tournament.inflate(tour_json)
-            cls.LOGF = logdir
+            tour.log_path = logdir
             return tour
         return None
 

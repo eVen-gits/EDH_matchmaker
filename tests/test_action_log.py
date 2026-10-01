@@ -92,6 +92,19 @@ class TestActionLog(unittest.TestCase):
         with open("log.json") as f:
             json.load(f)
 
+    def test_restored_tournament_keeps_logging_to_its_file(self):
+        TournamentAction.LOGF = None
+        t = Tournament()
+        t.log_path = "saved.json"
+        t.add_player(["A"])
+        restored = TournamentAction.load("saved.json")
+        assert restored is not None
+        restored.add_player(["B"])
+        self.assertIsNone(TournamentAction.LOGF)
+        self.assertEqual(log_files(), ["saved.json"])
+        with open("saved.json") as f:
+            self.assertEqual(len(json.load(f)["players"]), 2)
+
 
 if __name__ == "__main__":
     unittest.main()
