@@ -13,6 +13,8 @@ on:
     paths:
       - 'src/**'
       - 'tests/**'
+      - 'requirements*.txt'
+      - '.github/workflows/run_tests.yml'
 
 permissions:
   contents: read
