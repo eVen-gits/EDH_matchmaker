@@ -1,0 +1,11 @@
+============================= test session starts ==============================
+platform linux -- Python 3.14.7, pytest-9.1.1, pluggy-1.6.0
+benchmark: 5.3.0 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
+rootdir: /home/even/.treehouse/EDH_matchmaker-c5aa0c/1/EDH_matchmaker
+configfile: pytest.ini
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collected 5 items
+
+tests/test_duplicate_names.py .....                                      [100%]
+
+============================== 5 passed in 0.18s ===============================
