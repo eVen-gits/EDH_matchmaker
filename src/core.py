@@ -1799,6 +1799,23 @@ class Tournament(ITournament):
         result = self.__compute_stage_and_logic(seq, prev_stage)
         return result[1].name if result else None
 
+    def swiss_logic_name_for(self, seq: int) -> str:
+        """Names the pairing logic a Swiss round at `seq` would use.
+
+        Unlike pairing_logic_name_for, this ignores n_rounds and top_cut, so it
+        also answers for Swiss rounds played past the planned count.
+
+        Args:
+            seq: The 0-indexed sequence number of the round.
+
+        Returns:
+            The logic name, from config.pairing_logics when that seq is
+            configured, else the adaptive default.
+        """
+        configured = self.config.pairing_logics
+        name = configured[seq] if seq < len(configured) else None
+        return name or self._adaptive_pairing_logic(seq).name
+
     def __initialize_round(self) -> bool:
         """Initializes a new round in the tournament.
 
