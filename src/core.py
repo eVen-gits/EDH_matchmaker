@@ -1458,7 +1458,9 @@ class Tournament(ITournament):
             list[Player]: A list of the newly created and added Player objects.
 
         Raises:
-            ValueError: If the player specification is invalid or incomplete.
+            ValueError: If the player specification is invalid or incomplete, or
+                a UUID repeats (within the batch or against existing players);
+                the whole batch is validated first, so nothing is added.
         """
 
         # Handle keyword arguments merging with a single positional spec
