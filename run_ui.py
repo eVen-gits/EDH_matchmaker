@@ -452,7 +452,7 @@ def _game_loss_target(players: list, tour_round) -> Pod | None:
 
 
 def _game_loss_confirm_text(players: list, tour_round) -> str:
-    names = ", ".join(p.name for p in players)
+    names = ", ".join(p.display_name for p in players)
     if _game_loss_target(players, tour_round) is not None:
         return (
             f"Assign game loss for {names}? The penalty game goes into the "
@@ -496,7 +496,7 @@ class MatchReportDialog(QDialog):
             spin.setRange(0, g)
             spin.setValue(wins.get(p, 0))
             spin.valueChanged.connect(self._update_status)
-            form.addRow(p.name, spin)
+            form.addRow(p.display_name, spin)
             self._spins[p] = spin
 
         self.sb_draws = QSpinBox()
@@ -556,7 +556,7 @@ class MatchReportDialog(QDialog):
         if draws:
             scores = f"{scores}-{draws}"
         if len(winners) == 1:
-            self.lbl_status.setText(f"{winners[0].name} wins {scores}")
+            self.lbl_status.setText(f"{winners[0].display_name} wins {scores}")
         else:
             self.lbl_status.setText(f"Draw {scores}")
 
@@ -808,7 +808,7 @@ class MainWindow(QMainWindow):
         ]
         # player = self.ui.lv_players.currentItem().data(Qt.ItemDataRole.UserRole)
         ok = self.confirm(
-            "Drop {}?".format(", ".join([p.name for p in players])),
+            "Drop {}?".format(", ".join([p.display_name for p in players])),
             "Confirm player removal",
         )
         if ok:
@@ -855,7 +855,7 @@ class MainWindow(QMainWindow):
             for item in self.ui.lv_players.selectedItems()
         ]
         ok = self.confirm(
-            "Toggle bye for: {}?".format(", ".join([p.name for p in players])),
+            "Toggle bye for: {}?".format(", ".join([p.display_name for p in players])),
             "Confirm bye status",
         )
         if ok:
@@ -879,7 +879,7 @@ class MainWindow(QMainWindow):
             self,
             "Set Table Preference",
             "Enter table numbers (1-indexed, comma separated) for {}:".format(
-                ", ".join([p.name for p in players])
+                ", ".join([p.display_name for p in players])
             ),
             text=current_pref,
         )
@@ -897,7 +897,7 @@ class MainWindow(QMainWindow):
 
                 Log.log(
                     "Set table preferences for {} to {}".format(
-                        ", ".join([p.name for p in players]), prefs
+                        ", ".join([p.display_name for p in players]), prefs
                     )
                 )
                 self.ui_update_player_list()
@@ -1162,7 +1162,7 @@ class MainWindow(QMainWindow):
     def report_draw(self, players: list[Player]):
         Log.log(
             "Reporting draw for players: {}.".format(
-                ", ".join([p.name for p in players])
+                ", ".join([p.display_name for p in players])
             )
         )
         self.core.report_draw(players)
@@ -1182,7 +1182,7 @@ class MainWindow(QMainWindow):
 
     @UILog.with_status
     def bench_players(self, players: list[Player]):
-        Log.log("Bench players: {}.".format(", ".join([p.name for p in players])))
+        Log.log("Bench players: {}.".format(", ".join([p.display_name for p in players])))
         self.core.bench_players(players)
         self.ui_update_player_list()
 
@@ -1398,9 +1398,9 @@ class PodWidget(QWidget):
             g = self.pod.tour_round.tour.ruleset.params(self.pod.tour_round)[
                 "games_to_win"
             ]
-            message = f"Report player {player.name} won {g}-0?"
+            message = f"Report player {player.display_name} won {g}-0?"
         else:
-            message = "Report player {} won?".format(player.name)
+            message = "Report player {} won?".format(player.display_name)
         ok = self.app.confirm(message, "Confirm result")
         if ok:
             self.app.report_win(player)
@@ -1415,7 +1415,7 @@ class PodWidget(QWidget):
         ]
         ok = self.app.confirm(
             "Report draw for players:\n\n{}".format(
-                "\n".join([p.name for p in players])
+                "\n".join([p.display_name for p in players])
             ),
             "Confirm result",
         )
@@ -1463,7 +1463,7 @@ class PodWidget(QWidget):
         ]
         ok = self.app.confirm(
             "Assign bye for players:\n\n{}".format(
-                "\n".join([p.name for p in players])
+                "\n".join([p.display_name for p in players])
             ),
             "Confirm bye assignment",
         )
