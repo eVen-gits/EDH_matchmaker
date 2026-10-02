@@ -28,13 +28,19 @@ class TestRenamePlayerCore(unittest.TestCase):
         )
         self.assertIn("Renamed player Alice to Alicia", _last_log())
 
-    def test_empty_and_duplicate_names_refused(self):
+    def test_empty_names_refused(self):
         t = _tour()
         alice = next(p for p in t.players if p.name == "Alice")
-        for bad in ("", "   ", "Bob"):
+        for bad in ("", "   "):
             with self.assertRaises(ValueError):
                 t.rename_player(alice, bad)
         self.assertEqual(alice.name, "Alice")
+
+    def test_rename_to_existing_name_allowed(self):
+        t = _tour()
+        alice = next(p for p in t.players if p.name == "Alice")
+        t.rename_player(alice, "Bob")
+        self.assertEqual(sum(p.name == "Bob" for p in t.players), 2)
 
 
 def _last_log():
@@ -76,14 +82,10 @@ class TestRenamePlayerUi(unittest.TestCase):
         if out:
             w.ui.lv_players.grab().save(out)
 
-    def test_duplicate_shows_message_not_raise(self):
+    def test_empty_name_shows_message_not_raise(self):
         w, t = self._window()
-        other = next(
-            p.name for p in t.players
-            if p is not w.ui.lv_players.currentItem().data(0x0100)
-        )
         with mock.patch.object(self.run_ui.QMessageBox, "warning") as warn:
-            w.lva_rename_player(other)
+            w.lva_rename_player("  ")
         warn.assert_called_once()
 
     def test_menu_has_rename_entry(self):

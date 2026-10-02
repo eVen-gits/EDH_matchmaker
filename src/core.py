@@ -117,12 +117,12 @@ class PodsExport(DataExport):
                         and x.result == Player.EResult.BYE
                     ]
                     if len(game_lost) + len(byes) > 0:
-                        max_len = max([len(p.name) for p in game_lost + byes])
+                        max_len = max([len(p.display_name) for p in game_lost + byes])
                         if self.config.allow_bye and byes:
                             export_str += "\n\nByes:\n" + "\n".join(
                                 [
                                     "\t{} | pts: {}".format(
-                                        p.name.ljust(max_len),
+                                        p.display_name.ljust(max_len),
                                         p.rating(tour_round) or "0",
                                     )
                                     for p in tour_round.unassigned
@@ -133,7 +133,7 @@ class PodsExport(DataExport):
                             export_str += "\n\nGame losses:\n" + "\n".join(
                                 [
                                     "\t{} | pts: {}".format(
-                                        p.name.ljust(max_len), p.rating(tour_round)
+                                        p.display_name.ljust(max_len), p.rating(tour_round)
                                     )
                                     for p in game_lost
                                 ]
@@ -224,7 +224,7 @@ class StandingsExport(DataExport, IStandingsExport):
 
     @staticmethod
     def _get_name(player: Player, context: TournamentContext) -> str:
-        return player.name
+        return player.display_name
 
     @staticmethod
     def _get_opp_winrate(player: Player, context: TournamentContext) -> float:
@@ -1480,7 +1480,6 @@ class Tournament(ITournament):
             data = data[0]
 
         new_players = []
-        existing_names = set([p.name for p in self.players])
         existing_uids = set([p.uid for p in self.players])
 
         for entry in data:
@@ -1527,18 +1526,9 @@ class Tournament(ITournament):
                     f"Player name must be a non-empty string, got {type(name)}: {name}"
                 )
 
-            if name in existing_names:
-                Log.log(
-                    "\tPlayer {} already enlisted.".format(name),
-                    level=Log.Level.WARNING,
-                )
-                continue
+            # Names may repeat; the UUID is the player's identity.
             if uid and uid in existing_uids:
-                Log.log(
-                    "\tPlayer with UID {} already enlisted.".format(uid),
-                    level=Log.Level.WARNING,
-                )
-                continue
+                raise ValueError("Player with UID {} already enlisted.".format(uid))
 
             # Create and register the player
             p = Player(self, name, uid, decklist)
@@ -1546,7 +1536,6 @@ class Tournament(ITournament):
             if self._round and p.uid not in self.tour_round._players:
                 self.tour_round._players.append(p.uid)
             new_players.append(p)
-            existing_names.add(name)
             existing_uids.add(p.uid)
             Log.log("\tAdded player {}".format(p.name), level=Log.Level.INFO)
         return new_players
@@ -1620,7 +1609,7 @@ class Tournament(ITournament):
             new_name: The new name for the player.
 
         Raises:
-            ValueError: If the new name is empty or already used by another player.
+            ValueError: If the new name is empty.
         """
         new_name = (new_name or "").strip()
         if not new_name:
@@ -1628,8 +1617,6 @@ class Tournament(ITournament):
         old_name = player.name
         if new_name == old_name:
             return
-        if new_name in [p.name for p in self.players]:
-            raise ValueError("Player {} already enlisted.".format(new_name))
         # Pods and rounds hold this same Player object, so one assignment renames everywhere.
         player.name = new_name
         Log.log(
@@ -2189,7 +2176,7 @@ class Tournament(ITournament):
         if self.config.allow_bye and self.tour_round.unassigned:
             export_str += "\n\nByes:\n" + "\n:".join(
                 [
-                    "\t{}\t| pts: {}".format(p.name, p.rating(self.tour_round) or "0")
+                    "\t{}\t| pts: {}".format(p.display_name, p.rating(self.tour_round) or "0")
                     for p in self.tour_round.unassigned
                 ]
             )
@@ -2325,7 +2312,7 @@ class Tournament(ITournament):
                 if f == StandingsExport.Field.ID:
                     return p.uid.hex
                 if f == StandingsExport.Field.NAME:
-                    return p.name
+                    return p.display_name
                 if f in (StandingsExport.Field.RECORD, StandingsExport.Field.SEAT_HISTORY):
                     return ""
                 return 0
@@ -2554,6 +2541,16 @@ class Player(IPlayer):
         self.CACHE[self.uid] = self
         self._pod_id: UUID | None = None  # Direct reference to current pod
         self.table_preference: list[int] = []
+
+    @property
+    def display_name(self) -> str:
+        """The name for human-facing output: the stored name, plus a short
+        UUID suffix when another player in the tournament shares it."""
+        if any(
+            p.name == self.name and p is not self for p in self.tour.players
+        ):
+            return f"{self.name} #{self.uid.hex[:4]}"
+        return self.name
 
     # ACTIONS
     def set_result(self, tour_round: Round, result: Player.EResult) -> None:
@@ -3072,7 +3069,7 @@ class Player(IPlayer):
         tsize = int(
             math.floor(math.log10(len(self.tour.tour_round.active_players))) + 1
         )
-        pname_size = max([len(p.name) for p in self.tour.tour_round.active_players])
+        pname_size = max([len(p.display_name) for p in self.tour.tour_round.active_players])
 
         tour_round = self.tour.rounds[args.round]
         if context is None:
@@ -3083,10 +3080,10 @@ class Player(IPlayer):
             fields.append("#{:>{}}".format(self.standing(tour_round, standings), tsize))
         if args.id:
             fields.append(
-                "[{:>{}}] {}".format(self.uid, tsize, self.name.ljust(pname_size))
+                "[{:>{}}] {}".format(self.uid, tsize, self.display_name.ljust(pname_size))
             )
         else:
-            fields.append(self.name.ljust(pname_size))
+            fields.append(self.display_name.ljust(pname_size))
 
         if args.pod and len(tour_round.pods) > 0:
             max_pod_id = max([len(str(p.table)) for p in tour_round.pods])
@@ -3413,7 +3410,7 @@ class Pod(IPod):
         if not self.players:
             maxlen = 0
         else:
-            maxlen = max([len(p.name) for p in self.players])
+            maxlen = max([len(p.display_name) for p in self.players])
         ret = "Pod {} with {}/{} players:\n\t{}".format(
             self.table,
             len(self),
