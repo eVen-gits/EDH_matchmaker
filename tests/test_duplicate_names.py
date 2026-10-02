@@ -42,6 +42,17 @@ class TestDuplicateNames(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, str(uid)):
             t.add_player(("Eve", uid))
 
+    def test_failing_batch_adds_nobody(self):
+        t = _tour()
+        before = len(t.players)
+        existing = next(iter(t.players)).uid
+        uid = uuid4()
+        with self.assertRaises(ValueError):
+            t.add_player([("Dana", uuid4()), ("Eve", existing)])
+        with self.assertRaises(ValueError):
+            t.add_player([("Dana", uid), ("Eve", uid)])
+        self.assertEqual(len(t.players), before)
+
     def test_paired_scored_exported_distinctly(self):
         t = _tour()
         t.create_pairings()

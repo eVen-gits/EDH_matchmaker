@@ -1479,7 +1479,7 @@ class Tournament(ITournament):
         if len(data) == 1 and isinstance(data[0], list):
             data = data[0]
 
-        new_players = []
+        specs_to_add = []
         existing_uids = set([p.uid for p in self.players])
 
         for entry in data:
@@ -1529,14 +1529,17 @@ class Tournament(ITournament):
             # Names may repeat; the UUID is the player's identity.
             if uid and uid in existing_uids:
                 raise ValueError("Player with UID {} already enlisted.".format(uid))
+            if uid:
+                existing_uids.add(uid)
+            specs_to_add.append((name, uid, decklist))
 
-            # Create and register the player
+        new_players = []
+        for name, uid, decklist in specs_to_add:
             p = Player(self, name, uid, decklist)
             self._players.add(p.uid)
             if self._round and p.uid not in self.tour_round._players:
                 self.tour_round._players.append(p.uid)
             new_players.append(p)
-            existing_uids.add(p.uid)
             Log.log("\tAdded player {}".format(p.name), level=Log.Level.INFO)
         return new_players
 
