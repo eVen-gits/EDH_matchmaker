@@ -59,7 +59,7 @@ class TestTopCutAdvancement(unittest.TestCase):
             winners = set()
             for pod in r.pods:
                 worst = max(pod.players, key=standings.index)
-                r.record_result(pod, [IGameResult({worst.uid})])
+                r.record_result(pod, [IGameResult(frozenset({worst.uid}))])
                 winners.add(worst)
             advancing = set(r.byes) | winners
             # Next stage's size: byes + one winner per pod.
