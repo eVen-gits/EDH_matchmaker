@@ -14,8 +14,10 @@ from src.logic.commander.rules import CommanderRuleset
 
 TournamentAction.LOGF = False  # type: ignore
 
-# N_BYES of the former PairingTop7/10/13/16/40; PairingTop4 gave no byes.
-_OLD_BYES = {7: 3, 10: 2, 13: 1, 16: 0, 40: 16}
+# N_BYES of the former PairingTop7/10/13/16; PairingTop4 gave no byes.
+# PairingTop40 gave 16 (a bug: no pod winner could advance), so stage 40 is not
+# compared; tests/test_commander_topcut_outcome.py covers it.
+_OLD_BYES = {7: 3, 10: 2, 13: 1, 16: 0}
 
 
 class _Reference(CommonPairing):
@@ -80,13 +82,16 @@ class TestTopCutMatchesFormerClasses(unittest.TestCase):
             r = t.tour_round
             assert r is not None
             self.assertEqual(r.logic.name, "PairingTopCut")
+            stages.append(r.stage.value)
+            if r.stage.value == 40:
+                t.random_results()
+                continue
             new = _snapshot(r)
             t.reset_pods()
             r._logic = "_Reference"
             t.create_pairings()
             self.assertEqual(new, _snapshot(r), f"stage {r.stage.value}")
             r._logic = "PairingTopCut"
-            stages.append(r.stage.value)
             t.random_results()
         self.assertEqual(stages, [s for s, _ in CommanderRuleset.PLAYOFFS[top_cut]])
 

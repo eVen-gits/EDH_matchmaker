@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the console, instead of aborting the app.
 - Concurrent actions no longer race on a shared temp file when writing the
   action log.
+- The Commander top 40 cut now gives 8 byes (seeds 1-8) and seats 8 pods, so
+  the 8 byes and 8 pod winners advance to the top 16. It used to give 16 byes,
+  so no pod winner could advance.
 
 ### Changed
 - Outside the GUI, each tournament now writes its own log file,
