@@ -14,8 +14,9 @@ from src.logic.commander.rules import CommanderRuleset
 
 TournamentAction.LOGF = False  # type: ignore
 
-# N_BYES of the former PairingTop7/10/13/16/40; PairingTop4 gave no byes.
-_OLD_BYES = {7: 3, 10: 2, 13: 1, 16: 0, 40: 16}
+# N_BYES of the former PairingTop7/10/13/16; PairingTop4 gave no byes.
+# PairingTop40 gave 16 (a bug: no pod winner could advance), so it is not pinned.
+_OLD_BYES = {7: 3, 10: 2, 13: 1, 16: 0}
 
 
 class _Reference(CommonPairing):

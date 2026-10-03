@@ -249,7 +249,7 @@ class PairingTopCut(CommonPairing):
     SELECTABLE = False  # top-cut pairing, chosen automatically by stage
 
     # Seeded byes per cut size.
-    _BYES = {4: 0, 7: 3, 10: 2, 13: 1, 16: 0, 40: 16}
+    _BYES = {4: 0, 7: 3, 10: 2, 13: 1, 16: 0, 40: 8}
 
     # The per-cut classes this one replaced, still named in saved logs.
     ALIASES = (

@@ -358,7 +358,7 @@ whichever the tournament's ruleset produced.
 | 10 | `TOP_10` | `TOP_10` | Top-10 playoff. | `CommanderRuleset` |
 | 13 | `TOP_13` | `TOP_13` | Top-13 playoff. | `CommanderRuleset` |
 | 16 | `TOP_16` | `TOP_16` | Top-16 playoff. | `CommanderRuleset`, `Mtg1v1Ruleset` |
-| 40 | `TOP_40` | `TOP_40` | Top-40 playoff. | `CommanderRuleset` |
+| 40 | `TOP_40` | `TOP_40` | Top-40 playoff: 8 byes (seeds 1-8) and 8 pods of 4; the 8 byes and 8 pod winners form `TOP_16`. | `CommanderRuleset` |
 
 ### `StandingsExport.Field` values
 
