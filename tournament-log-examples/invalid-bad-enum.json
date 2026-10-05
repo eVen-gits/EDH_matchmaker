@@ -1,0 +1,81 @@
+{
+  "format_version": "1.1",
+  "generator": {
+    "name": "EDH_matchmaker"
+  },
+  "created_at": "2026-08-21T10:00:00+00:00",
+  "updated_at": "2026-08-21T10:05:00+00:00",
+  "uid": "11111111-1111-1111-1111-111111111111",
+  "config": {
+    "pod_sizes": [
+      2
+    ],
+    "allow_bye": true,
+    "snake_pods": true,
+    "n_rounds": 1,
+    "max_byes": 1,
+    "auto_export": false,
+    "standings_export": {
+      "fields": [
+        0,
+        2,
+        4
+      ],
+      "format": 0,
+      "dir": "./logs/standings.txt"
+    },
+    "global_wr_seats": [
+      0.247,
+      0.1928,
+      0.1672,
+      0.1458
+    ],
+    "top_cut": 0,
+    "scoring_logic": "ScoringDefault",
+    "scoring_params": {
+      "win_points": 3,
+      "bye_points": 3,
+      "draw_points": 1
+    }
+  },
+  "players": [
+    {
+      "uid": "aaaaaaaa-0000-0000-0000-000000000001",
+      "name": "Alice",
+      "decklist": null
+    },
+    {
+      "uid": "aaaaaaaa-0000-0000-0000-000000000002",
+      "name": "Bob",
+      "decklist": null
+    }
+  ],
+  "rounds": [
+    {
+      "tour": "11111111-1111-1111-1111-111111111111",
+      "seq": 0,
+      "stage": 3,
+      "logic": "PairingRandom",
+      "uid": "bbbbbbbb-0000-0000-0000-000000000001",
+      "dropped": [],
+      "disabled": [],
+      "byes": [],
+      "game_loss": [],
+      "pods": [
+        {
+          "uid": "cccccccc-0000-0000-0000-000000000001",
+          "tour_round": "bbbbbbbb-0000-0000-0000-000000000001",
+          "table": 1,
+          "cap": 2,
+          "result": [
+            "aaaaaaaa-0000-0000-0000-000000000001"
+          ],
+          "players": [
+            "aaaaaaaa-0000-0000-0000-000000000001",
+            "aaaaaaaa-0000-0000-0000-000000000002"
+          ]
+        }
+      ]
+    }
+  ]
+}
