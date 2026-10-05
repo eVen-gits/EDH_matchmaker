@@ -8,14 +8,19 @@ win_points:
   type: int
   min: 0
   label: Win points
-  description: Points added for a round (match) the player won.
+  description: >
+    Points added for a round (match) the player won. Also the points for a
+    game won, so the game tiebreakers (GW, OGW) divide by this per game.
 
 draw_points:
   default: 1
   type: int
   min: 0
   label: Draw points
-  description: Points added for a round (match) the player drew.
+  description: >
+    Points added for a round (match) the player drew. Also the points for a
+    drawn game in the game tiebreakers. They match the Magic Tournament
+    Rules only at the default or any 1:3 draw-to-win ratio.
 
 bye_points:
   default: 3

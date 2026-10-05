@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- The 1v1 game tiebreakers (GW and OGW) now score a game won with the
+  configured win points and a drawn game with the draw points, and divide by
+  win points per game played, instead of a fixed 3 and 1. With non-default
+  points (e.g. 7/1/7) players with the same record can now rank differently.
+  Default 3/1/3 standings are unchanged.
 - An unhandled exception in the GUI now shows an error dialog and is printed to
   the console, instead of aborting the app.
 - Concurrent actions no longer race on a shared temp file when writing the

@@ -18,7 +18,7 @@ def pct(points: Fraction, possible: Fraction | int) -> Fraction:
     Args:
         points: Match or game points earned.
         possible: The maximum possible (win_points * rounds_played or
-            3 * games_played). FLOOR if this is 0 (no rounds/games played).
+            win_points * games_played). FLOOR if this is 0 (no rounds/games played).
     """
     if not possible:
         return FLOOR
@@ -61,11 +61,18 @@ def _swiss_rounds_up_to(tour: ITournament, tour_round: IRound) -> Iterator[IRoun
             break
 
 
-def mtr_stats(tour: ITournament, player: IPlayer, tour_round: IRound) -> MtrStats:
+def mtr_stats(
+    tour: ITournament,
+    player: IPlayer,
+    tour_round: IRound,
+    win_points: int = 3,
+    draw_points: int = 1,
+) -> MtrStats:
     """Computes one player's MTR tiebreaker inputs as of tour_round.
 
-    Match points come from the configured scoring logic. Byes count as
-    2-0 wins without an opponent. Unseated game losses count as a round
+    Match points come from the configured scoring logic. Game points use
+    win_points per game won and draw_points per drawn game (the MTR's 3 and
+    1 by default). Byes count as 2-0 wins without an opponent. Unseated game losses count as a round
     without games or opponents. Pending results contribute nothing.
     """
     rounds_played = 0
@@ -79,7 +86,7 @@ def mtr_stats(tour: ITournament, player: IPlayer, tour_round: IRound) -> MtrStat
         rounds_played += 1
         if result == IPlayer.EResult.BYE:
             games_played += 2
-            game_points += 6
+            game_points += 2 * win_points
             continue
         pod = player.pod(r)
         if pod is None:
@@ -88,7 +95,7 @@ def mtr_stats(tour: ITournament, player: IPlayer, tour_round: IRound) -> MtrStat
         for game in pod.games:
             games_played += 1
             if player.uid in game.winners:
-                game_points += Fraction(1) if len(game.winners) > 1 else Fraction(3)
+                game_points += draw_points if len(game.winners) > 1 else win_points
         opponent = next((p for p in pod.players if p.uid != player.uid), None)
         if opponent is not None:
             opponents.append(opponent.uid)
@@ -101,7 +108,8 @@ class Scoring1v1(FixedPointsScoring):
 
     Magic Tournament Rules Appendix C ("Match Points"): 3 points for a
     match win, 1 for a draw, 0 for a loss; a bye counts as an automatic
-    2-0 win (3 points). Point values come from Scoring1v1.params.yaml.
+    2-0 win (3 points). Point values come from Scoring1v1.params.yaml, and
+    game points (GW, OGW) use the same win and draw points per game.
     Equal points use OMW, GW, then OGW, with the MTR percentage floor.
     """
 
@@ -115,10 +123,13 @@ class Scoring1v1(FixedPointsScoring):
         ratings: Mapping[Any, float],
     ) -> Mapping[UUID, tuple]:
         """Sort key, descending: (rating, OMW, GW, OGW, -uid) - MTR 3.1."""
-        stats = {p.uid: mtr_stats(tour, p, tour_round) for p in tour.players}
         win_points = self._param(tour, "win_points")
+        draw_points = self._param(tour, "draw_points")
+        stats = {
+            p.uid: mtr_stats(tour, p, tour_round, win_points, draw_points) for p in tour.players
+        }
         mw = {uid: pct(s.match_points, win_points * s.rounds_played) for uid, s in stats.items()}
-        gw = {uid: pct(s.game_points, 3 * s.games_played) for uid, s in stats.items()}
+        gw = {uid: pct(s.game_points, win_points * s.games_played) for uid, s in stats.items()}
         return {
             p.uid: (
                 ratings.get(p.uid, 0),
@@ -133,10 +144,13 @@ class Scoring1v1(FixedPointsScoring):
     def standings_columns(
         self, tour: ITournament, tour_round: IRound
     ) -> list[tuple[str, Mapping[UUID, str]]]:
-        stats = {p.uid: mtr_stats(tour, p, tour_round) for p in tour.players}
         win_points = self._param(tour, "win_points")
+        draw_points = self._param(tour, "draw_points")
+        stats = {
+            p.uid: mtr_stats(tour, p, tour_round, win_points, draw_points) for p in tour.players
+        }
         mw = {uid: pct(s.match_points, win_points * s.rounds_played) for uid, s in stats.items()}
-        gw = {uid: pct(s.game_points, 3 * s.games_played) for uid, s in stats.items()}
+        gw = {uid: pct(s.game_points, win_points * s.games_played) for uid, s in stats.items()}
         omw_col: dict[UUID, str] = {}
         gw_col: dict[UUID, str] = {}
         ogw_col: dict[UUID, str] = {}
