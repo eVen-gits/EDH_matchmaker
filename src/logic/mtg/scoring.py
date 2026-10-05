@@ -72,8 +72,9 @@ def mtr_stats(
 
     Match points come from the configured scoring logic. Game points use
     win_points per game won and draw_points per drawn game (the MTR's 3 and
-    1 by default). Byes count as 2-0 wins without an opponent. Unseated game losses count as a round
-    without games or opponents. Pending results contribute nothing.
+    1 by default). Byes count as 2-0 wins without an opponent. Unseated
+    game losses count as a round without games or opponents. Pending
+    results contribute nothing.
     """
     rounds_played = 0
     game_points = Fraction(0)
