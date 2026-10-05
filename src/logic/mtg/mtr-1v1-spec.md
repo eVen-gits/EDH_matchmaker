@@ -64,7 +64,7 @@ Definitions:
 
 ```
 MW(p)  = max(0.33, match_points(p) / (3 × rounds_played(p)))
-GW(p)  = max(0.33, game_points(p)  / (3 × games_played(p)))
+GW(p)  = max(0.33, game_points(p)  / (3 × games_played(p)))   # 3 = win_points
 OMW(p) = mean(MW(o) for each opponent o of p)
 OGW(p) = mean(GW(o) for each opponent o of p)
 ```
@@ -72,11 +72,16 @@ OGW(p) = mean(GW(o) for each opponent o of p)
 - The floor is **0.33** as written in the MTR. It is not 1/3.
 - **(not MTR)** In MW, the 3 is the configured `win_points` (3 by default),
   so a non-default point setting keeps MW a fraction of the maximum.
+- **(not MTR)** In GW, a game won scores the configured `win_points`, a drawn
+  game scores `draw_points`, and the 3 is `win_points`. GW and OGW match the
+  MTR only at the default 3/1 or any 1:3 draw-to-win ratio (e.g. 6/2). With
+  other points (e.g. 7/1) players with the same record can have different
+  GW and OGW. With `win_points` = 0 GW is the floor.
 - `rounds_played(o)` is the rounds **that opponent** played, including
   their byes. It is not the tournament's round count. If a player drops
   after 4 of 8 rounds, the denominator is 4 × 3.
 - A bye counts toward the player's own MW and GW (3 match points,
-  6 game points, 2 games, 1 round).
+  6 game points (2 × `win_points`), 2 games, 1 round).
 - A player's byes are **ignored** in their own OMW and OGW. A bye is not an
   opponent and is not in the mean (the divisor is the number of real
   opponents).

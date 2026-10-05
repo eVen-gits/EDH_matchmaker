@@ -453,16 +453,53 @@ class TestNonDefaultWinPoints(unittest.TestCase):
                 t.report_match(pod, games_from_score(pod, wins, draws=draws))
         r3 = t.tour_round
         columns = dict(t.get_scoring_logic(cfg.scoring_logic).standings_columns(t, r3))
-        omw = {p.name: columns["OMW"][p.uid] for p in t.players}
-        return [p.name for p in t.get_standings(r3)], omw
+        cols = {
+            key: {p.name: columns[key][p.uid] for p in t.players}
+            for key in ("OMW", "GW", "OGW")
+        }
+        return [p.name for p in t.get_standings(r3)], cols
 
     def test_doubled_points_rank_like_default(self):
-        order_313, omw_313 = self._standings(3, 1, 3)
-        order_626, omw_626 = self._standings(6, 2, 6)
+        order_313, cols_313 = self._standings(3, 1, 3)
+        order_626, cols_626 = self._standings(6, 2, 6)
         self.assertEqual(order_313, ["H", "A", "G", "D", "B", "F", "E", "C"])
         self.assertEqual(order_626, order_313)
-        self.assertEqual(omw_626, omw_313)
-        self.assertTrue(all(float(v) <= 1 for v in omw_626.values()), omw_626)
+        self.assertEqual(cols_626, cols_313)
+        self.assertTrue(all(float(v) <= 1 for v in cols_626["OMW"].values()), cols_626)
+
+    def test_default_columns_unchanged(self):
+        """Values recorded before game tiebreakers followed the configured points."""
+        _, cols = self._standings(3, 1, 3)
+        self.assertEqual(cols["GW"], {
+            "A": "0.5185", "B": "0.5417", "C": "0.3300", "D": "0.5556",
+            "E": "0.3750", "F": "0.4444", "G": "0.5238", "H": "0.5556",
+        })
+        self.assertEqual(cols["OGW"], {
+            "A": "0.4433", "B": "0.4433", "C": "0.4784", "D": "0.4742",
+            "E": "0.4804", "F": "0.5280", "G": "0.5185", "H": "0.4784",
+        })
+
+    def test_game_draw_worth_follows_points(self):
+        """7/1/7: drawn games are worth less, so A (draws) falls behind G."""
+        _, cols_313 = self._standings(3, 1, 3)
+        _, cols_717 = self._standings(7, 1, 7)
+        self.assertNotEqual(cols_717["GW"], cols_313["GW"])
+        self.assertNotEqual(cols_717["OGW"], cols_313["OGW"])
+        # A and G tie on match points; draws flip their GW order.
+        self.assertLess(cols_313["GW"]["A"], cols_313["GW"]["G"])
+        self.assertGreater(cols_717["GW"]["A"], cols_717["GW"]["G"])
+
+    def test_zero_draw_points_count_drawn_games_as_nothing(self):
+        _, cols = self._standings(3, 0, 3)
+        # Drawn games add no points but still count as games played.
+        self.assertEqual(cols["GW"]["A"], "0.4444")
+        self.assertEqual(cols["GW"]["F"], "0.3333")
+
+    def test_zero_win_points_floor(self):
+        order, cols = self._standings(0, 1, 0)
+        self.assertEqual(len(order), 8)
+        for key in ("OMW", "GW", "OGW"):
+            self.assertEqual(set(cols[key].values()), {"0.3300"}, key)
 
 
 class TestStandingsStr(unittest.TestCase):
