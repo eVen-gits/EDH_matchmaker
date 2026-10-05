@@ -17,8 +17,8 @@ def pct(points: Fraction, possible: Fraction | int) -> Fraction:
 
     Args:
         points: Match or game points earned.
-        possible: The maximum possible (3 * rounds_played or 3 *
-            games_played). FLOOR if this is 0 (no rounds/games played).
+        possible: The maximum possible (win_points * rounds_played or
+            3 * games_played). FLOOR if this is 0 (no rounds/games played).
     """
     if not possible:
         return FLOOR
@@ -116,7 +116,8 @@ class Scoring1v1(FixedPointsScoring):
     ) -> Mapping[UUID, tuple]:
         """Sort key, descending: (rating, OMW, GW, OGW, -uid) - MTR 3.1."""
         stats = {p.uid: mtr_stats(tour, p, tour_round) for p in tour.players}
-        mw = {uid: pct(s.match_points, 3 * s.rounds_played) for uid, s in stats.items()}
+        win_points = self._param(tour, "win_points")
+        mw = {uid: pct(s.match_points, win_points * s.rounds_played) for uid, s in stats.items()}
         gw = {uid: pct(s.game_points, 3 * s.games_played) for uid, s in stats.items()}
         return {
             p.uid: (
@@ -133,7 +134,8 @@ class Scoring1v1(FixedPointsScoring):
         self, tour: ITournament, tour_round: IRound
     ) -> list[tuple[str, Mapping[UUID, str]]]:
         stats = {p.uid: mtr_stats(tour, p, tour_round) for p in tour.players}
-        mw = {uid: pct(s.match_points, 3 * s.rounds_played) for uid, s in stats.items()}
+        win_points = self._param(tour, "win_points")
+        mw = {uid: pct(s.match_points, win_points * s.rounds_played) for uid, s in stats.items()}
         gw = {uid: pct(s.game_points, 3 * s.games_played) for uid, s in stats.items()}
         omw_col: dict[UUID, str] = {}
         gw_col: dict[UUID, str] = {}

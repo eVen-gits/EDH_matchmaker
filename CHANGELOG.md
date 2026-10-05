@@ -15,6 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The Commander top 40 cut now gives 8 byes (seeds 1-8) and seats 8 pods, so
   the 8 byes and 8 pod winners advance to the top 16. It used to give 16 byes,
   so no pod winner could advance.
+- The 1v1 OMW tiebreaker now divides match points by the configured win
+  points instead of a fixed 3. With win points other than 3 (e.g. 6/2/6), tied
+  players could be ranked in the wrong order and OMW could show above 100%.
+  Default 3/1/3 standings are unchanged.
+- Ruleset, pairing-logic and scoring-logic lookups are now safe when several
+  threads make the first lookup at once (e.g. a web server's first requests
+  after a restart). A lookup that started while another thread was still
+  discovering could fail with "Unknown ruleset".
 
 ### Changed
 - Outside the GUI, each tournament now writes its own log file,

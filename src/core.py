@@ -994,7 +994,10 @@ class Tournament(ITournament):
         """Discover and cache all pairing logic implementations from src/logic/*/matching.py."""
         if cls._pairing_logic_cache:
             return
-        cls._discover_logic("matching.py", IPairingLogic, cls._pairing_logic_cache)
+        found: dict[str, Any] = {}
+        cls._discover_logic("matching.py", IPairingLogic, found)
+        # One assignment: another thread sees either no cache or a full one.
+        cls._pairing_logic_cache = found
 
     @classmethod
     def get_pairing_logic(cls, logic_name: str) -> IPairingLogic:
@@ -1039,7 +1042,10 @@ class Tournament(ITournament):
         """Discover and cache all scoring logic implementations from src/logic/*/scoring.py."""
         if cls._scoring_logic_cache:
             return
-        cls._discover_logic("scoring.py", IScoringLogic, cls._scoring_logic_cache)
+        found: dict[str, Any] = {}
+        cls._discover_logic("scoring.py", IScoringLogic, found)
+        # One assignment: another thread sees either no cache or a full one.
+        cls._scoring_logic_cache = found
 
     @classmethod
     def get_scoring_logic(cls, logic_name: str) -> IScoringLogic:
@@ -1086,7 +1092,10 @@ class Tournament(ITournament):
         """Discover and cache all ruleset implementations from src/logic/*/rules.py."""
         if cls._ruleset_cache:
             return
-        cls._discover_logic("rules.py", IRuleset, cls._ruleset_cache)
+        found: dict[str, Any] = {}
+        cls._discover_logic("rules.py", IRuleset, found)
+        # One assignment: another thread sees either no cache or a full one.
+        cls._ruleset_cache = found
 
     @classmethod
     def get_ruleset(cls, name: str) -> IRuleset:
