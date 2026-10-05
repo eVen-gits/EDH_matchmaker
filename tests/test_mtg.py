@@ -423,6 +423,48 @@ class TestMtrDropAndBye(unittest.TestCase):
         self.assertNotIn(c.uid, s_a.opponents)
 
 
+class TestNonDefaultWinPoints(unittest.TestCase):
+    """MW divides by the configured win_points, not the MTR's fixed 3.
+
+    6/2/6 is 3/1/3 doubled, so it must give the same standings and the same
+    OMW. With a fixed 3, A and G (tied on points) swapped and OMW went above 1.
+    """
+
+    # (left, right, left game wins, right game wins, drawn games) per pod.
+    HISTORY = [
+        [("D", "G", 1, 2, 0), ("B", "F", 1, 1, 1), ("H", "A", 1, 2, 0), ("E", "C", 2, 1, 0)],
+        [("C", "A", 1, 1, 1), ("B", "H", 1, 2, 0), ("E", "D", 0, 2, 0), ("F", "G", 1, 1, 1)],
+        [("A", "F", 1, 1, 1), ("G", "D", 0, 0, 1), ("B", "C", 2, 0, 0), ("E", "H", 1, 2, 0)],
+    ]
+
+    def _standings(self, win, draw, bye):
+        cfg = TournamentConfiguration(
+            ruleset="Mtg1v1Ruleset", auto_export=False, n_rounds=3,
+            scoring_params={"win_points": win, "draw_points": draw, "bye_points": bye},
+        )
+        t = Tournament(cfg)
+        by_name = {p.name: p for p in t.add_player(list("ABCDEFGH"))}
+        for pods in self.HISTORY:
+            t.new_round()
+            for left, right, *_ in pods:  # a round with no open pod counts as done
+                t.manual_pod([by_name[left], by_name[right]])
+            for pod, (left, right, lw, rw, draws) in zip(list(t.tour_round.pods), pods):
+                wins = {by_name[left]: lw, by_name[right]: rw}
+                t.report_match(pod, games_from_score(pod, wins, draws=draws))
+        r3 = t.tour_round
+        columns = dict(t.get_scoring_logic(cfg.scoring_logic).standings_columns(t, r3))
+        omw = {p.name: columns["OMW"][p.uid] for p in t.players}
+        return [p.name for p in t.get_standings(r3)], omw
+
+    def test_doubled_points_rank_like_default(self):
+        order_313, omw_313 = self._standings(3, 1, 3)
+        order_626, omw_626 = self._standings(6, 2, 6)
+        self.assertEqual(order_313, ["H", "A", "G", "D", "B", "F", "E", "C"])
+        self.assertEqual(order_626, order_313)
+        self.assertEqual(omw_626, omw_313)
+        self.assertTrue(all(float(v) <= 1 for v in omw_626.values()), omw_626)
+
+
 class TestStandingsStr(unittest.TestCase):
     def test_mtg_headers_include_omw_gw_ogw_commander_does_not(self):
         mtg_cfg = TournamentConfiguration(

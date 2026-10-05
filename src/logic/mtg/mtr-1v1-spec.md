@@ -70,6 +70,8 @@ OGW(p) = mean(GW(o) for each opponent o of p)
 ```
 
 - The floor is **0.33** as written in the MTR. It is not 1/3.
+- **(not MTR)** In MW, the 3 is the configured `win_points` (3 by default),
+  so a non-default point setting keeps MW a fraction of the maximum.
 - `rounds_played(o)` is the rounds **that opponent** played, including
   their byes. It is not the tournament's round count. If a player drops
   after 4 of 8 rounds, the denominator is 4 × 3.
