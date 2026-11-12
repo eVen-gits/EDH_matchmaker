@@ -193,6 +193,19 @@
           "items": { "$ref": "#/$defs/uid" },
           "uniqueItems": true,
           "minItems": 1
+        },
+        "scores": {
+          "type": "array",
+          "description": "Optional (format 1.3+). [uid, score] pairs sorted by UID.",
+          "items": {
+            "type": "array",
+            "prefixItems": [
+              { "$ref": "#/$defs/uid" },
+              { "type": "integer" }
+            ],
+            "minItems": 2,
+            "maxItems": 2
+          }
         }
       }
     }
