@@ -704,7 +704,9 @@ class TournamentConfiguration(ITournamentConfiguration):
         self.pod_sizes: Sequence[int] = kwargs.get(
             "pod_sizes", list(ruleset_cls.DEFAULT_POD_SIZES)
         )
-        self.allow_bye: bool = kwargs.get("allow_bye", default["allow_bye"])
+        self.allow_bye: bool = kwargs.get(
+            "allow_bye", ruleset_cls.DEFAULT_ALLOW_BYE
+        )
         self.n_rounds: int = kwargs.get("n_rounds", default["n_rounds"])
         # Parse int or enum for TopCut
         tc_val: TournamentConfiguration.TopCut | int = kwargs.get(
@@ -2233,6 +2235,10 @@ class Tournament(ITournament):
                 key=lambda x: keys[x.uid],
                 reverse=True,
             )
+        elif (
+            playoff_override := self.ruleset.playoff_standings(self, tour_round)
+        ) is not None:
+            standings = cast(list[Player], playoff_override)
         else:
             final_swiss = self.final_swiss_round
             assert final_swiss is not None
@@ -3917,6 +3923,21 @@ class Round(IRound):
             # the base IPairingLogic.advance_topcut is a no-op, so a stage
             # whose pairing logic doesn't give seeded byes is unaffected.
             self.logic.advance_topcut(self, cast(list[IPlayer], standings))
+        else:
+            prev_round = self.tour.previous_round(self)
+            ruleset = self.tour.ruleset
+            if (
+                prev_round is not None
+                and type(ruleset).swiss_eliminations
+                is not IRuleset.swiss_eliminations
+            ):
+                # Opt-in ruleset hook. Like top cut, reset to the previous
+                # round's baseline so a re-pair drops stale eliminations.
+                self._disabled = set(prev_round._disabled)
+                for p in ruleset.swiss_eliminations(
+                    self, self.tour.get_standings(prev_round)
+                ):
+                    self.disable_player(cast(Player, p), set_disabled=True)
 
         self.create_pods()
         pods = [p for p in self.pods if all([not p.done, len(p) < p.cap])]

@@ -312,6 +312,25 @@ and `rounds[].byes`/`game_loss` does not need to know the ruleset.
 Replaying a playoff plan depends on the ruleset. Swiss standings order
 and tiebreaker export columns belong to the selected scoring logic.
 
+A ruleset can also opt in to three shared hooks. Each default keeps core's
+existing behaviour, so Commander and 1v1 Magic are unchanged:
+
+- `DEFAULT_ALLOW_BYE` (default `true`) is the `config.allow_bye` default of a
+  new tournament under that ruleset.
+- `playoff_standings(tour, tour_round)` (default `None`) is asked first by
+  `Tournament.get_standings` for a playoff round. A returned list is the
+  standings; `None` runs core's built-in playoff ordering.
+- `swiss_eliminations(tour_round, standings)` (default: no one) is called
+  when a Swiss round after the first is paired, with the previous round's
+  standings. Returned players are disabled like a top-cut cut: they sit out
+  the round but stay ranked. When a ruleset overrides it, each pairing of the
+  round first resets the disabled players to the previous round's, so a
+  re-pair after `reset_pods` drops stale eliminations. As with top cut, a
+  player disabled by hand in this round must be disabled again after a
+  re-pair.
+
+None of the three changes the saved format.
+
 ### `CommanderRuleset`
 
 The default (`config.ruleset` absent or `"CommanderRuleset"`).
