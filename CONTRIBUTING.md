@@ -43,6 +43,24 @@ GUI tests (marked `gui`) run locally only; CI deselects them with `-m "not slow 
   `.github/workflows/typecheck.yml` and drop the `|| true` in
   `.pre-commit-config.yaml`.
 
+## Frozen-output tests
+
+`tests/test_golden.py` plays seeded Commander and 1v1 MTG tournaments and
+compares everything observable (pods per round, standings in every export
+format, the pods export and the saved JSON) to fixtures in `tests/golden/`.
+It fixes the random seed, the clock (`datetime.now`) and the UUIDs, and hashes
+objects by `uid` so set iteration order is stable. It needs no production
+change. If one of these tests fails, existing behaviour changed.
+
+If the change is intended, regenerate the fixtures, review the diff of
+`tests/golden/` and commit it with the code change:
+
+```bash
+GOLDEN_UPDATE=1 PYTHONPATH=. pytest tests/test_golden.py
+```
+
+To add a scenario, add an entry to `SCENARIOS` and regenerate.
+
 ## Commit messages
 
 No tool enforces this — it's a convention, not a gate. Match the existing
