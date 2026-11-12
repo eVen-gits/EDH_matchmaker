@@ -947,12 +947,12 @@ class Tournament(ITournament):
     # Version of the tournament-log JSON format written by TournamentAction.store.
     # Bump this, and add the new version to KNOWN_FORMAT_VERSIONS, whenever a
     # change to serialize()/inflate() is not backward compatible.
-    LOG_FORMAT_VERSION = "1.2"
+    LOG_FORMAT_VERSION = "1.3"
     # Every format_version this implementation can read without warning - a
     # reader must not assume a default for a missing config field beyond
     # what inflate() already handles, but a known older version is not
     # itself cause for a warning (only a version outside this set is).
-    KNOWN_FORMAT_VERSIONS = frozenset({"1.0", "1.1", "1.2"})
+    KNOWN_FORMAT_VERSIONS = frozenset({"1.0", "1.1", "1.2", "1.3"})
 
     @classmethod
     def _discover_logic(
@@ -3239,7 +3239,12 @@ class Pod(IPod):
         for game in self._games:
             winners = game.winners - {player.uid}
             if winners:
-                new_games.append(IGameResult(winners))
+                scores = (
+                    None
+                    if game.scores is None
+                    else tuple(kv for kv in game.scores if kv[0] != player.uid)
+                )
+                new_games.append(IGameResult(winners, scores))
         self._games = new_games
 
     def reset_result(self):
@@ -3455,11 +3460,16 @@ class Pod(IPod):
             "table": self.table,
             "cap": self.cap,
             "result": sorted([str(p) for p in self._result]),
-            "games": [
-                {"winners": sorted(str(u) for u in g.winners)} for g in self._games
-            ],
+            "games": [self._serialize_game(g) for g in self._games],
             "players": [str(p) for p in self._players],
         }
+
+    @staticmethod
+    def _serialize_game(g: IGameResult) -> dict[str, Any]:
+        out: dict[str, Any] = {"winners": sorted(str(u) for u in g.winners)}
+        if g.scores is not None:
+            out["scores"] = [[str(u), v] for u, v in g.scores]
+        return out
 
     @classmethod
     def inflate(cls, tour_round: Round, data: dict[str, Any]) -> Pod:
@@ -3478,7 +3488,12 @@ class Pod(IPod):
                 IGameResult(
                     frozenset(
                         UUID(x) for x in (g["winners"] if isinstance(g, dict) else g)
-                    )
+                    ),
+                    (
+                        tuple((UUID(u), v) for u, v in g["scores"])
+                        if isinstance(g, dict) and g.get("scores") is not None
+                        else None
+                    ),
                 )
                 for g in games
             ]

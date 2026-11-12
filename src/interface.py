@@ -15,15 +15,29 @@ class IGameResult:
 
     One UID means that player won the game. Two or more mean the game was
     drawn among them. Every other player seated in the pod lost the game.
+    ``scores`` optionally records each player's score for the game; Commander
+    and 1v1 MTG never set it.
     """
 
     winners: frozenset[UUID]
+    # Optional per-player score for the game (e.g. victory points), stored as
+    # a tuple sorted by UID so equality and hashing are order-independent.
+    # Accepts a mapping or an iterable of (UID, score) pairs; None = unscored.
+    scores: tuple[tuple[UUID, int], ...] | None = None
 
     def __post_init__(self) -> None:
         winners = frozenset(self.winners)
         if not winners:
             raise ValueError("IGameResult.winners must not be empty.")
         object.__setattr__(self, "winners", winners)
+        if self.scores is not None:
+            raw: Any = self.scores
+            pairs = raw.items() if isinstance(raw, Mapping) else raw
+            object.__setattr__(
+                self,
+                "scores",
+                tuple(sorted((UUID(str(u)), int(v)) for u, v in pairs)),
+            )
 
 
 class SortMethod(IntEnum):

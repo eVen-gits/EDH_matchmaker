@@ -6,7 +6,7 @@ compatible files, without reading the EDH_matchmaker source code.
 
 ## Status of this document
 
-This page describes format version `1.2`, the format that EDH_matchmaker
+This page describes format version `1.3`, the format that EDH_matchmaker
 writes today. [Known gaps](#known-gaps-and-open-decisions) lists the parts
 of the format that a stricter cross-software standard must still decide.
 
@@ -73,7 +73,7 @@ scheme yet.
 A reader must accept a file with no `format_version` field as `"1.0"`.
 
 A reader must not reject a file whose `format_version` is a known older
-version (`"1.0"`, `"1.1"`) - attempt to read it without warning, since
+version (`"1.0"`, `"1.1"`, `"1.2"`) - attempt to read it without warning, since
 format changes are expected to stay additive (new optional fields) for
 the foreseeable future. Only a `format_version` this reader does not
 recognize at all warrants a warning. A breaking change bumps
@@ -111,6 +111,15 @@ Purely additive - a `1.1` file is already a valid `1.2` file:
   via `pairing_rounds[1].logic` when it needs `PairingDefault` there -
   round 2 defaults to `PairingSnake` otherwise. See `snake_pods` in
   [The `config` object](#the-config-object).
+
+#### `1.2` → `1.3`
+
+Purely additive - a `1.2` file is already a valid `1.3` file. Every saved
+file now carries `format_version` `"1.3"`, whether or not it uses the new
+field:
+
+- `pods[].games[].scores`: optional per-player score for that game (see
+  [Pod objects](#pod-objects)). Commander and 1v1 MTG never write it.
 
 ### Minimal example
 
@@ -259,6 +268,12 @@ Each entry in a round's `pods` array:
 | `result` | array of string (UUID) | The pod's *match* outcome, derived from `games`. See below. |
 | `games` | array of object | optional, default `[]`. The pod's whole match report: one object per completed game, in play order, `{"winners": [<uid>, ...]}`. A new report always **replaces** the previous one - see [Match report](#match-report) below. |
 | `players` | array of string (UUID) | Players seated at this pod, in seat order. |
+
+A game object may also hold `scores`, optional and absent by default: an
+array of `[<uid>, <int>]` pairs, one per scored player, sorted by UID
+(for example victory points in a game that scores them). A reader must
+accept a game without `scores`. When a player is removed from a pod's
+report, that player's pair is removed too.
 
 Each game object's `winners` array encodes that game's outcome by how many
 player UIDs it holds (`minItems: 1` - an empty array is not a valid game;
