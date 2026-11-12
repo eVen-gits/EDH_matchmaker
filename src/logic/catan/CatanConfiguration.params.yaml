@@ -1,0 +1,10 @@
+seat_win_rates:
+  default: [0.26, 0.25, 0.25, 0.24]
+  type: list
+  item_type: float
+  min: 0
+  step: 0.01
+  label: Win weight per seat
+  description: >
+    random_report only: relative chance each seat (play order, first player
+    first) wins a game. A 3-player pod uses the first three entries.

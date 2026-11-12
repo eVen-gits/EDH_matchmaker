@@ -366,6 +366,26 @@ count (including an all-drawn report) is a match draw.
 citations this implements; this page states only what changes the wire
 format's validity, not the rules text itself.
 
+### `CatanRuleset`
+
+Rules for Catan tournaments (`config.ruleset: "CatanRuleset"`), pod sizes
+`3` and `4` only (default `[4, 3]`, no seat balancing, `allow_bye` defaults to
+`false` because 3-player pods absorb remainders). This ruleset is still hidden
+from users (`IS_COMPLETE` is `false`): its scoring, pairing and playoffs come
+in later changes, so a Catan tournament is not creatable yet.
+
+`victory_points` (default `10`) and `eliminate_below_wins` (default `0`, off)
+are `ruleset_params` fields; see `src/logic/catan/CatanRuleset.params.yaml`.
+`seat_win_rates` is a `config` field that only drives simulated results
+(`src/logic/catan/CatanConfiguration.params.yaml`).
+
+A pod's `games` holds exactly one game with exactly one UID in `winners`;
+there are no draws. The game's `scores` is required and lists every seated
+player's victory points (VP), and no one else. A valid report has the winner at
+`victory_points` or more and every other player below it. A win reported
+without VP (`report_win`) is refused. The match `result` is the game's
+`winners`.
+
 ## Enum reference
 
 The fields below carry integer values over the wire. A reader must

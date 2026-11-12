@@ -19,6 +19,9 @@ multiplayer pods) and 1v1 Magic. A tournament's game is an explicit choice
 - **1v1 Magic support**: Play/report best-of-N matches, single-elimination
   top cut seeded by Swiss standings, and MTR-standard tiebreakers (OMW, GW,
   OGW).
+- **Catan (in progress)**: The Catan ruleset (3-4 player pods, one winner per
+  game, victory points in every report) is built but hidden from the GUI until
+  its scoring, pairing and playoffs are done.
 - **Pluggable Scoring**: Choose the scoring algorithm (Default, Hareruya,
   Modified Hareruya for Commander; a Magic Tournament Rules-based scoring for
   1v1). Each algorithm declares its own parameters in a sidecar file, and the

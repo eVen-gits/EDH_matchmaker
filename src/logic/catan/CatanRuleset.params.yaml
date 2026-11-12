@@ -1,0 +1,21 @@
+victory_points:
+  default: 10
+  type: int
+  min: 3
+  max: 20
+  label: Victory points to win
+  description: >
+    Victory points (VP) a player needs to win a game (Catan tournament rule
+    1.1.11 ends a game at 10). The winner's VP must reach it and every other
+    player must finish below it. It is also the per-game cap on the VP that
+    count for the VP tiebreaker.
+eliminate_below_wins:
+  default: 0
+  type: int
+  min: 0
+  max: 10
+  label: Eliminate below wins
+  description: >
+    Players with fewer wins than this before the round are eliminated from the
+    tournament (rule 1.1.5: 1 on game 4 of an event with 80 or more players).
+    0 turns it off. Set it per round in the round's ruleset params.
