@@ -461,6 +461,8 @@ class IRuleset(ABC):
     # Whether this ruleset requires an odd player count to get a bye rather
     # than leave someone unseated (config.allow_bye and max_byes >= 1).
     BYES_REQUIRED: bool = False
+    # config.allow_bye of a new config.
+    DEFAULT_ALLOW_BYE: bool = True
     # top_cut -> playoff rounds in play order, each (stage value, top-cut
     # pairing logic name). Its keys are the only non-zero top_cut values
     # the ruleset accepts.
@@ -536,6 +538,30 @@ class IRuleset(ABC):
         """Default pairing logic for Swiss round seq when
         config.pairing_rounds sets none."""
         ...
+
+    def playoff_standings(
+        self, tour: ITournament, tour_round: IRound
+    ) -> list[IPlayer] | None:
+        """Opt-in hook: the full standings after a playoff round.
+
+        Tournament.get_standings asks this first for a non-Swiss
+        tour_round. None (the default) means "not handled": core runs its
+        built-in playoff ordering unchanged.
+        """
+        return None
+
+    def swiss_eliminations(
+        self, tour_round: IRound, standings: Sequence[IPlayer]
+    ) -> set[IPlayer]:
+        """Opt-in hook: players out of the tournament before this Swiss round.
+
+        Round.create_pairings calls it for each Swiss round after the first,
+        before the pods are built, with the previous round's standings.
+        Returned players are disabled like a top-cut cut (same
+        disable_player), so they sit out but stay ranked. The default
+        eliminates no one.
+        """
+        return set()
 
 
 class IStandingsExport(ABC):
