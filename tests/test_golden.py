@@ -85,6 +85,7 @@ SCENARIOS = {
     ),
     "mtg_swiss": (dict(ruleset="Mtg1v1Ruleset", n_rounds=3), 8, 3, 0),
     "mtg_odd_field": (dict(ruleset="Mtg1v1Ruleset", n_rounds=3), 7, 3, 0),
+    "mtg_top_cut_4": (dict(ruleset="Mtg1v1Ruleset", n_rounds=3, top_cut=4), 8, 3, 2),
 }
 
 
