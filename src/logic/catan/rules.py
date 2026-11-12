@@ -114,7 +114,7 @@ class CatanRuleset(IRuleset):
             p.uid: target if p is winner else random.randint(low, target - 1)
             for p in pod.players
         }
-        return [IGameResult(frozenset({winner.uid}), scores)]  # type: ignore[arg-type]
+        return [IGameResult(frozenset({winner.uid}), tuple(scores.items()))]
 
     def swiss_pairing_logic(self, tour: ITournament, seq: int) -> str:
         # TODO(slice 5): PairingCatanPrelim, and PairingCatanSerpentine on the

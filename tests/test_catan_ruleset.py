@@ -2,6 +2,7 @@
 
 import random
 import unittest
+from typing import Any
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -9,7 +10,7 @@ from src.interface import IGameResult
 from src.logic.catan.rules import CatanConfiguration, CatanRuleset
 
 
-def _pod(n=4, **params):
+def _pod(n=4, **params) -> Any:
     players = [SimpleNamespace(uid=uuid4()) for _ in range(n)]
     config = SimpleNamespace(
         ruleset_overrides=lambda _r: params, seat_win_rates=[0.26, 0.25, 0.25, 0.24]
@@ -21,7 +22,7 @@ def _pod(n=4, **params):
 def _game(pod, winners, vps):
     return IGameResult(
         frozenset(pod.players[i].uid for i in winners),
-        {p.uid: v for p, v in zip(pod.players, vps)} if vps else None,
+        tuple((p.uid, v) for p, v in zip(pod.players, vps)) if vps else None,
     )
 
 
@@ -65,7 +66,7 @@ class CatanRulesetTests(unittest.TestCase):
             self.rules.validate_report(pod, [_game(pod, [0], None)])
         partial = IGameResult(
             frozenset({pod.players[0].uid}),
-            {p.uid: 10 for p in pod.players[:3]},
+            tuple((p.uid, 10) for p in pod.players[:3]),
         )
         with self.assertRaisesRegex(ValueError, "exactly the seated"):
             self.rules.validate_report(pod, [partial])
