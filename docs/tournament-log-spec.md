@@ -323,7 +323,11 @@ existing behaviour, so Commander and 1v1 Magic are unchanged:
 - `swiss_eliminations(tour_round, standings)` (default: no one) is called
   when a Swiss round after the first is paired, with the previous round's
   standings. Returned players are disabled like a top-cut cut: they sit out
-  the round but stay ranked.
+  the round but stay ranked. When a ruleset overrides it, each pairing of the
+  round first resets the disabled players to the previous round's, so a
+  re-pair after `reset_pods` drops stale eliminations. As with top cut, a
+  player disabled by hand in this round must be disabled again after a
+  re-pair.
 
 None of the three changes the saved format.
 

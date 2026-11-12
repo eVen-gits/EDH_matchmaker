@@ -3580,7 +3580,6 @@ class Round(IRound):
         self._game_loss: set[UUID] = set() if game_loss is None else game_loss
         self._dropped: set[UUID] = set() if dropped is None else dropped
         self._disabled: set[UUID] = set() if disabled is None else disabled
-        self._swiss_eliminated: set[UUID] = set()
 
         self.player_locations_map: dict[UUID, Pod] = {}
 
@@ -3925,16 +3924,20 @@ class Round(IRound):
             # whose pairing logic doesn't give seeded byes is unaffected.
             self.logic.advance_topcut(self, cast(list[IPlayer], standings))
         else:
-            self._disabled -= self._swiss_eliminated
-            self._swiss_eliminated = set()
             prev_round = self.tour.previous_round(self)
-            if prev_round is not None:
-                # Opt-in ruleset hook; the default eliminates no one.
-                for p in self.tour.ruleset.swiss_eliminations(
+            ruleset = self.tour.ruleset
+            if (
+                prev_round is not None
+                and type(ruleset).swiss_eliminations
+                is not IRuleset.swiss_eliminations
+            ):
+                # Opt-in ruleset hook. Like top cut, reset to the previous
+                # round's baseline so a re-pair drops stale eliminations.
+                self._disabled = set(prev_round._disabled)
+                for p in ruleset.swiss_eliminations(
                     self, self.tour.get_standings(prev_round)
                 ):
                     self.disable_player(cast(Player, p), set_disabled=True)
-                    self._swiss_eliminated.add(p.uid)
 
         self.create_pods()
         pods = [p for p in self.pods if all([not p.done, len(p) < p.cap])]
@@ -4112,7 +4115,6 @@ class Round(IRound):
                     "Can't disable player in a completed pod in a previous round."
                 )
             # pod.remove_player(player)
-        self._swiss_eliminated.discard(player.uid)
         if set_disabled:
             self._disabled.add(player.uid)
         else:

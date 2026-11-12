@@ -3,7 +3,7 @@
 import unittest
 from unittest import mock
 
-from src.core import Round, Tournament, TournamentAction, TournamentConfiguration
+from src.core import Player, Round, Tournament, TournamentAction, TournamentConfiguration
 from src.interface import IRuleset
 from src.logic.commander.rules import CommanderRuleset
 from src.logic.mtg.rules import Mtg1v1Ruleset
@@ -46,25 +46,28 @@ class RulesetHookTests(unittest.TestCase):
         self.assertNotIn(out, t.tour_round.active_players)
         self.assertIn(out, t.get_standings())
 
-    def test_swiss_eliminations_rerun_after_reset_pods(self):
+    def test_swiss_eliminations_rerun_after_corrected_result(self):
         t = _tour()
-        standings = t.get_standings()
-        first, second, manual = standings[-1], standings[-2], standings[0]
-        with mock.patch.object(
-            CommanderRuleset, "swiss_eliminations", return_value={first}
-        ):
+        last = t.get_standings()[-1]
+
+        def bottom(_ruleset, tour_round, standings):
+            return {standings[-1]}
+
+        with mock.patch.object(CommanderRuleset, "swiss_eliminations", bottom):
             t.create_pairings()
-        self.assertNotIn(first, t.tour_round.active_players)
-        t.reset_pods()
-        t.disable_player(manual)
-        with mock.patch.object(
-            CommanderRuleset, "swiss_eliminations", return_value={second}
-        ):
+            self.assertNotIn(last, t.tour_round.active_players)
+            first = t.rounds[0]
+            pod = last.pod(first)
+            assert pod is not None
+            pod.reset_result()
+            first.set_result(last, Player.EResult.WIN)
+            new_last = t.get_standings(first)[-1]
+            self.assertNotEqual(new_last, last)
+            t.reset_pods()
             t.create_pairings()
         active = t.tour_round.active_players
-        self.assertIn(first, active)
-        self.assertNotIn(second, active)
-        self.assertNotIn(manual, active)
+        self.assertIn(last, active)
+        self.assertNotIn(new_last, active)
 
     def test_swiss_eliminations_not_called_for_first_round(self):
         t = Tournament(TournamentConfiguration(auto_export=False))

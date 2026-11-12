@@ -560,6 +560,12 @@ class IRuleset(ABC):
         Returned players are disabled like a top-cut cut (same
         disable_player), so they sit out but stay ranked. The default
         eliminates no one.
+
+        When a ruleset overrides this hook, each pairing of the round first
+        resets its disabled players to the previous round's, so re-pairing
+        after reset_pods drops stale eliminations. As with top cut, a player
+        disabled by hand in this round must be disabled again after a
+        re-pair.
         """
         return set()
 
