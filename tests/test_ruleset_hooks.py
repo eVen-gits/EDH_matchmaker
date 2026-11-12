@@ -46,6 +46,26 @@ class RulesetHookTests(unittest.TestCase):
         self.assertNotIn(out, t.tour_round.active_players)
         self.assertIn(out, t.get_standings())
 
+    def test_swiss_eliminations_rerun_after_reset_pods(self):
+        t = _tour()
+        standings = t.get_standings()
+        first, second, manual = standings[-1], standings[-2], standings[0]
+        with mock.patch.object(
+            CommanderRuleset, "swiss_eliminations", return_value={first}
+        ):
+            t.create_pairings()
+        self.assertNotIn(first, t.tour_round.active_players)
+        t.reset_pods()
+        t.disable_player(manual)
+        with mock.patch.object(
+            CommanderRuleset, "swiss_eliminations", return_value={second}
+        ):
+            t.create_pairings()
+        active = t.tour_round.active_players
+        self.assertIn(first, active)
+        self.assertNotIn(second, active)
+        self.assertNotIn(manual, active)
+
     def test_swiss_eliminations_not_called_for_first_round(self):
         t = Tournament(TournamentConfiguration(auto_export=False))
         t.add_player([f"P{i}" for i in range(8)])
