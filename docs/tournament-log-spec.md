@@ -372,7 +372,7 @@ format's validity, not the rules text itself.
 Rules for Catan tournaments (`config.ruleset: "CatanRuleset"`), pod sizes
 `3` and `4` only (default `[4, 3]`, no seat balancing, `allow_bye` defaults to
 `false` because 3-player pods absorb remainders). This ruleset is still hidden
-from users (`IS_COMPLETE` is `false`): its scoring, pairing and playoffs come
+from users (`IS_COMPLETE` is `false`): its pairing and playoffs come
 in later changes, so a Catan tournament is not creatable yet. Its default
 scoring logic is [`ScoringCatan`](#scoringcatan).
 
