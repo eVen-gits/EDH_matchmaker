@@ -260,6 +260,11 @@ class StandingsExport(DataExport, IStandingsExport):
 
     @staticmethod
     def _get_avg_seat(player: Player, context: TournamentContext) -> float:
+        # Middle seats need Commander's global_wr_seats; games without it
+        # (Catan) have no seat average.
+        config = context.tour.config
+        if config.max_pod_size > 2 and not hasattr(config, "global_wr_seats"):
+            return 0
         return player.average_seat(context.tour.rounds)
 
     @staticmethod
@@ -3436,6 +3441,13 @@ class Pod(IPod):
             maxlen = 0
         else:
             maxlen = max([len(p.display_name) for p in self.players])
+        # Middle seats need Commander's global_wr_seats (Player.average_seat);
+        # games without it (Catan) show no seat average.
+        seat = (
+            ["-s"]
+            if self.cap <= 2 or hasattr(self.tour.config, "global_wr_seats")
+            else []
+        )
         ret = "Pod {} with {}/{} players:\n\t{}".format(
             self.table,
             len(self),
@@ -3451,7 +3463,7 @@ class Pod(IPod):
                         if self.result_type == Pod.EResult.DRAW
                         and p.uid in self._result
                         else "L",
-                        p.__repr__(["-s", str(maxlen), "-p"], context=context),
+                        p.__repr__([*seat, str(maxlen), "-p"], context=context),
                     )
                     for _, p in zip(range(1, len(self) + 1), self.players)
                 ]

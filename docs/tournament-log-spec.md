@@ -372,8 +372,9 @@ format's validity, not the rules text itself.
 Rules for Catan tournaments (`config.ruleset: "CatanRuleset"`), pod sizes
 `3` and `4` only (default `[4, 3]`, no seat balancing, `allow_bye` defaults to
 `false` because 3-player pods absorb remainders). This ruleset is still hidden
-from users (`IS_COMPLETE` is `false`): its scoring, pairing and playoffs come
-in later changes, so a Catan tournament is not creatable yet.
+from users (`IS_COMPLETE` is `false`): its pairing and playoffs come
+in later changes, so a Catan tournament is not creatable yet. Its default
+scoring logic is [`ScoringCatan`](#scoringcatan).
 
 `victory_points` (default `10`) and `eliminate_below_wins` (default `0`, off)
 are `ruleset_params` fields; see `src/logic/catan/CatanRuleset.params.yaml`.
@@ -526,6 +527,9 @@ The selected scoring logic also defines the Swiss standings order:
 - `Scoring1v1`: points, then the MTR OMW/GW/OGW chain and percentage floor
   specified in [the MTR reference](../src/logic/mtg/mtr-1v1-spec.md#3-standings-and-tiebreakers-31-appendix-c).
   Its standings exports include OMW, GW, and OGW columns.
+- `ScoringCatan`: wins, then total VP, VP%, 2nd places and 3rd places, as in
+  [`ScoringCatan`](#scoringcatan). Its standings exports include VP, VP%, 2nd
+  and 3rd columns.
 - `ScoringHareruya` and `ScoringModifiedHareruya`: points only, without
   competitive tiebreakers.
 
@@ -565,6 +569,36 @@ Magic Tournament Rules' match points (Appendix C) instead of Commander's:
 | `win_points` | int | `3` | Points awarded for a pod (match) win. |
 | `bye_points` | int | `3` | Points awarded for a bye (an automatic match win). |
 | `draw_points` | int | `1` | Points awarded to each player in a draw. |
+
+### `ScoringCatan`
+
+Scoring for `CatanRuleset` (`src/logic/catan/scoring.py`), for pod sizes `3`
+and `4`. Like `ScoringDefault` it inherits `FixedPointsScoring`, so a player's
+rating is `win_points` per game won plus `bye_points` per bye. Hidden from users
+(`IS_COMPLETE` is `false`) together with `CatanRuleset`. `scoring_params` fields:
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `win_points` | int | `1` | Points awarded for a game win, so the rating is a win count (rule 1.4.1). |
+| `bye_points` | int | `0` | Points awarded for a forced bye. A bye adds no VP and no VP%. |
+| `draw_points` | int | `0` | Unused: a Catan game has no draws. |
+
+Players with equal ratings are ordered by these keys, in order (rule 1.4.2).
+Only Swiss rounds count, and only games with a reported `scores` list:
+
+1. Total VP over all games, at most `victory_points` per game.
+2. VP%: the sum over games of the player's VP divided by the table's VP total
+   (rule 1.4.3). It uses the reported VP, not the capped VP, and is computed
+   with exact fractions. A 3-player table adds a dummy fourth score to its
+   total: the mean of the three scores, rounded half-up (8, 10, 7 gives 8;
+   a `.5` rounds up, a `.4` down).
+3. More 2nd-place finishes, then more 3rd-place finishes. A game's places come
+   from VP (1st = most VP); players tied on VP share the better place, so two
+   players on 7 VP behind the winner both finish 2nd and nobody finishes 3rd.
+4. The stable UID order, which stands in for the drawing of lots.
+
+Export columns: `VP`, `VP%` (the exact sum, written with 4 decimals), `2nd` and
+`3rd`.
 
 ### `ScoringHareruya`
 

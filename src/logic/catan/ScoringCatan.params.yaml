@@ -1,0 +1,28 @@
+# Parameters for ScoringCatan. This file is the source of truth for the
+# algorithm's parameter names, defaults, ranges, and descriptions.
+win_points:
+  default: 1
+  type: int
+  min: 0
+  label: Win points
+  description: >
+    Points added for a game the player won. The preliminary ranking is by
+    wins (Catan tournament rule 1.4.1), so 1 makes the rating a win count.
+
+draw_points:
+  default: 0
+  type: int
+  min: 0
+  label: Draw points
+  description: >
+    Unused: a Catan game always has exactly one winner. Kept because the
+    shared fixed-points scoring reads it.
+
+bye_points:
+  default: 0
+  type: int
+  min: 0
+  label: Bye points
+  description: >
+    Points added for a round the player received a bye. A bye adds no
+    victory points. Byes are off by default under the Catan ruleset.
