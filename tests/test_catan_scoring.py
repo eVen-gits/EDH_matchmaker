@@ -162,3 +162,25 @@ class ScoringCatanTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CatanAutoExportTests(unittest.TestCase):
+    def test_auto_export_report_and_standings(self):
+        import os
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            old = TournamentAction.LOGF
+            TournamentAction.LOGF = os.path.join(d, "catan.json")
+            try:
+                t = _tour(4)
+                t.config.auto_export = True
+                t.config.standings_export.dir = os.path.join(d, "standings.txt")
+                _play(t, [[(0, 10), (1, 8), (2, 6), (3, 4)]])
+                out = t.get_standings_str()
+            finally:
+                TournamentAction.LOGF = old
+            self.assertIn("P0", out)
+            self.assertNotIn("avg. seat", out)
+            with open(os.path.join(d, "standings.txt")) as f:
+                self.assertIn("P0", f.read())
