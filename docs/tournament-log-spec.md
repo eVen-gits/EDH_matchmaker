@@ -833,7 +833,10 @@ plan is not stored: it is recomputed from a seed made of the tournament
 `uid`, the plan's first round and the set of players seated in it, so the
 same file always gives the same games. When the seated players change (a
 drop, a late player), the games from that round on are re-planned for the
-players still in, with the earlier rounds as history. A round after game 3
+players still in, with the earlier rounds as history. When a round was not
+seated as its plan said (the organizer swapped players or filled pods by
+hand), the games after it are re-planned the same way, with its actual
+seating as history. The plan's params come from its first round. A round after game 3
 is planned on its own. Friends and family are not kept apart; the organizer
 moves players by hand. `params` fields, with the same meaning as for
 [`PairingDefault`](#pairingdefault) but applied to the whole plan:

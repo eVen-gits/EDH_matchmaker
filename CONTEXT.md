@@ -130,8 +130,11 @@ recomputed from a seed of the tournament uid, the plan's first round and its
 seated players.
 
 **Lives in:** `src/logic/catan/matching.py` (`PairingCatanPrelim.plan`)
-**Invariant:** A plan holds only while the seated players stay the same. A
-drop or a late player re-plans the remaining games from that round. Every
+**Invariant:** A plan holds only while the seated players stay the same and
+every round is seated as planned. A drop, a late player or a hand change to
+seating (a swap, pods filled by hand) re-plans the remaining games, with the
+actual earlier seating as history. The plan's params come from its first
+round. Every
 random choice uses the seeded `random.Random`, never the global one, or a
 reload gives a different plan.
 

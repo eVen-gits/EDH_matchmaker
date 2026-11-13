@@ -48,9 +48,11 @@ class PairingCatanPrelim(CommonPairing):
     plan, which is recomputed from a seed (tournament uid, the plan's first
     game and its field), so nothing extra is saved.
 
-    A plan holds while the field stays the same. When it changes (a drop, a
-    late player), the games from that round on are re-planned for the
-    players still in, with the earlier games as history. A round after the
+    A plan holds while the field stays the same and every round is seated
+    as planned. When the field changes (a drop, a late player), or the
+    organizer changes a round's seating by hand (a swap, pods filled by
+    hand), the games after that change are re-planned for the players
+    still in, with the actual earlier seating as history. A round after the
     preliminary schedule is planned on its own.
 
     Play order is planned with the tables: each player gets the positions
@@ -71,7 +73,7 @@ class PairingCatanPrelim(CommonPairing):
         by_uid = {p.uid: p for p in players - byes}
         if any(len(pod) for pod in pods) or sum(p.cap for p in pods) != len(by_uid):
             # ponytail: pods pre-filled by hand get one greedy game, not a
-            # plan; plan around them if organizers pre-seat often.
+            # plan; later rounds re-plan with it as history.
             self._greedy(tour_round, sorted(by_uid.values(), key=lambda p: str(p.uid)), pods)
             return players
 
@@ -89,7 +91,8 @@ class PairingCatanPrelim(CommonPairing):
 
         Its first game is this round's, with tables in `sizes` order. The
         plan starts at the earliest round whose field, and every later
-        round's, equals `field`; rounds before it are fixed history.
+        round's, equals `field`, and from which every earlier round was
+        seated as the plan says; rounds before it are fixed history.
         """
         tour = tour_round.tour
         rounds = tour.rounds  # type: ignore[attr-defined]
@@ -98,16 +101,25 @@ class PairingCatanPrelim(CommonPairing):
         if seq < PLAN_GAMES:
             while start > 0 and _field(rounds[start - 1]) == field:
                 start -= 1
-        rng = random.Random(plan_seed(tour.uid, field, start))  # type: ignore[attr-defined]
-        schedule = self._schedule(
-            tour_round,
-            sorted(field, key=str),
-            sizes,
-            max(PLAN_GAMES, seq + 1) - start,
-            _history(rounds[:start]),
-            rng,
-        )
-        return schedule[seq - start :]
+        while True:
+            rng = random.Random(plan_seed(tour.uid, field, start))  # type: ignore[attr-defined]
+            schedule = self._schedule(
+                rounds[start],
+                sorted(field, key=str),
+                sizes,
+                max(PLAN_GAMES, seq + 1) - start,
+                _history(rounds[:start]),
+                rng,
+            )
+            seated = _history(rounds[start:seq])
+            deviated = [
+                k
+                for k, (game, planned) in enumerate(zip(seated, schedule))
+                if sorted(map(tuple, game)) != sorted(map(tuple, planned))
+            ]
+            if not deviated:
+                return schedule[seq - start :]
+            start += deviated[0] + 1
 
     def _schedule(
         self,

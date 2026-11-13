@@ -142,6 +142,25 @@ class PrelimPlanTests(unittest.TestCase):
             self.assertNotIn(dropped.uid, {u for table in game for u in table})
         self.assertEqual(_repeats(game1 + replan), 0)
 
+    def test_hand_swap_after_game_one_replans(self):
+        t = _tour(16)
+        t.create_pairings()
+        r = _round(t)
+        a, b = r.pods[0], r.pods[1]
+        pa = t.PLAYER_CACHE[a._players[0]]
+        pb = t.PLAYER_CACHE[b._players[0]]
+        t.move_player_to_pod(b, pa, manual=True)
+        t.move_player_to_pod(a, pb, manual=True)
+        game1 = _tables(t)
+        t.random_results()
+        t.create_pairings()
+        replan = _plan(t)
+        self.assertEqual(len(replan), 2)
+        self.assertEqual(_tables(t), replan[0])
+        t.random_results()
+        self.assertEqual(_play(t, 1), replan[1:])
+        self.assertEqual(_repeats([game1, *replan]), 0)
+
     def test_late_player_replans(self):
         t = _tour(16)
         _play(t, 1)
