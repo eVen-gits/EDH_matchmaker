@@ -372,9 +372,12 @@ format's validity, not the rules text itself.
 Rules for Catan tournaments (`config.ruleset: "CatanRuleset"`), pod sizes
 `3` and `4` only (default `[4, 3]`, no seat balancing, `allow_bye` defaults to
 `false` because 3-player pods absorb remainders). This ruleset is still hidden
-from users (`IS_COMPLETE` is `false`): its pairing and playoffs come
-in later changes, so a Catan tournament is not creatable yet. Its default
-scoring logic is [`ScoringCatan`](#scoringcatan).
+from users (`IS_COMPLETE` is `false`): its playoffs come in a later change,
+so a Catan tournament is not creatable yet. Its default scoring logic is
+[`ScoringCatan`](#scoringcatan). Its default Swiss pairing is
+[`PairingCatanPrelim`](#pairingcatanprelim), or
+[`PairingCatanSerpentine`](#pairingcatanserpentine) for a round whose
+`eliminate_below_wins` is set.
 
 `victory_points` (default `10`) and `eliminate_below_wins` (default `0`, off)
 are `ruleset_params` fields; see `src/logic/catan/CatanRuleset.params.yaml`.
@@ -768,6 +771,7 @@ how a file was produced, not how a stored result is read back.
 Each pairing algorithm declares which sizes it supports; an algorithm is offered
 for a round only if it supports every size in `config.pod_sizes`. `PairingDefault`
 and `PairingSnake` support `3`, `4`, and `5`; `Pairing1v1` supports `2`;
+`PairingCatanPrelim` and `PairingCatanSerpentine` support `3` and `4`;
 `PairingRandom` supports any size. So a tournament with pod sizes `[2]` can use
 `Pairing1v1` or `PairingRandom`. This is a constraint the writer applies; the
 format itself does not enforce it.
@@ -787,8 +791,8 @@ Additional fields in the `params` object for a round that uses
 | `rematch_penalty_exponent` | int | `2` | Exponent on the repeat-opponent count when scoring how well a player fits a pod. A higher value pushes harder against seating players who already met. |
 | `small_pod_penalty` | int | `10` | Penalty for seating a player in a pod smaller than the preferred (first) pod size, for example a 3-player pod, when the player already sat in a small pod. A higher value spreads the small pods across more players. |
 
-`PairingRandom`, `PairingSnake`, and the top-cut pairings read no
-parameters. A per-round match format (such as games needed to win a match)
+`PairingRandom`, `PairingSnake`, `PairingCatanSerpentine`, and the top-cut
+pairings read no parameters. A per-round match format (such as games needed to win a match)
 is a ruleset concern, not a pairing-logic parameter - see `ruleset_params`
 in the `config` table and [Rulesets](#rulesets).
 
@@ -818,6 +822,35 @@ never reseeded afterward: a later stage's pairings are a pure function of
 that fixed seed list and who is still active. A seed whose bracket
 opponent has since dropped, or does not exist because the field was
 smaller than `top_cut`, gets a bye and advances instead of being paired.
+
+### `PairingCatanPrelim`
+
+Catan's preliminary pairing (`src/logic/catan/matching.py`, rule 1.1.6). It
+ignores results. The first game plans all preliminary games (games 1-3)
+together: different opponents first, then rotating play-order positions
+(seat order in `players`). Each round seats its game from that plan. The
+plan is not stored: it is recomputed from a seed made of the tournament
+`uid`, the plan's first round and the set of players seated in it, so the
+same file always gives the same games. When the seated players change (a
+drop, a late player), the games from that round on are re-planned for the
+players still in, with the earlier rounds as history. A round after game 3
+is planned on its own. Friends and family are not kept apart; the organizer
+moves players by hand. `params` fields, with the same meaning as for
+[`PairingDefault`](#pairingdefault) but applied to the whole plan:
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `rematch_penalty_exponent` | int | `2` | Exponent on the repeat-opponent count. |
+| `small_pod_penalty` | int | `10` | Penalty for a player's second and later seat at a 3-player table. |
+
+### `PairingCatanSerpentine`
+
+Catan's game-4 pairing for large events (`src/logic/catan/matching.py`, rule
+1.1.7). It ranks the players by the previous round's standings, puts the
+3-player pods first and deals the ranks across the pods in a snake (1 to n,
+then n to 1). Seat order in `players` is rank order, the order players pick
+color, chair and play order. Table numbers follow the core's usual pod
+order, not the rule's numbering.
 
 ## Adjacent outputs (not part of this format)
 
