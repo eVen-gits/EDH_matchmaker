@@ -105,8 +105,21 @@ everyone else must finish below it. Only the Catan ruleset requires them.
 ## Finishing place
 
 A player's rank in one Catan game, by victory points (1st = most). Tied
-players share the better place. Later slices use the counts of 2nd and 3rd
-places as tiebreakers. This slice does not compute it yet.
+players share the better place. `ScoringCatan` counts a player's 2nd and 3rd
+places as tiebreakers.
+
+**Lives in:** `src/logic/catan/scoring.py` (`finishing_places`)
+
+## VP%
+
+A Catan tiebreaker: the sum over a player's games of their VP divided by the
+table's VP total, kept as an exact `Fraction` (the rules ask for 16 decimals, so
+near-ties must not flip). A 3-player table adds a dummy fourth score, the mean of
+the three rounded half-up (Python's `round()` rounds half to even, so do not use
+it). It uses the reported VP, while the VP tiebreaker before it caps each game at
+`victory_points`.
+
+**Lives in:** `src/logic/catan/scoring.py` (`vp_share`, `dummy_score`)
 
 ## Stage
 

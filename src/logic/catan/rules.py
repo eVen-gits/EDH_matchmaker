@@ -32,7 +32,6 @@ class CatanRuleset(IRuleset):
 
     DEFAULT_POD_SIZES = (4, 3)
     ALLOWED_POD_SIZES = (3, 4)
-    # TODO(slice 4): "ScoringCatan" does not exist yet.
     DEFAULT_SCORING_LOGIC = "ScoringCatan"
     # Play order is part of the pairing, not auto-balanced by core.
     SEAT_BALANCING = False
