@@ -201,6 +201,7 @@ draw, or a pending game).
 | `global_wr_seats` | array of float | `CommanderRuleset` only; optional, default in `CommanderConfiguration` (`src/logic/commander/rules.py`). Win rate per seat, seat 1 first; `1 - sum` is the draw rate. Drives simulated results and seat balancing. Older writers stored it for every ruleset; other rulesets ignore it. |
 | `match_wr_seats` | array of float | `Mtg1v1Ruleset` only; optional, default in `Mtg1v1Configuration` (`src/logic/mtg/rules.py`). Relative chance each seat (play, draw) wins a decided simulated match. |
 | `match_draw_rate` | float | `Mtg1v1Ruleset` only; optional, default in `Mtg1v1Configuration`. Chance a simulated Swiss match ends drawn (playoff matches never draw). |
+| `seat_win_rates` | array of float | `CatanRuleset` only; optional, default in `CatanConfiguration` (`src/logic/catan/rules.py`). Relative chance each seat (play order, first player first) wins a simulated game; a 3-player pod uses the first three entries. |
 | `top_cut` | int | The playoff cut size. See [`top_cut` and `stage` values](#top_cut-and-stage-values). `0` means no playoff cut (Swiss only). |
 | `scoring_logic` | string | optional, default `"ScoringDefault"`. Which algorithm computes player points and standings tiebreakers. See [Scoring logic](#scoring-logic). |
 | `scoring_params` | object | optional, default `{}`. Parameters for whichever algorithm `scoring_logic` names - field names, types, and defaults are owned by that algorithm, not by this format. See [Scoring logic](#scoring-logic) for the fields each shipped algorithm reads. |
@@ -365,6 +366,26 @@ count (including an all-drawn report) is a match draw.
 `src/logic/mtg/mtr-1v1-spec.md` has the full Magic Tournament Rules
 citations this implements; this page states only what changes the wire
 format's validity, not the rules text itself.
+
+### `CatanRuleset`
+
+Rules for Catan tournaments (`config.ruleset: "CatanRuleset"`), pod sizes
+`3` and `4` only (default `[4, 3]`, no seat balancing, `allow_bye` defaults to
+`false` because 3-player pods absorb remainders). This ruleset is still hidden
+from users (`IS_COMPLETE` is `false`): its scoring, pairing and playoffs come
+in later changes, so a Catan tournament is not creatable yet.
+
+`victory_points` (default `10`) and `eliminate_below_wins` (default `0`, off)
+are `ruleset_params` fields; see `src/logic/catan/CatanRuleset.params.yaml`.
+`seat_win_rates` is a `config` field that only drives simulated results
+(`src/logic/catan/CatanConfiguration.params.yaml`).
+
+A pod's `games` holds exactly one game with exactly one UID in `winners`;
+there are no draws. The game's `scores` is required and lists every seated
+player's victory points (VP), and no one else. A valid report has the winner at
+`victory_points` or more and every other player below it. A win reported
+without VP (`report_win`) is refused. The match `result` is the game's
+`winners`.
 
 ## Enum reference
 
@@ -837,9 +858,10 @@ formulas from [Scoring logic](#scoring-logic); they are not part of the
 JSON schema themselves, only the `config.scoring_logic` string that names
 one of them.
 
-`CommanderRuleset` (`src/logic/commander/rules.py`) and `Mtg1v1Ruleset`
-(`src/logic/mtg/rules.py`) implement [Rulesets](#rulesets); like the
-scoring logics above, neither is part of the JSON schema itself, only the
+`CommanderRuleset` (`src/logic/commander/rules.py`), `Mtg1v1Ruleset`
+(`src/logic/mtg/rules.py`) and `CatanRuleset` (`src/logic/catan/rules.py`)
+implement [Rulesets](#rulesets); like the scoring logics above, none is part
+of the JSON schema itself, only the
 `config.ruleset` string that names one of them.
 
 `tests/test_serialization.py` holds round-trip tests that double as

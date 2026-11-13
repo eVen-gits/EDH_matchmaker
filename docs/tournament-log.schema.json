@@ -85,6 +85,11 @@
           "maximum": 1,
           "description": "Mtg1v1Ruleset only (Mtg1v1Configuration)."
         },
+        "seat_win_rates": {
+          "type": "array",
+          "items": { "type": "number", "minimum": 0 },
+          "description": "CatanRuleset only (CatanConfiguration)."
+        },
         "top_cut": { "$ref": "#/$defs/stageOrTopCut" },
         "scoring_logic": { "type": "string" },
         "scoring_params": {

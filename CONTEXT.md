@@ -93,6 +93,21 @@ different game's rules mid-tournament.
 For standings ownership, see the `IPairingLogic` / `IScoringLogic` /
 `IRuleset` entry below.
 
+## Victory points (VP)
+
+The score each player gets in a Catan game, stored per player in
+`IGameResult.scores`. The winner must reach `victory_points` (default 10) and
+everyone else must finish below it. Only the Catan ruleset requires them.
+
+**Lives in:** `src/interface.py` (`IGameResult.scores`),
+`src/logic/catan/rules.py` (`CatanRuleset.validate_report`)
+
+## Finishing place
+
+A player's rank in one Catan game, by victory points (1st = most). Tied
+players share the better place. Later slices use the counts of 2nd and 3rd
+places as tiebreakers. This slice does not compute it yet.
+
 ## Stage
 
 `Round.stage` / `config.top_cut`'s non-zero values are the number of
