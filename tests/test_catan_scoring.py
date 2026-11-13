@@ -184,3 +184,14 @@ class CatanAutoExportTests(unittest.TestCase):
             self.assertNotIn("avg. seat", out)
             with open(os.path.join(d, "standings.txt")) as f:
                 self.assertIn("P0", f.read())
+
+    def test_explicit_avg_seat_field(self):
+        # Catan has no seat win rates, so AVG_SEAT exports 0 instead of raising.
+        from src.core import StandingsExport
+
+        t = _tour(4)
+        _play(t, [[(0, 10), (1, 8), (2, 6), (3, 4)]])
+        F = StandingsExport.Field
+        out = t.get_standings_str(fields=[F.STANDING, F.NAME, F.AVG_SEAT])
+        self.assertIn("avg. seat", out)
+        self.assertIn("P0", out)

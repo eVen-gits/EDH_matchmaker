@@ -260,6 +260,11 @@ class StandingsExport(DataExport, IStandingsExport):
 
     @staticmethod
     def _get_avg_seat(player: Player, context: TournamentContext) -> float:
+        # Middle seats need Commander's global_wr_seats; games without it
+        # (Catan) have no seat average.
+        config = context.tour.config
+        if config.max_pod_size > 2 and not hasattr(config, "global_wr_seats"):
+            return 0
         return player.average_seat(context.tour.rounds)
 
     @staticmethod
