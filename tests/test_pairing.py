@@ -522,10 +522,7 @@ class TestPodSizeCompatibility(unittest.TestCase):
     def test_selectable_filtered_by_pod_sizes(self):
         self.assertEqual(
             Tournament.selectable_pairing_logics([4, 3]),
-            [
-                "PairingCatanPrelim", "PairingCatanSerpentine",
-                "PairingDefault", "PairingRandom", "PairingSnake",
-            ],
+            ["PairingDefault", "PairingRandom", "PairingSnake"],
         )
         self.assertEqual(
             Tournament.selectable_pairing_logics([5, 4, 3]),
@@ -542,10 +539,7 @@ class TestPodSizeCompatibility(unittest.TestCase):
     def test_selectable_without_pod_sizes_returns_all(self):
         self.assertEqual(
             Tournament.selectable_pairing_logics(),
-            [
-                "Pairing1v1", "PairingCatanPrelim", "PairingCatanSerpentine",
-                "PairingDefault", "PairingRandom", "PairingSnake",
-            ],
+            ["Pairing1v1", "PairingDefault", "PairingRandom", "PairingSnake"],
         )
 
     def test_supported_pod_sizes_are_valid(self):

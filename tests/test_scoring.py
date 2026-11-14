@@ -130,7 +130,11 @@ class TestScoringPodSizeCompatibility(unittest.TestCase):
         self.assertTrue(warnings, "expected a pod-size compatibility warning")
 
     def test_selectable_without_pod_sizes_returns_all(self):
+        # Every logic not tied to particular rulesets (RULESETS is None).
         self.assertEqual(
             Tournament.selectable_scoring_logics(),
-            Tournament.scoring_logic_names(),
+            [
+                n for n in Tournament.scoring_logic_names()
+                if Tournament.get_scoring_logic(n).RULESETS is None
+            ],
         )

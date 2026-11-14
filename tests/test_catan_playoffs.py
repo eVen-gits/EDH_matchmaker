@@ -69,6 +69,26 @@ class PlayoffPlanTests(unittest.TestCase):
         self.assertIn("CatanRuleset", Tournament.ruleset_names())
         self.assertIn("ScoringCatan", Tournament.scoring_logic_names())
 
+    def test_catan_logics_offered_only_under_catan(self):
+        """Commander and 1v1 Magic selector lists stay as they were."""
+        pairing, scoring = Tournament.selectable_pairing_logics, Tournament.selectable_scoring_logics
+        self.assertEqual(
+            pairing([4, 3], "CommanderRuleset"),
+            ["PairingDefault", "PairingRandom", "PairingSnake"],
+        )
+        self.assertEqual(
+            scoring([4, 3], "CommanderRuleset"),
+            ["ScoringDefault", "ScoringHareruya", "ScoringModifiedHareruya"],
+        )
+        self.assertEqual(pairing([2], "Mtg1v1Ruleset"), ["Pairing1v1", "PairingRandom"])
+        self.assertEqual(scoring([2], "Mtg1v1Ruleset"), ["Scoring1v1"])
+        self.assertEqual(
+            pairing([4, 3], "CatanRuleset"),
+            ["PairingCatanPrelim", "PairingCatanSerpentine",
+             "PairingDefault", "PairingRandom", "PairingSnake"],
+        )
+        self.assertIn("ScoringCatan", scoring([4, 3], "CatanRuleset"))
+
 
 class SemifinalTests(unittest.TestCase):
     def setUp(self):

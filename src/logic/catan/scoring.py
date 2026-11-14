@@ -77,6 +77,7 @@ class ScoringCatan(FixedPointsScoring):
 
     IS_COMPLETE = True
     SUPPORTED_POD_SIZES = (3, 4)
+    RULESETS = ("CatanRuleset",)
 
     def stats(self, tour: ITournament, tour_round: IRound) -> dict[UUID, CatanStats]:
         """Per-player VP, VP%, 2nd and 3rd place counts through tour_round."""

@@ -819,8 +819,11 @@ for a round only if it supports every size in `config.pod_sizes`. `PairingDefaul
 and `PairingSnake` support `3`, `4`, and `5`; `Pairing1v1` supports `2`;
 `PairingCatanPrelim` and `PairingCatanSerpentine` support `3` and `4`;
 `PairingRandom` supports any size. So a tournament with pod sizes `[2]` can use
-`Pairing1v1` or `PairingRandom`. This is a constraint the writer applies; the
-format itself does not enforce it.
+`Pairing1v1` or `PairingRandom`. An algorithm can also name the rulesets it is
+offered under: `PairingCatanPrelim`, `PairingCatanSerpentine` and
+`ScoringCatan` are offered only under `CatanRuleset`, so they do not appear for
+Commander's `[4, 3]` pods. These are constraints the writer applies; the format
+itself does not enforce them.
 
 A "small" pod, for the `small_pod_penalty` below, is one smaller than the
 preferred (first) size in `config.pod_sizes`. So with `[4, 3]` the 3-player pod

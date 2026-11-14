@@ -66,6 +66,7 @@ class PairingCatanPrelim(CommonPairing):
 
     IS_COMPLETE = True
     SUPPORTED_POD_SIZES = (3, 4)
+    RULESETS = ("CatanRuleset",)
 
     # Local-search budget: swap attempts per player per planned game.
     _STEPS_PER_PLAYER = 300
@@ -289,6 +290,7 @@ class PairingCatanSerpentine(CommonPairing):
 
     IS_COMPLETE = True
     SUPPORTED_POD_SIZES = (3, 4)
+    RULESETS = ("CatanRuleset",)
 
     @override
     def make_pairings(
