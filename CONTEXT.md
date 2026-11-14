@@ -138,6 +138,22 @@ round. Every
 random choice uses the seeded `random.Random`, never the global one, or a
 reload gives a different plan.
 
+## Elimination
+
+Catan's cut before game 4 of an event with 80 or more players (rule 1.1.5):
+on a Swiss round whose `eliminate_below_wins` ruleset param is set (1 on game
+4), players with fewer game wins are disabled before the round is paired. It is
+not a top-cut stage: how many continue varies, the round still counts as a
+preliminary game toward wins, VP and VP%, and eliminated players keep their
+Swiss rank instead of dropping below the players who continue.
+
+**Lives in:** `src/logic/catan/rules.py` (`CatanRuleset.swiss_eliminations`),
+`src/core.py` (`Round.create_pairings` calls the hook)
+**Invariant:** An eliminated player is disabled, never dropped: they stay in
+the standings and their history stays. Each pairing of the round resets the
+disabled players to the previous round's first, so a re-pair after
+`reset_pods` does not keep stale eliminations.
+
 ## Stage
 
 `Round.stage` / `config.top_cut`'s non-zero values are the number of
@@ -236,6 +252,22 @@ what it's allowed to fall back to, and the config GUI checks both
 filter their dropdowns, so leaving it `None` on an algorithm that actually
 can't handle 3-player pods is a silent correctness bug, not just a GUI
 omission.
+
+## `RULESETS`
+
+A tuple of ruleset names on a pairing-logic or scoring-logic class: the
+algorithm is offered only under those rulesets. `None` (the default) means
+every ruleset. A game's own logic sets it so it stays out of other games'
+selector lists even when the pod sizes match (Catan's logics, for 3-4 player
+pods, set `("CatanRuleset",)` and so never show for Commander).
+
+**Lives in:** `src/interface.py` (`IPairingLogic.RULESETS`,
+`IScoringLogic.RULESETS`), filtered by
+`Tournament.selectable_pairing_logics()`/`selectable_scoring_logics()`
+**Invariant:** It filters what is offered, not what runs: a name set
+explicitly in the config, or picked by a ruleset's `swiss_pairing_logic` or
+`PLAYOFFS`, is still looked up by name. With no ruleset given, a logic that
+sets `RULESETS` is never offered.
 
 ## `SELECTABLE`
 

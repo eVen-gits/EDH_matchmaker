@@ -15,6 +15,7 @@ from typing_extensions import override
 
 from ...interface import IPlayer, IPod, IRound
 from ..common.pairing import CommonPairing
+from .rules import CatanRuleset
 
 # Rule 1.1.6: the organizer makes "a schedule for three games".
 PLAN_GAMES = 3
@@ -57,10 +58,13 @@ class PairingCatanPrelim(CommonPairing):
 
     Play order is planned with the tables: each player gets the positions
     they have held least often (exact counts, no win-rate weights).
+
+    Pairing game 1 runs CatanRuleset.warn_structure.
     """
 
-    IS_COMPLETE = False
+    IS_COMPLETE = True
     SUPPORTED_POD_SIZES = (3, 4)
+    RULESETS = ("CatanRuleset",)
 
     # Local-search budget: swap attempts per player per planned game.
     _STEPS_PER_PLAYER = 300
@@ -69,6 +73,7 @@ class PairingCatanPrelim(CommonPairing):
     def make_pairings(
         self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]
     ) -> set[IPlayer]:
+        CatanRuleset.warn_structure(tour_round)
         byes = self.assign_byes(tour_round, players, pods)
         by_uid = {p.uid: p for p in players - byes}
         if any(len(pod) for pod in pods) or sum(p.cap for p in pods) != len(by_uid):
@@ -275,16 +280,19 @@ class PairingCatanSerpentine(CommonPairing):
 
     Ranks the players by standings, puts the 3-player tables first and
     snakes the ranks across the tables. Seat order is rank order: the order
-    players pick color, chair and play order.
+    players pick color, chair and play order. Pairing game 1 runs
+    CatanRuleset.warn_structure.
     """
 
-    IS_COMPLETE = False
+    IS_COMPLETE = True
     SUPPORTED_POD_SIZES = (3, 4)
+    RULESETS = ("CatanRuleset",)
 
     @override
     def make_pairings(
         self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]
     ) -> set[IPlayer]:
+        CatanRuleset.warn_structure(tour_round)
         byes = self.assign_byes(tour_round, players, pods)
         prev = tour_round.tour.previous_round(tour_round)  # type: ignore[attr-defined]
         rank = {p: i for i, p in enumerate(tour_round.tour.get_standings(prev))}  # type: ignore[attr-defined]

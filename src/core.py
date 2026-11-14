@@ -1027,14 +1027,16 @@ class Tournament(ITournament):
 
     @classmethod
     def selectable_pairing_logics(
-        cls, pod_sizes: Sequence[int] | None = None
+        cls, pod_sizes: Sequence[int] | None = None, ruleset: str | None = None
     ) -> list[str]:
         """Names of pairing logics a user may pick for a Swiss round.
 
         Excludes top-cut pairings (SELECTABLE == False), which are chosen
         automatically by stage. When pod_sizes is given, also excludes any
         logic that does not support all of those sizes (see
-        IPairingLogic.supports_pod_sizes).
+        IPairingLogic.supports_pod_sizes). A logic that names its rulesets
+        (IPairingLogic.RULESETS) is offered only under one of them, so
+        never when ruleset is None.
         """
         cls.discover_pairing_logic()
         return sorted(
@@ -1042,6 +1044,7 @@ class Tournament(ITournament):
             for name, obj in cls._pairing_logic_cache.items()
             if obj.SELECTABLE
             and (pod_sizes is None or obj.supports_pod_sizes(pod_sizes))
+            and (obj.RULESETS is None or ruleset in obj.RULESETS)
         )
 
     @classmethod
@@ -1079,19 +1082,22 @@ class Tournament(ITournament):
 
     @classmethod
     def selectable_scoring_logics(
-        cls, pod_sizes: Sequence[int] | None = None
+        cls, pod_sizes: Sequence[int] | None = None, ruleset: str | None = None
     ) -> list[str]:
         """Names of scoring logics a user may pick for this tournament.
 
         When pod_sizes is given, excludes any logic that does not support
-        all of those sizes (see IScoringLogic.supports_pod_sizes) - the
-        same filter selectable_pairing_logics applies to pairing logic.
+        all of those sizes (see IScoringLogic.supports_pod_sizes), and a
+        logic that names its rulesets (IScoringLogic.RULESETS) is offered
+        only under one of them - the same filters selectable_pairing_logics
+        applies to pairing logic.
         """
         cls.discover_scoring_logic()
         return sorted(
             name
             for name, obj in cls._scoring_logic_cache.items()
-            if pod_sizes is None or obj.supports_pod_sizes(pod_sizes)
+            if (pod_sizes is None or obj.supports_pod_sizes(pod_sizes))
+            and (obj.RULESETS is None or ruleset in obj.RULESETS)
         )
 
     @classmethod
@@ -1708,7 +1714,9 @@ class Tournament(ITournament):
         name = self.ruleset.swiss_pairing_logic(self, seq)
         logic = self.get_pairing_logic(name)
         if not logic.supports_pod_sizes(self.config.pod_sizes):
-            compatible = self.selectable_pairing_logics(self.config.pod_sizes)
+            compatible = self.selectable_pairing_logics(
+                self.config.pod_sizes, self.config.ruleset
+            )
             name = compatible[0] if compatible else "PairingRandom"
             logic = self.get_pairing_logic(name)
         return logic
