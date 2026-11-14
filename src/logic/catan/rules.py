@@ -116,6 +116,11 @@ class CatanRuleset(IRuleset):
         return [IGameResult(frozenset({winner.uid}), tuple(scores.items()))]
 
     def swiss_pairing_logic(self, tour: ITournament, seq: int) -> str:
-        # TODO(slice 5): PairingCatanPrelim, and PairingCatanSerpentine on the
-        # round that eliminates players. PairingRandom supports any pod size.
-        return "PairingRandom"
+        """PairingCatanSerpentine on a round that eliminates players
+        (`eliminate_below_wins` set for it, rule 1.1.7), else the
+        preliminary schedule, PairingCatanPrelim (rule 1.1.6)."""
+        rounds = tour.config.pairing_rounds  # type: ignore[attr-defined]
+        overrides = rounds[seq].get("ruleset_params", {}) if seq < len(rounds) else {}
+        if overrides.get("eliminate_below_wins", self.DEFAULT_PARAMS["eliminate_below_wins"]):
+            return "PairingCatanSerpentine"
+        return "PairingCatanPrelim"

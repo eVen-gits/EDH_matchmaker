@@ -121,6 +121,23 @@ it). It uses the reported VP, while the VP tiebreaker before it caps each game a
 
 **Lives in:** `src/logic/catan/scoring.py` (`vp_share`, `dummy_score`)
 
+## Preliminary schedule
+
+Catan's games 1-3 (rule 1.1.6). `PairingCatanPrelim` plans them together at
+game 1, ignoring results: different opponents first, then rotating play order.
+Each round seats its game from the plan. The plan is not saved; it is
+recomputed from a seed of the tournament uid, the plan's first round and its
+seated players.
+
+**Lives in:** `src/logic/catan/matching.py` (`PairingCatanPrelim.plan`)
+**Invariant:** A plan holds only while the seated players stay the same and
+every round is seated as planned. A drop, a late player or a hand change to
+seating (a swap, pods filled by hand) re-plans the remaining games, with the
+actual earlier seating as history. The plan's params come from its first
+round. Every
+random choice uses the seeded `random.Random`, never the global one, or a
+reload gives a different plan.
+
 ## Stage
 
 `Round.stage` / `config.top_cut`'s non-zero values are the number of
