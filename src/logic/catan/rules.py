@@ -4,7 +4,11 @@ from collections.abc import Iterable, Sequence
 from uuid import UUID
 
 from ...core import TournamentConfiguration
-from ...interface import IGameResult, IPod, IRuleset, ITournament
+from ...interface import IGameResult, IPlayer, IPod, IRound, IRuleset, ITournament
+from .scoring import catan_stats, finishing_places
+
+# Rule 1.1.3: fewer players give no valid results.
+MIN_PLAYERS = 12
 
 
 class CatanConfiguration(TournamentConfiguration):
@@ -17,6 +21,54 @@ class CatanConfiguration(TournamentConfiguration):
     seat_win_rates: Sequence[float]
 
 
+def recommended_structure(n_players: int) -> tuple[int, int, dict[int, int]]:
+    """Rule 1.1.5's structure for n_players: (n_rounds, top_cut, eliminations).
+
+    eliminations maps a Swiss round's 0-based seq to its
+    eliminate_below_wins. 12-28 players: 3 games, then a top-4 final (28
+    follows 1.1.5, not 1.1.12's "12 to 27"). 29-79: 3 games, top-16
+    semifinals, then the final. 80+: 4 games, players without a win are
+    eliminated before game 4, then top-16 semifinals and the final.
+    """
+    if n_players <= 28:
+        return 3, 4, {}
+    if n_players < 80:
+        return 3, 16, {}
+    return 4, 16, {3: 1}
+
+
+def structure_warnings(tour: ITournament) -> list[str]:
+    """Warnings for a Catan event whose player count or configured structure
+    differs from rules 1.1.3 and 1.1.5 (see recommended_structure)."""
+    config = tour.config  # type: ignore[attr-defined]
+    n = len(tour.players)
+    out = []
+    if n < MIN_PLAYERS:
+        out.append(
+            f"Catan tournament rule 1.1.3 needs at least {MIN_PLAYERS} players "
+            f"for valid results; this event has {n}."
+        )
+    rounds, top_cut, elim = recommended_structure(n)
+    actual_elim = {
+        seq: v
+        for seq, r in enumerate(config.pairing_rounds[: config.n_rounds])
+        if (v := r.get("ruleset_params", {}).get("eliminate_below_wins", 0))
+    }
+    if (config.n_rounds, int(config.top_cut), actual_elim) != (rounds, top_cut, elim):
+        out.append(
+            f"Catan tournament rule 1.1.5 recommends for {n} players: "
+            f"{_structure_str(rounds, top_cut, elim)}. This event is set to "
+            f"{_structure_str(config.n_rounds, int(config.top_cut), actual_elim)}."
+        )
+    return out
+
+
+def _structure_str(rounds: int, top_cut: int, elim: dict[int, int]) -> str:
+    parts = [f"{rounds} games", f"top cut {top_cut}"]
+    parts += [f"eliminate below {v} wins before game {seq + 1}" for seq, v in elim.items()]
+    return ", ".join(parts)
+
+
 class CatanRuleset(IRuleset):
     """Catan tournament rules (catanevents.com tournament rules, section 1).
 
@@ -25,10 +77,13 @@ class CatanRuleset(IRuleset):
     victory points (`IGameResult.scores`). Save-format contracts:
     docs/tournament-log-spec.md, "`CatanRuleset`".
 
-    Hidden from users (`IS_COMPLETE = False`) until the playoff slice lands.
+    Playoffs: top_cut 4 is a final of the top 4; top_cut 16 is serpentine
+    semifinals of the top 16 (rule 1.1.10), then a final of the four
+    semifinal winners (rule 1.1.12). Both reuse PairingTopCut by name.
+    recommended_structure gives rule 1.1.5's structure for a player count.
     """
 
-    IS_COMPLETE = False
+    IS_COMPLETE = True
 
     DEFAULT_POD_SIZES = (4, 3)
     ALLOWED_POD_SIZES = (3, 4)
@@ -38,7 +93,12 @@ class CatanRuleset(IRuleset):
     # 3-player pods absorb remainders (rule 1.1.7). A forced bye scores
     # bye_points, never VP.
     DEFAULT_ALLOW_BYE = False
-    # TODO(slice 6): PLAYOFFS for 4 and 16 (semifinals and final).
+    # PairingTopCut is Commander's, looked up by name (no import): its TOP_16
+    # snake is rule 1.1.10's semifinal seating, its TOP_4 one final pod.
+    PLAYOFFS = {
+        4: ((4, "PairingTopCut"),),
+        16: ((16, "PairingTopCut"), (4, "PairingTopCut")),
+    }
     CONFIG_CLASS = CatanConfiguration
 
     def validate_report(self, pod: IPod, games: Sequence[IGameResult]) -> None:
@@ -124,3 +184,54 @@ class CatanRuleset(IRuleset):
         if overrides.get("eliminate_below_wins", self.DEFAULT_PARAMS["eliminate_below_wins"]):
             return "PairingCatanSerpentine"
         return "PairingCatanPrelim"
+
+    def swiss_eliminations(
+        self, tour_round: IRound, standings: Sequence[IPlayer]
+    ) -> set[IPlayer]:
+        """Active players with fewer wins than this round's
+        `eliminate_below_wins` (rule 1.1.5: 1 before game 4 of an 80+
+        event). 0, the default, eliminates no one."""
+        below = self._param(tour_round, "eliminate_below_wins")
+        if not below:
+            return set()
+        earlier = tour_round.tour.rounds[: tour_round.seq]  # type: ignore[attr-defined]
+        active = tour_round.active_players  # type: ignore[attr-defined]
+        return {
+            p
+            for p in standings
+            if p in active
+            and sum(p.result(r) == IPlayer.EResult.WIN for r in earlier) < below
+        }
+
+    def playoff_standings(
+        self, tour: ITournament, tour_round: IRound
+    ) -> list[IPlayer] | None:
+        """Rule 1.4.4: standings after a semifinal or final round.
+
+        The round's players come first, grouped by finishing place at their
+        table (after the semifinals: winners 1-4, 2nds 5-8, 3rds 9-12, 4ths
+        13-16; after the final: places 1-4). Within a place, the 1.4.2
+        tiebreakers (VP, VP%, 2nds, 3rds, lot) over the preliminary and
+        playoff games so far decide. Everyone else keeps the previous
+        round's order. Until every table of the round has reported, the
+        previous round's standings stand.
+        """
+        base = tour.get_standings(tour.previous_round(tour_round))  # type: ignore[attr-defined]
+        if not tour_round.done:  # type: ignore[attr-defined]
+            return base
+        place: dict[UUID, int] = {}
+        for pod in tour_round.pods:
+            if pod.games:
+                game = pod.games[-1]
+                vp = dict(game.scores or ((u, int(u in game.winners)) for u in pod._players))  # type: ignore[attr-defined]
+                place.update(finishing_places(vp))
+        stats = catan_stats(tour, tour.rounds[: tour_round.seq + 1])  # type: ignore[attr-defined]
+
+        def key(uid: UUID) -> tuple:
+            s = stats[uid]
+            return (place[uid], -s.vp, -s.vp_pct, -s.second, -s.third, uid.int)
+
+        by_uid = {p.uid: p for p in base}
+        return [by_uid[u] for u in sorted(place, key=key)] + [
+            p for p in base if p.uid not in place
+        ]

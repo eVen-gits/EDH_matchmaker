@@ -371,9 +371,7 @@ format's validity, not the rules text itself.
 
 Rules for Catan tournaments (`config.ruleset: "CatanRuleset"`), pod sizes
 `3` and `4` only (default `[4, 3]`, no seat balancing, `allow_bye` defaults to
-`false` because 3-player pods absorb remainders). This ruleset is still hidden
-from users (`IS_COMPLETE` is `false`): its playoffs come in a later change,
-so a Catan tournament is not creatable yet. Its default scoring logic is
+`false` because 3-player pods absorb remainders). Its default scoring logic is
 [`ScoringCatan`](#scoringcatan). Its default Swiss pairing is
 [`PairingCatanPrelim`](#pairingcatanprelim), or
 [`PairingCatanSerpentine`](#pairingcatanserpentine) for a round whose
@@ -390,6 +388,55 @@ player's victory points (VP), and no one else. A valid report has the winner at
 `victory_points` or more and every other player below it. A win reported
 without VP (`report_win`) is refused. The match `result` is the game's
 `winners`.
+
+#### Catan structure
+
+The organizer sets `n_rounds`, `top_cut` and any elimination round in the
+config; nothing is derived from the player count. `recommended_structure` in
+`src/logic/catan/rules.py` gives the structure of rules 1.1.3 and 1.1.5, and
+pairing game 1 logs a warning when the event has fewer than 12 players or its
+config differs from it:
+
+| Players | `n_rounds` | Elimination | `top_cut` | Playoffs |
+|---|---|---|---|---|
+| 12-28 | `3` | none | `4` | A final of the top 4. |
+| 29-79 | `3` | none | `16` | Serpentine semifinals of the top 16, then a final of the four semifinal winners. |
+| 80+ | `4` | `eliminate_below_wins: 1` on round 4 (`pairing_rounds[3].ruleset_params`) | `16` | As for 29-79. |
+
+28 players follow rule 1.1.5 ("12-28"), not rule 1.1.12 ("12 to 27"). The
+variant format with several preliminary events (rule 1.2) is not supported:
+run each preliminary event as its own tournament and seed the top-16 event by
+hand.
+
+**Elimination.** On a Swiss round whose `eliminate_below_wins` is above `0`,
+every active player with fewer game wins than that in the earlier rounds is
+disabled before the round is paired (the `swiss_eliminations` hook, see
+[Rulesets](#rulesets)). An eliminated player is listed in the round's
+`disabled` set, sits out every later round and stays in the standings, ranked
+by the Swiss scoring. The round is seated by
+[`PairingCatanSerpentine`](#pairingcatanserpentine) and still counts as a
+preliminary game for wins, VP and VP%.
+
+**Playoffs.** `top_cut` accepts `4` and `16`. Both use the `PairingTopCut`
+logic (the one `CommanderRuleset` uses, named in `PLAYOFFS`). At `TOP_16` it
+seats the semifinals in a snake by rank: Table 1 = ranks 1, 8, 9, 16 ...
+Table 4 = ranks 4, 5, 12, 13 (rule 1.1.10). At `TOP_4` all four players share
+one pod. Seat order in `players` is the standings order, the order players
+pick seats (rule 1.1.12). The winner of each semifinal table advances to the
+final.
+
+**Playoff standings (rule 1.4.4).** After a playoff round, the players seated
+in it come first, grouped by their finishing place at their table: after the
+semifinals, places 1-4 are the winners, 5-8 the 2nds, 9-12 the 3rds and 13-16
+the 4ths; after the final, places 1-4 follow the final table. Players tied on
+VP at a table share the better place, so a group can be larger and the next
+one smaller. Within a place, the rule 1.4.2 tiebreakers (total VP, VP%, 2nds,
+3rds, then the UID order as the lot) over the preliminary and playoff games so
+far decide; a final-table game adds the same to every player tied on it.
+Everyone else keeps the previous round's order, so after the final, places
+5-16 stay as the semifinals set them. Until every table of the playoff round
+has reported, the previous round's standings stand. A semifinalist who drops
+from a table ranks after the players who played.
 
 ## Enum reference
 
@@ -411,12 +458,12 @@ whichever the tournament's ruleset produced.
 |---|---|---|---|---|
 | 0 | `NONE` | `SWISS` | No playoff cut / a Swiss round. | every ruleset |
 | 2 | `TOP_2` | `TOP_2` | Top-2 (final) playoff. | `Mtg1v1Ruleset` |
-| 4 | `TOP_4` | `TOP_4` | Top-4 playoff. | `CommanderRuleset`, `Mtg1v1Ruleset` |
+| 4 | `TOP_4` | `TOP_4` | Top-4 playoff. | `CommanderRuleset`, `Mtg1v1Ruleset`, `CatanRuleset` |
 | 7 | `TOP_7` | `TOP_7` | Top-7 playoff. | `CommanderRuleset` |
 | 8 | `TOP_8` | `TOP_8` | Top-8 playoff. | `Mtg1v1Ruleset` |
 | 10 | `TOP_10` | `TOP_10` | Top-10 playoff. | `CommanderRuleset` |
 | 13 | `TOP_13` | `TOP_13` | Top-13 playoff. | `CommanderRuleset` |
-| 16 | `TOP_16` | `TOP_16` | Top-16 playoff. | `CommanderRuleset`, `Mtg1v1Ruleset` |
+| 16 | `TOP_16` | `TOP_16` | Top-16 playoff. | `CommanderRuleset`, `Mtg1v1Ruleset`, `CatanRuleset` |
 | 40 | `TOP_40` | `TOP_40` | Top-40 playoff: 8 byes (seeds 1-8) and 8 pods of 4; the 8 byes and 8 pod winners form `TOP_16`. | `CommanderRuleset` |
 
 ### `StandingsExport.Field` values
@@ -577,8 +624,7 @@ Magic Tournament Rules' match points (Appendix C) instead of Commander's:
 
 Scoring for `CatanRuleset` (`src/logic/catan/scoring.py`), for pod sizes `3`
 and `4`. Like `ScoringDefault` it inherits `FixedPointsScoring`, so a player's
-rating is `win_points` per game won plus `bye_points` per bye. Hidden from users
-(`IS_COMPLETE` is `false`) together with `CatanRuleset`. `scoring_params` fields:
+rating is `win_points` per game won plus `bye_points` per bye. `scoring_params` fields:
 
 | Field | Type | Default | Description |
 |---|---|---|---|

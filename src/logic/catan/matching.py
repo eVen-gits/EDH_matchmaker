@@ -13,8 +13,10 @@ from uuid import UUID
 
 from typing_extensions import override
 
+from ...core import Log
 from ...interface import IPlayer, IPod, IRound
 from ..common.pairing import CommonPairing
+from .rules import structure_warnings
 
 # Rule 1.1.6: the organizer makes "a schedule for three games".
 PLAN_GAMES = 3
@@ -57,9 +59,12 @@ class PairingCatanPrelim(CommonPairing):
 
     Play order is planned with the tables: each player gets the positions
     they have held least often (exact counts, no win-rate weights).
+
+    Pairing game 1 of a CatanRuleset event logs a warning when the player
+    count or structure differs from the rules (rules.structure_warnings).
     """
 
-    IS_COMPLETE = False
+    IS_COMPLETE = True
     SUPPORTED_POD_SIZES = (3, 4)
 
     # Local-search budget: swap attempts per player per planned game.
@@ -69,6 +74,10 @@ class PairingCatanPrelim(CommonPairing):
     def make_pairings(
         self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]
     ) -> set[IPlayer]:
+        tour = tour_round.tour
+        if tour_round.seq == 0 and tour.config.ruleset == "CatanRuleset":  # type: ignore[attr-defined]
+            for msg in structure_warnings(tour):
+                Log.log(msg, level=Log.Level.WARNING)
         byes = self.assign_byes(tour_round, players, pods)
         by_uid = {p.uid: p for p in players - byes}
         if any(len(pod) for pod in pods) or sum(p.cap for p in pods) != len(by_uid):
@@ -278,7 +287,7 @@ class PairingCatanSerpentine(CommonPairing):
     players pick color, chair and play order.
     """
 
-    IS_COMPLETE = False
+    IS_COMPLETE = True
     SUPPORTED_POD_SIZES = (3, 4)
 
     @override

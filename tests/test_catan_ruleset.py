@@ -83,8 +83,8 @@ class CatanRulesetTests(unittest.TestCase):
             for _ in range(50):
                 self.rules.validate_report(pod, self.rules.random_report(pod))
 
-    def test_defaults_and_hidden(self):
-        self.assertFalse(CatanRuleset.IS_COMPLETE)
+    def test_defaults_and_selectable(self):
+        self.assertTrue(CatanRuleset.IS_COMPLETE)
         self.assertFalse(CatanRuleset.DEFAULT_ALLOW_BYE)
         self.assertEqual(
             CatanRuleset.DEFAULT_PARAMS,

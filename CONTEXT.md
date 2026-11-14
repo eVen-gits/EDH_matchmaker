@@ -138,6 +138,22 @@ round. Every
 random choice uses the seeded `random.Random`, never the global one, or a
 reload gives a different plan.
 
+## Elimination
+
+Catan's cut before game 4 of an event with 80 or more players (rule 1.1.5):
+on a Swiss round whose `eliminate_below_wins` ruleset param is set (1 on game
+4), players with fewer game wins are disabled before the round is paired. It is
+not a top-cut stage: how many continue varies, the round still counts as a
+preliminary game toward wins, VP and VP%, and eliminated players keep their
+Swiss rank instead of dropping below the players who continue.
+
+**Lives in:** `src/logic/catan/rules.py` (`CatanRuleset.swiss_eliminations`),
+`src/core.py` (`Round.create_pairings` calls the hook)
+**Invariant:** An eliminated player is disabled, never dropped: they stay in
+the standings and their history stays. Each pairing of the round resets the
+disabled players to the previous round's first, so a re-pair after
+`reset_pods` does not keep stale eliminations.
+
 ## Stage
 
 `Round.stage` / `config.top_cut`'s non-zero values are the number of
