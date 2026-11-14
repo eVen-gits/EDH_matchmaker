@@ -13,10 +13,9 @@ from uuid import UUID
 
 from typing_extensions import override
 
-from ...core import Log
 from ...interface import IPlayer, IPod, IRound
 from ..common.pairing import CommonPairing
-from .rules import structure_warnings
+from .rules import CatanRuleset
 
 # Rule 1.1.6: the organizer makes "a schedule for three games".
 PLAN_GAMES = 3
@@ -60,8 +59,7 @@ class PairingCatanPrelim(CommonPairing):
     Play order is planned with the tables: each player gets the positions
     they have held least often (exact counts, no win-rate weights).
 
-    Pairing game 1 of a CatanRuleset event logs a warning when the player
-    count or structure differs from the rules (rules.structure_warnings).
+    Pairing game 1 runs CatanRuleset.warn_structure.
     """
 
     IS_COMPLETE = True
@@ -75,10 +73,7 @@ class PairingCatanPrelim(CommonPairing):
     def make_pairings(
         self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]
     ) -> set[IPlayer]:
-        tour = tour_round.tour
-        if tour_round.seq == 0 and tour.config.ruleset == "CatanRuleset":  # type: ignore[attr-defined]
-            for msg in structure_warnings(tour):
-                Log.log(msg, level=Log.Level.WARNING)
+        CatanRuleset.warn_structure(tour_round)
         byes = self.assign_byes(tour_round, players, pods)
         by_uid = {p.uid: p for p in players - byes}
         if any(len(pod) for pod in pods) or sum(p.cap for p in pods) != len(by_uid):
@@ -285,7 +280,8 @@ class PairingCatanSerpentine(CommonPairing):
 
     Ranks the players by standings, puts the 3-player tables first and
     snakes the ranks across the tables. Seat order is rank order: the order
-    players pick color, chair and play order.
+    players pick color, chair and play order. Pairing game 1 runs
+    CatanRuleset.warn_structure.
     """
 
     IS_COMPLETE = True
@@ -296,6 +292,7 @@ class PairingCatanSerpentine(CommonPairing):
     def make_pairings(
         self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]
     ) -> set[IPlayer]:
+        CatanRuleset.warn_structure(tour_round)
         byes = self.assign_byes(tour_round, players, pods)
         prev = tour_round.tour.previous_round(tour_round)  # type: ignore[attr-defined]
         rank = {p: i for i, p in enumerate(tour_round.tour.get_standings(prev))}  # type: ignore[attr-defined]

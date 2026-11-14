@@ -3,7 +3,7 @@ import random
 from collections.abc import Iterable, Sequence
 from uuid import UUID
 
-from ...core import TournamentConfiguration
+from ...core import Log, TournamentConfiguration
 from ...interface import IGameResult, IPlayer, IPod, IRound, IRuleset, ITournament
 from .scoring import catan_stats, finishing_places
 
@@ -100,6 +100,29 @@ class CatanRuleset(IRuleset):
         16: ((16, "PairingTopCut"), (4, "PairingTopCut")),
     }
     CONFIG_CLASS = CatanConfiguration
+    # (tournament uid, warnings) pairs already logged by warn_structure.
+    _structure_warned: set[tuple[UUID, tuple[str, ...]]] = set()
+
+    @classmethod
+    def warn_structure(cls, tour_round: IRound) -> None:
+        """Logs structure_warnings when game 1 of a CatanRuleset event is paired.
+
+        PairingCatanPrelim and PairingCatanSerpentine call this, so it runs
+        whichever of them pairs game 1. Each distinct set of warnings is
+        logged once per tournament: re-pairing game 1 does not repeat it, a
+        changed player count or structure does. A generic logic picked by
+        hand for game 1 (e.g. PairingRandom) skips the check.
+        """
+        tour = tour_round.tour
+        if tour_round.seq != 0 or tour.config.ruleset != cls.__name__:  # type: ignore[attr-defined]
+            return
+        msgs = tuple(structure_warnings(tour))
+        key = (tour.uid, msgs)  # type: ignore[attr-defined]
+        if not msgs or key in cls._structure_warned:
+            return
+        cls._structure_warned.add(key)
+        for msg in msgs:
+            Log.log(msg, level=Log.Level.WARNING)
 
     def validate_report(self, pod: IPod, games: Sequence[IGameResult]) -> None:
         """Raises ValueError unless games is a valid Catan report.

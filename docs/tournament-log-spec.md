@@ -395,7 +395,10 @@ The organizer sets `n_rounds`, `top_cut` and any elimination round in the
 config; nothing is derived from the player count. `recommended_structure` in
 `src/logic/catan/rules.py` gives the structure of rules 1.1.3 and 1.1.5, and
 pairing game 1 logs a warning when the event has fewer than 12 players or its
-config differs from it:
+config differs from it. The warning comes from the Catan pairing logics
+(`PairingCatanPrelim`, `PairingCatanSerpentine`), once per tournament and set of
+warnings, so re-pairing game 1 does not repeat it. A generic pairing logic picked
+by hand for game 1 (e.g. `PairingRandom`) skips the check:
 
 | Players | `n_rounds` | Elimination | `top_cut` | Playoffs |
 |---|---|---|---|---|

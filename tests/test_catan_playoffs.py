@@ -239,6 +239,29 @@ class StructureTests(unittest.TestCase):
         self.assertIn("recommends for 40 players: 3 games, top cut 16", msg)
         self.assertIn("set to 3 games, top cut 4", msg)
 
+    def test_warns_when_game_1_is_serpentine(self):
+        t = _tour(10, pairing_rounds=[{"ruleset_params": {"eliminate_below_wins": 1}}, {}, {}])
+        msgs = self._warnings(t)
+        self.assertEqual(_round(t).logic.name, "PairingCatanSerpentine")
+        self.assertEqual(len(msgs), 2)
+        self.assertIn("1.1.3", msgs[0])
+        self.assertIn("eliminate below 1 wins before game 1", msgs[1])
+
+    def test_no_repeat_on_re_pair(self):
+        t = _tour(10)
+        self.assertEqual(len(self._warnings(t)), 1)
+        Log.output.clear()
+        _round(t).reset_pods()
+        t.create_pairings()
+        self.assertEqual([e for e in Log.output if e.level == Log.Level.WARNING], [])
+
+    def test_lookups_do_not_warn(self):
+        t = _tour(10)
+        Log.output.clear()
+        t.pairing_logic_name_for(0)
+        t.ruleset.swiss_pairing_logic(t, 0)
+        self.assertEqual([e for e in Log.output if e.level == Log.Level.WARNING], [])
+
 
 class EndToEndTests(unittest.TestCase):
     def _run(self, n: int) -> Tournament:

@@ -86,9 +86,9 @@ games and the top cut yourself; the structure the rules recommend
 | 80+ | 4, with `eliminate_below_wins: 1` on game 4 | 16, as above |
 
 At 80+ players, players without a win after game 3 are eliminated: they sit
-out game 4 and the playoffs but keep their rank. Pairing game 1 logs a warning
-when the event has fewer than 12 players or its structure differs from this
-table. Every Catan report needs every player's victory points; a win reported
+out game 4 and the playoffs but keep their rank. Pairing game 1 with a Catan
+pairing logic logs a warning, once, when the event has fewer than 12 players or
+its structure differs from this table. Every Catan report needs every player's victory points; a win reported
 without them is refused. With the engine:
 
 ```python
