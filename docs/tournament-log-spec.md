@@ -939,7 +939,7 @@ Catan's preliminary pairing (`src/logic/catan/matching.py`, rule 1.1.6). It
 ignores results. The first game plans all preliminary games (games 1-3)
 together: different opponents first, then rotating play-order positions
 (seat order in `players`). Each round seats its game from that plan. The
-plan is not stored: it is recomputed from a seed made of the tournament
+plan is not stored: it is recomputed from a seed made of the round's
 `seed`, the plan's first round and the set of players seated in it, so the
 same file always gives the same games. When the seated players change (a
 drop, a late player), the games from that round on are re-planned for the
