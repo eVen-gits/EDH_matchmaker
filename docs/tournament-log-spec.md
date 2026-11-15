@@ -155,7 +155,7 @@ seed for a pairing comes from the caller, or else from this rule:
 4. If there is no previous round, or it has no seed (a file written before
    format `1.4`), a new seed is drawn at random.
 
-Each random choice in a round (byes, shuffles, later-round seat tie-breaks, MTG
+Each random choice in a round (byes, shuffles, seat tie-breaks, MTG
 tie-breaks) uses its own `random.Random`, seeded with a string made of the
 round's `seed` and stable keys only: the round's `seq` and `stage`, a digest of
 the round's inputs, and the choice's purpose (for a seat tie-break, also the

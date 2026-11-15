@@ -55,11 +55,13 @@ class TestRoundOneSeating(unittest.TestCase):
         )
         t.add_player([(f"P{i:02d}", UUID(int=i + 1)) for i in range(8)])
         t.create_pairings(seed=seed)
-        for pod in t.tour_round.pods:
+        rnd = t.tour_round
+        assert rnd is not None
+        for pod in rnd.pods:
             names = [p.name for p in pod.players]
             pod.reorder_players(sorted(range(len(names)), key=names.__getitem__))
             pod.auto_assign_seats()
-        return [[p.name for p in pod.players] for pod in t.tour_round.pods]
+        return [[p.name for p in pod.players] for pod in rnd.pods]
 
     def test_same_seed_same_seats(self):
         self.assertEqual(self._seats(1), self._seats(1))
