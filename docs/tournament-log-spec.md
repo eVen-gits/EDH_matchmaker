@@ -54,7 +54,7 @@ having a single writer.
 | `created_at` | string (ISO 8601) | optional | When the tournament was first created. Absent in files written before format `1.0`. |
 | `updated_at` | string (ISO 8601) | optional | When this file was last written. |
 | `uid` | string (UUID) | must | The tournament's unique ID. |
-| `seed` | integer | optional | The seed for the tournament's random choices (pairing, byes, seating, and the `uid` of every player, pod and round). Absent in files written before format `1.4`; a reader then picks a new seed. See [Reproducibility](#reproducibility). |
+| `seed` | integer | optional | The seed for the tournament's random choices (pairing, byes, later-round seat tie-breaks, and the `uid` of every player, pod and round). Absent in files written before format `1.4`; a reader then picks a new seed. See [Reproducibility](#reproducibility). |
 | `rng_counter` | integer | optional (default `0`) | How many random generators the tournament has derived from `seed` so far. See [Reproducibility](#reproducibility). |
 | `config` | object | must | Tournament rules and settings. See [The config object](#the-config-object). |
 | `players` | array of object | must | Every player in the tournament. See [Player objects](#player-objects). |
@@ -136,8 +136,8 @@ file now carries `format_version` `"1.4"`:
 
 ### Reproducibility
 
-Every random choice the tournament makes (byes, shuffles, seating, MTG
-tie-breaks, the Catan plan, and the `uid` of each new player, pod and round)
+Every random choice the tournament makes (byes, shuffles, later-round seat
+tie-breaks, MTG tie-breaks, the Catan plan, and the `uid` of each new player, pod and round)
 comes from `seed`. Each choice, except the Catan plan (see
 [`PairingCatanPrelim`](#pairingcatanprelim)), uses a new `random.Random`
 seeded with the string `"<seed>:<n>"`, where `n` is `rng_counter` plus one,
@@ -146,7 +146,7 @@ results reported, rounds paired), EDH_matchmaker writes the same file, apart
 from `created_at`, `updated_at` and the tournament's own `uid`, which stays a
 random UUID so that two tournaments never share an ID or a log file. A loaded
 file continues from its saved `rng_counter`, so it pairs the next round the
-same as a run that never stopped.
+same as a run that never stopped. Seating is deterministic for a given seed.
 
 ### Minimal example
 

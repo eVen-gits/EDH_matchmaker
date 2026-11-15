@@ -96,6 +96,19 @@ class TestReproducibility(unittest.TestCase):
                     del run["saved"]["created_at"]
                 self.assertEqual(straight, reloaded)
 
+    def test_reload_older_save_of_open_tournament(self):
+        t = Tournament(TournamentConfiguration(auto_export=False, n_rounds=3), seed=SEED)
+        t.add_player([f"P{i:02d}" for i in range(8)])
+        older = t.serialize()
+        t.create_pairings()
+        t.random_results()
+        t.add_player("Late")
+        loaded = cast(Tournament, Tournament.inflate(older))
+        self.assertIs(loaded, t)
+        self.assertTrue(loaded.create_pairings())
+        loaded.add_player("Late")
+        self.assertEqual(len(loaded.players), 9)
+
     def test_file_without_seed_still_loads(self):
         t = Tournament(TournamentConfiguration(auto_export=False, n_rounds=2))
         t.add_player([f"P{i:02d}" for i in range(8)])

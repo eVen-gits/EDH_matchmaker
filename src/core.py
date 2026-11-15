@@ -2536,6 +2536,9 @@ class Tournament(ITournament):
         tour_uid = UUID(data["uid"])
         if tour_uid in Tournament.CACHE:
             tour = cast(Tournament, Tournament.CACHE[tour_uid])
+            tour.PLAYER_CACHE.clear()
+            tour.POD_CACHE.clear()
+            tour.ROUND_CACHE.clear()
         else:
             tour = cls(config, tour_uid, seed=data.get("seed"))
         # Older log files (before format_version existed) have no created_at;
@@ -2559,6 +2562,7 @@ class Tournament(ITournament):
         # for d_player in data['dropped']:
         #    Player.inflate(tour, d_player)
         tour._rounds = [UUID(d_round["uid"]) for d_round in data["rounds"]]
+        tour._round = None
         for _, d_round in tqdm(enumerate(data["rounds"]), desc="Inflating rounds"):
             r = Round.inflate(tour, d_round)
             tour._round = r.uid
