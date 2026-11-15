@@ -55,10 +55,18 @@ class TestRoundOneSeating(unittest.TestCase):
         )
         t.add_player([(f"P{i:02d}", UUID(int=i + 1)) for i in range(8)])
         t.create_pairings(seed=seed)
+        for pod in t.tour_round.pods:
+            names = [p.name for p in pod.players]
+            pod.reorder_players(sorted(range(len(names)), key=names.__getitem__))
+            pod.auto_assign_seats()
         return [[p.name for p in pod.players] for pod in t.tour_round.pods]
 
     def test_same_seed_same_seats(self):
         self.assertEqual(self._seats(1), self._seats(1))
 
     def test_seats_differ_across_seeds(self):
-        self.assertGreater(len({str(self._seats(s)) for s in range(1, 6)}), 1)
+        self.assertTrue(
+            any(
+                pod != sorted(pod) for s in range(1, 6) for pod in self._seats(s)
+            )
+        )

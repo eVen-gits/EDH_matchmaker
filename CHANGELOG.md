@@ -32,9 +32,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`generator.version`, from the new `src.__version__`).
 
 ### Fixed
-- Removed an unreachable `random.shuffle` from `Pod.auto_assign_seats`. Round-1
-  seating already comes from the round's seed (equal seat history, so the
-  seeded tie-break orders the pod); behavior and golden outputs are unchanged.
+- Removed a no-op `random.shuffle` from `Pod.auto_assign_seats` (it shuffled a
+  copy of the player list). Round-1 seating already comes from the round's seed
+  (equal seat history, so the seeded tie-break orders the pod). In the rare
+  case where every player in a pod always sat last, seating now also uses the
+  seeded tie-break instead of the pairing order.
 - The 1v1 game tiebreakers (GW and OGW) now score a game won with the
   configured win points and a drawn game with the draw points, and divide by
   win points per game played, instead of a fixed 3 and 1. With non-default
