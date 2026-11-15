@@ -141,7 +141,7 @@
     "player": {
       "type": "object",
       "additionalProperties": true,
-      "required": ["uid", "name", "decklist"],
+      "required": ["uid", "name"],
       "properties": {
         "uid": { "$ref": "#/$defs/uid" },
         "name": { "type": "string" },
