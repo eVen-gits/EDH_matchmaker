@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import copy
 import os
+import random
 import sys
 import traceback
 
@@ -732,6 +733,8 @@ class MainWindow(QMainWindow):
 
         self.ui.pb_reset_pods.clicked.connect(lambda: self.reset_pods())
         self.ui.pb_pods.clicked.connect(lambda: self.create_pods())
+        self.ui.pb_new_seed.clicked.connect(lambda: self.new_seed())
+        self._next_seed: int | None = None
 
         self.ui.actionReset_UI.triggered.connect(self.restore_ui)
         self.ui.actionRandom_Results.triggered.connect(lambda *_: self.random_results())
@@ -1087,7 +1090,8 @@ class MainWindow(QMainWindow):
 
     @UILog.with_status
     def create_pods(self):
-        if self.core.create_pairings():
+        seed, self._next_seed = self._next_seed, None
+        if self.core.create_pairings(seed=seed):
             self.ui_clear_pods()
             self.ui_create_pods()
             self.ui_update_player_list()
@@ -1096,6 +1100,24 @@ class MainWindow(QMainWindow):
             # repeat_pairings = self.core.tour_round.repeat_pairings()
             # for i, pod in enumerate(self.core.tour_round.pods):
             #    Log.log(f"Pod {i}: {repeat_pairings[pod]}")
+
+    @UILog.with_status
+    def new_seed(self):
+        self._next_seed = random.getrandbits(32)
+        Log.log(f"New seed for the next pairing: {self._next_seed}")
+        self.ui_update_seed_button()
+
+    def ui_update_seed_button(self):
+        tour_round = self.core.tour_round
+        self.ui.pb_new_seed.setEnabled(
+            tour_round is None or tour_round.done or not tour_round.pods
+        )
+        if self._next_seed is not None:
+            self.ui.pb_new_seed.setToolTip(f"Next pairing uses seed {self._next_seed}")
+        elif tour_round is not None and tour_round.seed is not None:
+            self.ui.pb_new_seed.setToolTip(f"Current round seed: {tour_round.seed}")
+        else:
+            self.ui.pb_new_seed.setToolTip("Draw a new seed for the next pairing")
 
     @UILog.with_status
     def reset_pods(self):
@@ -1123,6 +1145,7 @@ class MainWindow(QMainWindow):
             )
             for pod in self.core.tour_round.pods:
                 layout.addWidget(PodWidget(self, pod, context=context))
+        self.ui_update_seed_button()
         title = f"EDH matchmaker - {self.core.config.ruleset.removesuffix('Ruleset')}"
         if self.core.tour_round:
             title += f" - {round_label(self.core.tour_round)}"
@@ -1186,6 +1209,7 @@ class MainWindow(QMainWindow):
                 item.setBackground(PlayerListItem.Color.UNSEATED)
 
     def ui_update_player_list(self):
+        self.ui_update_seed_button()
         tour_round = self.core.tour_round
         context = TournamentContext(
             self.core,

@@ -53,7 +53,9 @@ class PairingCatanPrelim(CommonPairing):
     as planned. When the field changes (a drop, a late player), or the
     organizer changes a round's seating by hand (a swap, pods filled by
     hand), the games after that change are re-planned for the players
-    still in, with the actual earlier seating as history. A round after the
+    still in, with the actual earlier seating as history. A round paired
+    with a seed other than the previous round's starts a new plan the same
+    way; a carried-forward seed does not. A round after the
     preliminary schedule is planned on its own.
 
     Play order is planned with the tables: each player gets the positions
@@ -97,14 +99,19 @@ class PairingCatanPrelim(CommonPairing):
         Its first game is this round's, with tables in `sizes` order. The
         plan starts at the earliest round whose field, and every later
         round's, equals `field`, and from which every earlier round was
-        seated as the plan says; rounds before it are fixed history.
+        seated as the plan says, and that has the same seed as every later
+        round; rounds before it are fixed history.
         """
         tour = tour_round.tour
         rounds = tour.rounds  # type: ignore[attr-defined]
         seq = tour_round.seq
         start = seq
         if seq < PLAN_GAMES:
-            while start > 0 and _field(rounds[start - 1]) == field:
+            while (
+                start > 0
+                and _field(rounds[start - 1]) == field
+                and rounds[start - 1].seed == rounds[start].seed
+            ):
                 start -= 1
         while True:
             rng = random.Random(plan_seed(rounds[start].seed, field, start))

@@ -67,6 +67,11 @@ Or with additional options:
 python run_ui.py --help
 ```
 
+**Create Pods** pairs the current round from its seed, so **Reset Pods** then
+**Create Pods** gives the same pods again. To get a different pairing, press
+**New Seed** before **Create Pods** (enabled while the round has no pods).
+The button's tooltip shows the seed in use.
+
 Commander configuration accepts pod sizes of 3, 4, 5, or 6 players.
 This restriction applies to new tournaments, configuration changes, CLI
 options, and every attempt to load a saved tournament. Manual pod edits

@@ -163,9 +163,11 @@ table). The digest covers the players taking part (their sorted `uid`s) and
 every earlier round's stage, pods (players in seat order), games, byes, game
 losses, dropped and disabled players. Identical inputs give the identical
 draw. Any change, such as a player added or dropped or a result changed, gives
-an independent draw, not a slightly shifted one. The Catan plan has its own
-seed, made from the `seed` of the plan's first round, that round and its
-field, and ignores results (see [`PairingCatanPrelim`](#pairingcatanprelim)).
+an independent draw, not a slightly shifted one. The exception is the Catan
+preliminary plan: it has its own seed, made from the `seed` of the plan's
+first round, that round and its field, and ignores results by rule. A round
+whose `seed` differs from the previous round's starts a new plan; a
+carried-forward seed does not (see [`PairingCatanPrelim`](#pairingcatanprelim)).
 No choice depends on how many draws came before it, and players are always
 taken in `uid` order before a random choice or a tie-break, never in the
 order they were added.
@@ -956,7 +958,9 @@ drop, a late player), the games from that round on are re-planned for the
 players still in, with the earlier rounds as history. When a round was not
 seated as its plan said (the organizer swapped players or filled pods by
 hand), the games after it are re-planned the same way, with its actual
-seating as history. The plan's params come from its first round. A round after game 3
+seating as history. When a round's `seed` differs from the previous round's
+(a new seed passed for that game), the games from that round on are
+re-planned the same way; a carried-forward seed does not re-plan. The plan's params come from its first round. A round after game 3
 is planned on its own. Friends and family are not kept apart; the organizer
 moves players by hand. `params` fields, with the same meaning as for
 [`PairingDefault`](#pairingdefault) but applied to the whole plan:
