@@ -1734,6 +1734,7 @@ class TournamentConfigDialog(QDialog):
         # allow_bye follows the ruleset's default on a game change, like the
         # pod sizes above (Catan: off).
         if not initial:
+            assert self.ui is not None
             self.ui.cb_allow_bye.setChecked(ruleset.DEFAULT_ALLOW_BYE)
 
         # Byes: a ruleset that requires them (e.g. Mtg1v1Ruleset) hides the
@@ -1764,6 +1765,7 @@ class TournamentConfigDialog(QDialog):
         tournament's current pod sizes (see selectable_scoring_logics), then
         preselects `preselect` if still offered, else the first choice."""
         pod_sizes = self._pod_size_editor.values() if self._pod_size_editor else None
+        assert self.ui is not None
         selectable = Tournament.selectable_scoring_logics(pod_sizes, self.ui.cb_ruleset.currentData())
         self.ui.cb_scoringLogic.blockSignals(True)
         self.ui.cb_scoringLogic.clear()
@@ -1831,6 +1833,7 @@ class TournamentConfigDialog(QDialog):
         self._pairing_forms = []
         self._ruleset_forms = []
         pod_sizes = self._pod_size_editor.values() if self._pod_size_editor else None
+        assert self.ui is not None
         selectable = Tournament.selectable_pairing_logics(pod_sizes, self.ui.cb_ruleset.currentData())
         configured = self.core.config.pairing_logics
         configured_params = self.core.config.pairing_params

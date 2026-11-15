@@ -7,6 +7,7 @@ the config dialog's allow_bye default on a ruleset change.
 
 import os
 import unittest
+from typing import Any, cast
 from unittest import mock
 
 from src.core import Tournament, TournamentAction, TournamentConfiguration
@@ -36,6 +37,7 @@ class CatanUiTestCase(unittest.TestCase):
         t.new_round()
         t.manual_pod(list(t.players))
         window = self.run_ui.MainWindow(t)
+        assert t.tour_round is not None
         return window, t, t.tour_round.pods[0]
 
 
@@ -90,7 +92,9 @@ class TestCatanReportDialog(CatanUiTestCase):
         window, t, pod = self._window()
         dlg = self.run_ui.CatanReportDialog(window, pod)
         dlg._spins[pod.players[2]].setValue(11)
-        window.report_match(pod, dlg._games())
+        games = dlg._games()
+        assert games is not None
+        window.report_match(pod, games)
         self.assertEqual(pod.games[-1].winners, frozenset({pod.players[2].uid}))
 
     def test_rereport_prefills_the_recorded_vp(self):
@@ -98,7 +102,9 @@ class TestCatanReportDialog(CatanUiTestCase):
         dlg = self.run_ui.CatanReportDialog(window, pod)
         dlg._spins[pod.players[0]].setValue(10)
         dlg._spins[pod.players[1]].setValue(5)
-        window.report_match(pod, dlg._games())
+        games = dlg._games()
+        assert games is not None
+        window.report_match(pod, games)
         again = self.run_ui.CatanReportDialog(window, pod)
         self.assertEqual(again._spins[pod.players[0]].value(), 10)
         self.assertEqual(again._spins[pod.players[1]].value(), 5)
@@ -108,6 +114,7 @@ class TestCatanReportDialog(CatanUiTestCase):
         t.add_player([f"P{i}" for i in range(4)])
         t.new_round()
         t.manual_pod(list(t.players))
+        assert t.tour_round is not None
         self.assertFalse(self.run_ui._vp_scored(t.tour_round.pods[0]))
 
 
@@ -115,6 +122,7 @@ class TestCatanStandingsColumns(CatanUiTestCase):
     def test_player_list_shows_catan_columns(self):
         window, t, pod = self._window()
         window.ui_update_player_list()
+        assert window.ui is not None
         texts = [
             window.ui.lv_players.item(i).data(self.run_ui.Qt.ItemDataRole.DisplayRole)
             for i in range(window.ui.lv_players.count())
@@ -128,8 +136,9 @@ class TestCatanStandingsColumns(CatanUiTestCase):
 class TestConfigDialogAllowBye(CatanUiTestCase):
     def test_allow_bye_follows_ruleset_default(self):
         parent = self.QWidget()
-        parent.core = Tournament(TournamentConfiguration(auto_export=False))
+        cast(Any, parent).core = Tournament(TournamentConfiguration(auto_export=False))
         dlg = self.run_ui.TournamentConfigDialog(parent)
+        assert dlg.ui is not None
         combo = dlg.ui.cb_ruleset
 
         def pick(name):
