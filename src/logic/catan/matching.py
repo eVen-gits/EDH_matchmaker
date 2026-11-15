@@ -107,7 +107,7 @@ class PairingCatanPrelim(CommonPairing):
             while start > 0 and _field(rounds[start - 1]) == field:
                 start -= 1
         while True:
-            rng = random.Random(plan_seed(tour.seed, field, start))  # type: ignore[attr-defined]
+            rng = random.Random(plan_seed(tour_round.seed, field, start))  # type: ignore[attr-defined]
             schedule = self._schedule(
                 rounds[start],
                 sorted(field, key=str),

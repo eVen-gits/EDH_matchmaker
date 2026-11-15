@@ -9,6 +9,7 @@ import csv
 import functools
 import importlib
 import io
+import hashlib
 import json
 import math
 import os
@@ -1204,7 +1205,7 @@ class Tournament(ITournament):
         return {Player.get(self, x) for x in self._players}
 
     @override
-    def rng(self, *key: object) -> random.Random:
+    def rng(self, *key: object, seed: int | None = None) -> random.Random:
         """Returns the generator for one random decision, named by `key`.
 
         The generator depends only on the seed and the key (for example the
@@ -1214,8 +1215,26 @@ class Tournament(ITournament):
 
         Args:
             key: Stable identifiers of the decision (ints and strings).
+            seed: The seed to use instead of the tournament's current one
+                (a round passes the seed it is paired with).
         """
-        return random.Random(":".join(map(str, (self.seed, *key))))
+        seed = self.seed if seed is None else seed
+        return random.Random(":".join(map(str, (seed, *key))))
+
+    @TournamentAction.action
+    def set_seed(self, seed: int) -> None:
+        """Changes the seed that the next pairing uses.
+
+        Rounds already paired keep the seed they were paired with
+        (`Round.seed`, saved per round), so they stay reproducible. Pairing a
+        round again after a change uses the new seed.
+
+        Args:
+            seed: The new seed.
+        """
+        if isinstance(seed, bool) or not isinstance(seed, int):
+            raise TypeError(f"seed must be an int, not {type(seed).__name__}")
+        self.seed = seed
 
     def new_uid(self, *key: object) -> UUID:
         """Returns a seed-derived UUID for a new player, pod or round.
@@ -3621,6 +3640,7 @@ class Round(IRound):
         disabled: set[UUID] | None = None,
         byes: set[UUID] | None = None,
         game_loss: set[UUID] | None = None,
+        seed: int | None = None,
     ):
         """Initializes a new Round instance.
 
@@ -3634,12 +3654,16 @@ class Round(IRound):
             disabled: Optional set of disabled player UUIDs.
             byes: Optional set of player UUIDs who have byes.
             game_loss: Optional set of player UUIDs who have game losses.
+            seed: The seed this round is paired with. Defaults to the
+                tournament's current seed; pairing sets it again.
         """
         self._tour: UUID = tour.uid
         super().__init__(uid=uid or tour.new_uid("round", seq))
         self.tour.ROUND_CACHE[self.uid] = self
         self.seq: int = seq
         self.stage: Round.Stage = stage
+        self.seed: int = tour.seed if seed is None else seed
+        self._digest: str | None = None  # input_digest() while pairing
 
         self._pods: list[UUID] = list()
         self._players: list[UUID] = list()
@@ -3980,6 +4004,7 @@ class Round(IRound):
         This method uses the round's `pairing_logic` to determine match-ups and assigns
         players to the pods created by `create_pods`.
         """
+        self.seed = self.tour.seed
         if self.stage != Round.Stage.SWISS:
             # Reset disabled set to the previous round's baseline so that re-pairing
             # after reset_pods() + config change doesn't keep stale topcut entries.
@@ -4011,11 +4036,17 @@ class Round(IRound):
         self.create_pods()
         pods = [p for p in self.pods if all([not p.done, len(p) < p.cap])]
 
-        self.logic.make_pairings(self, cast(set[IPlayer], self.unassigned), pods)
+        # The inputs stay fixed while pairing, so digest them once for every
+        # draw instead of once per draw (per pod for seats).
+        self._digest = self.input_digest()
+        try:
+            self.logic.make_pairings(self, cast(set[IPlayer], self.unassigned), pods)
 
-        if self.seq < self.tour.config.n_rounds and self.tour.ruleset.SEAT_BALANCING:
-            for pod in self.pods:
-                pod.auto_assign_seats()
+            if self.seq < self.tour.config.n_rounds and self.tour.ruleset.SEAT_BALANCING:
+                for pod in self.pods:
+                    pod.auto_assign_seats()
+        finally:
+            self._digest = None
 
         self.sort_pods()
 
@@ -4189,6 +4220,48 @@ class Round(IRound):
         else:
             self._disabled.discard(player.uid)
 
+    @override
+    def rng(self, *purpose: object) -> random.Random:
+        """The generator for one random decision in this round.
+
+        Keyed on the seed this round is paired with, its seq and stage,
+        `input_digest()` and `purpose`. Identical inputs give the identical
+        draw (pairing the round again gives the same result); any change in
+        the inputs gives an independent draw.
+        """
+        key = (self.seq, self.stage.value, self._digest or self.input_digest(), *purpose)
+        return self.tour.rng(*key, seed=self.seed)
+
+    def input_digest(self) -> str:
+        """A stable digest of what this round's pairing depends on.
+
+        Covers the players taking part (sorted uids) and every earlier round's
+        stage, pods (players in seat order), recorded games, byes, game
+        losses, dropped and disabled players. Pods and rounds are described by
+        their content, never by their own uids.
+        """
+        ids = lambda xs: sorted(str(x) for x in xs)  # noqa: E731
+        history = [
+            [
+                r.seq,
+                r.stage.value,
+                ids(r._byes),
+                ids(r._game_loss),
+                ids(r._dropped),
+                ids(r._disabled),
+                [
+                    [
+                        [str(u) for u in pod._players],
+                        [Pod._serialize_game(g) for g in pod._games],
+                    ]
+                    for pod in r.pods
+                ],
+            ]
+            for r in self.tour.rounds[: self.seq]
+        ]
+        data = [ids(p.uid for p in self.active_players), history]
+        return hashlib.sha256(json.dumps(data).encode()).hexdigest()[:16]
+
     def serialize(self) -> dict[str, Any]:
         return {
             "tour": str(self._tour),
@@ -4200,6 +4273,7 @@ class Round(IRound):
             "disabled": [str(p) for p in self._disabled],
             "byes": [str(p) for p in self._byes],
             "game_loss": [str(p) for p in self._game_loss],
+            "seed": self.seed,
             "pods": [pod.serialize() for pod in self.pods],
         }
 
@@ -4220,6 +4294,7 @@ class Round(IRound):
             new_round._disabled = {UUID(x) for x in data["disabled"]}
             new_round._byes = {UUID(x) for x in data["byes"]}
             new_round._game_loss = {UUID(x) for x in data["game_loss"]}
+            new_round.seed = data.get("seed", tour.seed)
         else:
             new_round = cls(
                 tour,
@@ -4231,6 +4306,7 @@ class Round(IRound):
                 disabled={UUID(x) for x in data["disabled"]},
                 byes={UUID(x) for x in data["byes"]},
                 game_loss={UUID(x) for x in data["game_loss"]},
+                seed=data.get("seed"),
             )
         pods = [Pod.inflate(new_round, pod) for pod in data["pods"]]
         new_round._pods = [pod.uid for pod in pods]

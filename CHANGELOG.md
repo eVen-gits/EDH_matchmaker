@@ -18,11 +18,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   random choice (byes, shuffles, later-round seat tie-breaks, the uids of
   players, pods and rounds), so the same seed and the same actions give the
   same tournament, seating included, in any process. Each choice is keyed on
-  the seed, the round and its purpose, not on earlier draws, so a tournament
+  the seed, the round, a digest of the round's inputs (players taking part and
+  results so far) and its purpose, not on earlier draws. So a tournament
   rebuilt from its log (seed, config, players and past rounds) pairs the next
-  round the same, and pairing a round again gives the same pods. Log format
-  `1.4` saves `seed` and the engine version (`generator.version`, from the new
-  `src.__version__`).
+  round the same, pairing a round again gives the same pods, and any input
+  change gives an independent draw. `Tournament.set_seed()` changes the seed
+  for later pairings; each round records the seed it was paired with. Log
+  format `1.4` saves `seed`, `rounds[].seed` and the engine version
+  (`generator.version`, from the new `src.__version__`).
 
 ### Fixed
 - The 1v1 game tiebreakers (GW and OGW) now score a game won with the

@@ -175,6 +175,75 @@ class TestReproducibility(unittest.TestCase):
                 t.create_pairings()
                 self.assertEqual(_round_out(t), first)
 
+    def test_undo_round_and_pair_again_gives_the_same_pods(self):
+        for game, (config, n_players, _) in GAMES.items():
+            with self.subTest(game=game):
+                t = Tournament(TournamentConfiguration(auto_export=False, **config), seed=SEED)
+                t.add_player([f"P{i:02d}" for i in range(n_players)])
+                t.create_pairings()
+                t.random_results()
+                t.create_pairings()
+                first = _round_out(t)
+                assert t.tour_round is not None
+                self.assertTrue(t.delete_round(t.tour_round))
+                t.create_pairings()
+                self.assertEqual(_round_out(t), first)
+
+    def test_changed_seed_changes_next_round_and_keeps_past_seeds(self):
+        config, n_players, _ = GAMES["commander"]
+
+        def two_rounds_then_pair(new_seed: int | None) -> Tournament:
+            random.seed(SEED)
+            t = Tournament(TournamentConfiguration(auto_export=False, **config), seed=SEED)
+            t.add_player([f"P{i:02d}" for i in range(n_players)])
+            for _ in range(2):
+                t.create_pairings()
+                t.random_results()
+            if new_seed is not None:
+                t.set_seed(new_seed)
+            t.create_pairings()
+            return t
+
+        same, changed = two_rounds_then_pair(None), two_rounds_then_pair(SEED + 1)
+        self.assertNotEqual(_round_out(changed)["pods"], _round_out(same)["pods"])
+        log = changed.serialize()
+        self.assertEqual(log["seed"], SEED + 1)
+        self.assertEqual([r["seed"] for r in log["rounds"]], [SEED, SEED, SEED + 1])
+        # Each round stays reproducible statelessly from the seed it records.
+        replay = dict(log, seed=log["rounds"][2]["seed"])
+        self.assertEqual(
+            pair_statelessly(replay, 2)["pods"], _round_out(changed)["pods"]
+        )
+        with self.assertRaises(TypeError):
+            changed.set_seed("1")  # type: ignore[arg-type]
+
+    def test_any_input_change_gives_a_different_pairing(self):
+        def round_one(n_players: int) -> list:
+            t = Tournament(TournamentConfiguration(auto_export=False, n_rounds=3), seed=SEED)
+            t.add_player([f"P{i:02d}" for i in range(n_players)])
+            t.create_pairings()
+            return _round_out(t)["pods"]
+
+        # Adding a player: the original 16 are grouped differently.
+        groups = lambda pods: {frozenset(p for p in pod if p != "P16") for pod in pods}  # noqa: E731
+        self.assertNotEqual(groups(round_one(16)), groups(round_one(17)))
+
+        # A changed result changes the round digest; identical inputs do not.
+        t = Tournament(TournamentConfiguration(auto_export=False, n_rounds=3), seed=SEED)
+        t.add_player([f"P{i:02d}" for i in range(16)])
+        t.create_pairings()
+        t.random_results()
+        t.new_round()
+        r = t.tour_round
+        assert r is not None
+        before, draw = r.input_digest(), r.rng("byes").random()
+        self.assertEqual((r.input_digest(), r.rng("byes").random()), (before, draw))
+        pod = t.rounds[0].pods[0]
+        other = next(p for p in pod.players if p not in pod.result)
+        pod.record_result([IGameResult(frozenset({other.uid}))])
+        self.assertNotEqual(r.input_digest(), before)
+        self.assertNotEqual(r.rng("byes").random(), draw)
+
     def test_reload_older_save_of_open_tournament(self):
         t = Tournament(TournamentConfiguration(auto_export=False, n_rounds=3), seed=SEED)
         t.add_player([f"P{i:02d}" for i in range(8)])
