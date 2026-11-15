@@ -9,8 +9,8 @@ class Pairing1v1(CommonPairing):
     """Swiss pairing for 1v1 (2-player pod) Magic tournaments.
 
     A maximum-weight perfect matching (networkx), not Commander's greedy
-    pod-fill: spec 4.1's rules (no rematch when avoidable, fewest and
-    smallest pair-downs, the bye to the lowest-ranked player without one)
+    pod-fill: spec 4.1's rules (the bye to a fewest-byes, fewest-points
+    player, no rematch when avoidable, fewest and smallest pair-downs)
     are exact priorities a greedy fill can't guarantee, but a matching
     can. The shared CommonPairing base supplies rating helpers. This
     algorithm has no tunable parameters, so it ships no sidecar.
@@ -63,7 +63,6 @@ class Pairing1v1(CommonPairing):
         group_index = {r: i for i, r in enumerate(distinct_ratings)}
         g = {p: group_index[node_rating[p]] for p in player_nodes}
         n_groups = len(distinct_ratings)
-        g_low = max((g[p] for p in free_players), default=0)
 
         rank_from_bottom = {
             p: len(ordered_players) - 1 - i for i, p in enumerate(ordered_players)
@@ -78,9 +77,10 @@ class Pairing1v1(CommonPairing):
 
         # Integer weights, so the priorities below are strictly
         # lexicographic (networkx.max_weight_matching is exact with ints):
-        # (1) no rematch and no second bye, (2) smallest total squared
-        # score gap (pair-down as little as possible), (3) bye to the
-        # lowest-ranked player without a bye, (4) random among equals.
+        # (1) the bye to a fewest-byes player, then to the lowest score
+        # group among them, (2) no rematch, (3) smallest total squared
+        # score gap (pair-down as little as possible), (4) bye to the
+        # lowest-ranked player, (5) random among equals.
         n_players = len(player_nodes)
         n_edges = (n_players + n_byes) // 2
         jitter_range = 1000
@@ -89,6 +89,28 @@ class Pairing1v1(CommonPairing):
         rematch_unit = gap_unit * (n_edges + 1) * (n_groups**2 + 1)
 
         rng = tour_round.rng("jitter")
+
+        def pair_cost(a: IPlayer, b: IPlayer) -> int:
+            return rematch_unit * met(a, b) + gap_unit * (g[a] - g[b]) ** 2
+
+        # The bye outranks everything else: (a) bye count above the
+        # minimum among free players, (b) score group below the highest
+        # among the fewest-byes players. Each unit exceeds the sum of every
+        # cost below it, so a rematch beats a bye for a non-candidate.
+        # ponytail: loose bound (sum of all pair costs); fine at 1v1 sizes.
+        pair_total = sum(
+            pair_cost(a, b)
+            for i, a in enumerate(ordered_players)
+            for b in ordered_players[i + 1 :]
+            if not (a in anchored_set and b in anchored_set)
+        )
+        pts_unit = pair_total + n_players + 1
+        bye_unit = pts_unit * (n_groups + 1)
+        min_byes = min((a.byes(tour_round) for a in free_players), default=0)
+        g_cand = max(
+            (g[a] for a in free_players if a.byes(tour_round) == min_byes),
+            default=0,
+        )
 
         def weight(cost: int) -> int:
             return -cost * unit + rng.randrange(jitter_range)
@@ -107,13 +129,12 @@ class Pairing1v1(CommonPairing):
                 b = ordered_players[j]
                 if a in anchored_set and b in anchored_set:
                     continue
-                cost = rematch_unit * met(a, b) + gap_unit * (g[a] - g[b]) ** 2
-                graph.add_edge(i, j, weight=weight(cost))
+                graph.add_edge(i, j, weight=weight(pair_cost(a, b)))
             if a in free_set:
                 for k in range(n_ordered, len(nodes)):
                     cost = (
-                        rematch_unit * a.byes(tour_round)
-                        + gap_unit * (g_low - g[a]) ** 2
+                        bye_unit * (a.byes(tour_round) - min_byes)
+                        + pts_unit * abs(g_cand - g[a])
                         + rank_from_bottom[a]
                     )
                     graph.add_edge(i, k, weight=weight(cost))

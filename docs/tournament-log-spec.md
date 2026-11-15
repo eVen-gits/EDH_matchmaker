@@ -926,9 +926,11 @@ perfect matching (a graph matching, not a sort-and-place): free players,
 any single-player ("anchored") pods, and enough dummy bye slots to cover
 the field become graph nodes, and the matching that maximizes total edge
 weight becomes the round's pairings. Weights are chosen so the priorities
-are strictly lexicographic: avoid a rematch and a second bye first, then
-minimize the total (pair-down) score-group gap, then give any bye to the
-lowest-standing player without one, with a small random tie-break last.
+are strictly lexicographic: give any bye to a player with the fewest byes
+so far, and among those to one in the lowest score group, first; then avoid
+a rematch; then minimize the total squared (pair-down) score-group gap;
+then give the bye to the lowest-ranked player; with a small random
+tie-break last.
 A reader reproducing this file's pairings needs the algorithm, not just
 this page - see `src/logic/mtg/mtr-1v1-spec.md` §4.1 for the rules it
 follows and the class's own docstring for the exact weight formula.

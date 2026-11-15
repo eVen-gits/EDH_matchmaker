@@ -662,21 +662,29 @@ class TestPairing1v1(unittest.TestCase):
         )
         self.assertEqual(cross_group, 1)
 
-    def test_5_players_bye_never_repeats_before_everyone_has_one(self):
-        # Not guaranteed for every seed: on master too, about 1 seed in 7
-        # gives someone a second bye in this 5-round event (the bye and the
-        # rematch penalties can tie). Seed 4 is one that holds.
-        random.seed(4)
-        t = self._tournament(5, 5)
-        bye_recipients = []
-        for _ in range(5):
-            t.create_pairings()
-            byes = list(t.tour_round.byes)
-            self.assertEqual(len(byes), 1)
-            bye_recipients.append(byes[0].uid)
-            t.random_results()
-            t.new_round()
-        self.assertEqual(len(set(bye_recipients)), 5)
+    def test_5_players_bye_goes_to_fewest_byes_then_fewest_points(self):
+        for seed in range(200):
+            with self.subTest(seed=seed):
+                random.seed(seed)
+                t = self._tournament(5, 5)
+                for i in range(5):
+                    rnd = t.tour_round  # None before round 1 (all equal)
+                    if rnd is not None:
+                        ratings = t.field_ratings(rnd)
+                        byes = {p: p.byes(rnd) for p in t.players}
+                        fewest = min(byes.values())
+                        low = min(
+                            p.rating(rnd, ratings)  # pyright: ignore[reportCallIssue]
+                            for p in t.players
+                            if byes[p] == fewest
+                        )
+                    t.create_pairings()
+                    if rnd is not None:
+                        (bye,) = rnd.byes
+                        self.assertEqual(byes[bye], fewest)
+                        self.assertEqual(bye.rating(rnd, ratings), low)  # pyright: ignore[reportCallIssue]
+                    t.random_results()
+                    t.new_round()
 
     def test_anchored_pod_gets_filled(self):
         random.seed(6)
