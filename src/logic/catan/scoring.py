@@ -1,5 +1,5 @@
 from __future__ import annotations
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from fractions import Fraction
 from typing import Any
@@ -42,6 +42,29 @@ class CatanStats:
     third: int = 0
 
 
+def catan_stats(tour: ITournament, rounds: Iterable[IRound]) -> dict[UUID, CatanStats]:
+    """Per-player VP (capped per game), VP%, 2nd and 3rd place counts over
+    the games of `rounds` that have reported VP."""
+    stats = {p.uid: CatanStats() for p in tour.players}
+    for r in rounds:
+        for pod in r.pods:
+            game = pod.games[-1] if pod.games else None
+            if game is None or game.scores is None:
+                continue  # pending, or reported without VP
+            # Looked up only for a game with VP, which only CatanRuleset has.
+            cap = tour.ruleset._param(r, "victory_points")  # type: ignore[attr-defined]
+            vp = dict(game.scores)
+            values = list(vp.values())
+            places = finishing_places(vp)
+            for uid, v in vp.items():
+                s = stats.setdefault(uid, CatanStats())
+                s.vp += min(v, cap)
+                s.vp_pct += vp_share(values, v)
+                s.second += places[uid] == 2
+                s.third += places[uid] == 3
+    return stats
+
+
 class ScoringCatan(FixedPointsScoring):
     """Wins and the official Catan tiebreakers (tournament rules 1.4.1-1.4.3).
 
@@ -52,30 +75,13 @@ class ScoringCatan(FixedPointsScoring):
     forced bye scores `bye_points` and adds no VP and no VP%.
     """
 
-    # Hidden (like CatanRuleset) until the playoff slice lands: while True it
-    # would be offered for Commander's 3-4 player pods. TODO(slice 6): True.
-    IS_COMPLETE = False
+    IS_COMPLETE = True
     SUPPORTED_POD_SIZES = (3, 4)
+    RULESETS = ("CatanRuleset",)
 
     def stats(self, tour: ITournament, tour_round: IRound) -> dict[UUID, CatanStats]:
         """Per-player VP, VP%, 2nd and 3rd place counts through tour_round."""
-        stats = {p.uid: CatanStats() for p in tour.players}
-        for r in self._swiss_rounds_up_to(tour, tour_round):
-            cap = tour.ruleset._param(r, "victory_points")  # type: ignore[attr-defined]
-            for pod in r.pods:
-                game = pod.games[-1] if pod.games else None
-                if game is None or game.scores is None:
-                    continue  # pending, or reported without VP
-                vp = dict(game.scores)
-                values = list(vp.values())
-                places = finishing_places(vp)
-                for uid, v in vp.items():
-                    s = stats.setdefault(uid, CatanStats())
-                    s.vp += min(v, cap)
-                    s.vp_pct += vp_share(values, v)
-                    s.second += places[uid] == 2
-                    s.third += places[uid] == 3
-        return stats
+        return catan_stats(tour, self._swiss_rounds_up_to(tour, tour_round))
 
     def standings_keys(
         self,

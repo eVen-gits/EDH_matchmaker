@@ -7,32 +7,9 @@ from collections import Counter
 from typing import cast
 
 from src.core import Tournament, TournamentAction, TournamentConfiguration
-from src.logic.catan.matching import PairingCatanPrelim, PairingCatanSerpentine
-from src.logic.catan.rules import CatanRuleset
-from src.logic.catan.scoring import ScoringCatan
+from src.logic.catan.matching import PairingCatanPrelim
 
 TournamentAction.LOGF = False
-
-_HIDDEN = (CatanRuleset, ScoringCatan, PairingCatanPrelim, PairingCatanSerpentine)
-
-
-def _reset_caches():
-    Tournament._ruleset_cache = {}
-    Tournament._scoring_logic_cache = {}
-    Tournament._pairing_logic_cache = {}
-
-
-def setUpModule():
-    # Hidden (IS_COMPLETE False) until the playoff slice.
-    for cls in _HIDDEN:
-        cls.IS_COMPLETE = True
-    _reset_caches()
-
-
-def tearDownModule():
-    for cls in _HIDDEN:
-        cls.IS_COMPLETE = False
-    _reset_caches()
 
 
 def _tour(n: int, **kw) -> Tournament:

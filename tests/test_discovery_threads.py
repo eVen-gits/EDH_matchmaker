@@ -60,7 +60,9 @@ class TestOverlappingDiscovery(unittest.TestCase):
 
     def test_ruleset(self):
         self._overlap(lambda: Tournament.get_ruleset("Mtg1v1Ruleset"))
-        self.assertEqual(Tournament.ruleset_names(), ["CommanderRuleset", "Mtg1v1Ruleset"])
+        self.assertEqual(
+            Tournament.ruleset_names(), ["CatanRuleset", "CommanderRuleset", "Mtg1v1Ruleset"]
+        )
 
     def test_pairing_logic(self):
         self._overlap(lambda: Tournament.get_pairing_logic("Pairing1v1"))

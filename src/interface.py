@@ -269,6 +269,10 @@ class IPairingLogic(ABC):
     # The tournament's pod sizes must all be supported for this algorithm to be
     # offered - see supports_pod_sizes and Tournament.selectable_pairing_logics.
     SUPPORTED_POD_SIZES: tuple[int, ...] | None = None
+    # Rulesets (config.ruleset names) this algorithm is offered under. None
+    # (the default) means every ruleset; a tuple keeps a game's own logic out
+    # of other games' selector lists - see Tournament.selectable_*_logics.
+    RULESETS: tuple[str, ...] | None = None
     # Former class names this logic replaced. Saved logs name each round's
     # logic, so Tournament.get_pairing_logic resolves these to this logic.
     ALIASES: tuple[str, ...] = ()
@@ -337,6 +341,10 @@ class IScoringLogic(ABC):
     # The tournament's pod sizes must all be supported for this algorithm to be
     # offered - see supports_pod_sizes and Tournament.selectable_scoring_logics.
     SUPPORTED_POD_SIZES: tuple[int, ...] | None = None
+    # Rulesets (config.ruleset names) this algorithm is offered under. None
+    # (the default) means every ruleset; a tuple keeps a game's own logic out
+    # of other games' selector lists - see Tournament.selectable_*_logics.
+    RULESETS: tuple[str, ...] | None = None
     # This algorithm's parameter spec, loaded at class definition from the
     # sidecar `<ClassName>.params.yaml` (name, default, type, range,
     # description). DEFAULT_PARAMS is derived from it - the names and defaults
