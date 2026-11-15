@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Catan tournament support (`CatanRuleset`), alongside Commander and 1v1
+  Magic: victory-point (VP) reports, `ScoringCatan` with VP and place
+  tiebreakers, the preliminary schedule, game-4 serpentine pairing with
+  elimination, and playoffs. In the GUI, the **Report score** pod action opens
+  a VP dialog for Catan tables. See the README's "Running a Catan event".
+- Frozen-output golden tests for Commander and 1v1 MTG.
+
 ### Fixed
 - The 1v1 game tiebreakers (GW and OGW) now score a game won with the
   configured win points and a drawn game with the draw points, and divide by
@@ -30,6 +38,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   discovering could fail with "Unknown ruleset".
 
 ### Changed
+- Tournament log format `1.3`: games can carry optional per-player scores, and
+  a player's decklist is now optional and omitted when not recorded. See
+  `docs/tournament-log-spec.md`.
+- The pairing and scoring selectors only offer a game's own logic for that
+  game, and the GUI's allow-bye checkbox follows the selected game's default.
 - Outside the GUI, each tournament now writes its own log file,
   `logs/tournament_<uid>.json`, instead of sharing `logs/default.json`. Set
   `Tournament.log_path` to choose the file, or `TournamentAction.LOGF = False`

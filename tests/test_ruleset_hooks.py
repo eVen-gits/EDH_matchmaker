@@ -24,6 +24,7 @@ class RulesetHookTests(unittest.TestCase):
         self.assertTrue(IRuleset.DEFAULT_ALLOW_BYE)
         t = _tour()
         rs = t.ruleset
+        assert t.tour_round is not None
         self.assertIsNone(rs.playoff_standings(t, t.tour_round))
         self.assertEqual(rs.swiss_eliminations(t.tour_round, t.get_standings()), set())
 
@@ -42,6 +43,7 @@ class RulesetHookTests(unittest.TestCase):
         ) as hook:
             t.create_pairings()
         hook.assert_called_once()
+        assert t.tour_round is not None
         self.assertEqual(hook.call_args.args[0], t.tour_round)
         self.assertNotIn(out, t.tour_round.active_players)
         self.assertIn(out, t.get_standings())
@@ -55,6 +57,7 @@ class RulesetHookTests(unittest.TestCase):
 
         with mock.patch.object(CommanderRuleset, "swiss_eliminations", bottom):
             t.create_pairings()
+            assert t.tour_round is not None
             self.assertNotIn(last, t.tour_round.active_players)
             first = t.rounds[0]
             pod = last.pod(first)
@@ -65,6 +68,7 @@ class RulesetHookTests(unittest.TestCase):
             self.assertNotEqual(new_last, last)
             t.reset_pods()
             t.create_pairings()
+        assert t.tour_round is not None
         active = t.tour_round.active_players
         self.assertIn(last, active)
         self.assertNotIn(new_last, active)
@@ -78,14 +82,17 @@ class RulesetHookTests(unittest.TestCase):
 
     def test_playoff_standings_override_used(self):
         t = _tour(top_cut=4)
+        assert t.tour_round is not None
         while t.tour_round.stage == Round.Stage.SWISS:
             t.create_pairings()
             t.random_results()
+            assert t.tour_round is not None
             if t.tour_round.seq < 3:
                 continue
             break
         t.create_pairings()  # first playoff round
         rnd = t.tour_round
+        assert rnd is not None
         self.assertNotEqual(rnd.stage, Round.Stage.SWISS)
         reverse = list(reversed(t.get_standings(rnd)))
         with mock.patch.object(
