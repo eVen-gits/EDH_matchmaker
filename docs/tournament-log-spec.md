@@ -6,7 +6,7 @@ compatible files, without reading the EDH_matchmaker source code.
 
 ## Status of this document
 
-This page describes format version `1.3`, the format that EDH_matchmaker
+This page describes format version `1.4`, the format that EDH_matchmaker
 writes today. [Known gaps](#known-gaps-and-open-decisions) lists the parts
 of the format that a stricter cross-software standard must still decide.
 
@@ -58,22 +58,19 @@ having a single writer.
 | `players` | array of object | must | Every player in the tournament. See [Player objects](#player-objects). |
 | `rounds` | array of object | must | Every round played, in order. See [Round objects](#round-objects). |
 
-`generator`, when present, is an object with one field:
+`generator`, when present, is an object with these fields:
 
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `name` | string | must (within `generator`) | Name of the software that wrote the file, for example `"EDH_matchmaker"`. |
-
-A future writer can add a `version` field to `generator`. This spec does
-not require one, since EDH_matchmaker itself has no version-numbering
-scheme yet.
+| `version` | string | optional | Version of the software that wrote the file. EDH_matchmaker writes its engine version (`src.__version__`, for example `"4.1.0.dev0"`) from format `1.4` on. See [Reproducibility](#reproducibility). |
 
 ### Format versioning
 
 A reader must accept a file with no `format_version` field as `"1.0"`.
 
 A reader must not reject a file whose `format_version` is a known older
-version (`"1.0"`, `"1.1"`, `"1.2"`) - attempt to read it without warning, since
+version (`"1.0"`, `"1.1"`, `"1.2"`, `"1.3"`) - attempt to read it without warning, since
 format changes are expected to stay additive (new optional fields) for
 the foreseeable future. Only a `format_version` this reader does not
 recognize at all warrants a warning. A breaking change bumps
@@ -123,6 +120,74 @@ field:
 - `players[].decklist` is now optional: a writer omits it when no decklist is
   recorded, and no longer writes `null`. A reader still accepts a missing key
   and `null` as the same thing.
+
+#### `1.3` → `1.4`
+
+Purely additive - a `1.3` file is already a valid `1.4` file. Every saved
+file now carries `format_version` `"1.4"`:
+
+- `rounds[].seed` and `generator.version` (see
+  [Reproducibility](#reproducibility)). A file without round seeds still
+  loads; its next pairing draws a new seed.
+
+### Reproducibility
+
+`generator.version`, `config`, `players` (with their `uid`s), the `rounds`
+played so far (each with its `seed`) and the next round's seed are enough to
+reproduce the next round's pairing. No other state is needed: a program can
+build a new tournament from these fields alone, rebuild the earlier rounds
+from their pods, results and seeds without pairing them, and pair the next
+round with its seed, and it gets the same pods, seat order and byes as the
+run that wrote the file. Pairing the same round again (for example after
+undoing it) with the same seed and inputs also gives the same result.
+Reproduction needs the same engine version, since a later version may pair
+differently.
+
+The seed belongs to a round, not to the tournament: there is no top-level
+seed. Each round records the seed it was paired with (`rounds[].seed`). The
+seed for a pairing comes from the caller, or else from this rule:
+
+1. If the caller passes a seed, the round uses it. Passing a different seed
+   gives a different pairing.
+2. If not, a round that already has a seed (it is being paired again) keeps
+   it.
+3. If not, the round takes the previous round's seed.
+4. If there is no previous round, or it has no seed (a file written before
+   format `1.4`), a new seed is drawn at random.
+
+Each random choice in a round (byes, shuffles, later-round seat tie-breaks, MTG
+tie-breaks) uses its own `random.Random`, seeded with a string made of the
+round's `seed` and stable keys only: the round's `seq` and `stage`, a digest of
+the round's inputs, and the choice's purpose (for a seat tie-break, also the
+table). The digest covers the players taking part (their sorted `uid`s) and
+every earlier round's stage, pods (players in seat order), games, byes, game
+losses, dropped and disabled players. Identical inputs give the identical
+draw. Any change, such as a player added or dropped or a result changed, gives
+an independent draw, not a slightly shifted one. The exception is the Catan
+preliminary plan: it has its own seed, made from the `seed` of the plan's
+first round, that round and its field, and ignores results by rule. A round
+whose `seed` differs from the previous round's starts a new plan; a
+carried-forward seed does not (see [`PairingCatanPrelim`](#pairingcatanprelim)).
+No choice depends on how many draws came before it, and players are always
+taken in `uid` order before a random choice or a tie-break, never in the
+order they were added.
+
+The pairing depends on the players' `uid`s, which are inputs, and never on
+the `uid`s of the tournament, its pods or its rounds, which are random
+UUIDs. A player added without a `uid` also gets a random UUID, so two fresh
+runs that add the same names are not identical. Reproduce from the log, or
+from inputs that include each player's `uid`. Seating is deterministic for a
+given seed and inputs.
+
+In Python:
+
+- **Next round:** pass the seed when you pair, with
+  `tournament.create_pairings(seed=n)`. Without `seed=`, the rule above
+  applies.
+- **Stateless rebuild:** add each player with its logged `uid`
+  (`tournament.add_player(name=..., uid=UUID(...))`). Rebuild each earlier
+  round with its logged seed (`Round(..., seed=rounds[k]["seed"])`), then call
+  `create_pairings(seed=...)` for the next round.
 
 ### Minimal example
 
@@ -257,6 +322,7 @@ Each entry in the top-level `rounds` array:
 | `disabled` | array of string (UUID) | Players still in the tournament but not eligible to play this round, for example players eliminated from a playoff cut. |
 | `byes` | array of string (UUID) | Players who received a bye this round instead of a pod. |
 | `game_loss` | array of string (UUID) | Players who received a game loss this round. |
+| `seed` | integer | Optional. The seed this round was paired with. Absent before format `1.4`, and for a round not paired yet. See [Reproducibility](#reproducibility). |
 | `pods` | array of object | The pods played this round. See [Pod objects](#pod-objects). |
 
 ### Pod objects
@@ -885,14 +951,16 @@ Catan's preliminary pairing (`src/logic/catan/matching.py`, rule 1.1.6). It
 ignores results. The first game plans all preliminary games (games 1-3)
 together: different opponents first, then rotating play-order positions
 (seat order in `players`). Each round seats its game from that plan. The
-plan is not stored: it is recomputed from a seed made of the tournament
-`uid`, the plan's first round and the set of players seated in it, so the
+plan is not stored: it is recomputed from a seed made of the `seed` of the
+plan's first round, that round and the set of players seated in it, so the
 same file always gives the same games. When the seated players change (a
 drop, a late player), the games from that round on are re-planned for the
 players still in, with the earlier rounds as history. When a round was not
 seated as its plan said (the organizer swapped players or filled pods by
 hand), the games after it are re-planned the same way, with its actual
-seating as history. The plan's params come from its first round. A round after game 3
+seating as history. When a round's `seed` differs from the previous round's
+(a new seed passed for that game), the games from that round on are
+re-planned the same way; a carried-forward seed does not re-plan. The plan's params come from its first round. A round after game 3
 is planned on its own. Friends and family are not kept apart; the organizer
 moves players by hand. `params` fields, with the same meaning as for
 [`PairingDefault`](#pairingdefault) but applied to the whole plan:

@@ -14,6 +14,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   elimination, and playoffs. In the GUI, the **Report score** pod action opens
   a VP dialog for Catan tables. See the README's "Running a Catan event".
 - Frozen-output golden tests for Commander and 1v1 MTG.
+- Pairings are reproducible from a per-round seed:
+  `Tournament.create_pairings(seed=...)` drives every random choice of that
+  round (byes, shuffles, later-round seat tie-breaks). Without a seed, a round
+  keeps the previous round's seed, and the first round draws one. The same
+  seed and the same inputs (players with their uids, results) give the same
+  pairing, seating included, in any process. Each choice is keyed on the
+  round's seed, the round, a digest of its inputs (players taking part and
+  results so far) and its purpose, not on earlier draws. So a tournament
+  rebuilt from its log pairs the next round the same, pairing a round again
+  gives the same pods, and a different seed or any input change gives an
+  independent draw. The exception is Catan preliminary games 2-3: they ignore
+  results by rule and follow the plan made at its first game, so only a field
+  change, a hand swap or a new seed passed for that game re-plans them. In the
+  GUI, **New Seed** draws a fresh seed for the next **Create Pods**. Log
+  format `1.4` saves each round's `seed` and the engine version
+  (`generator.version`, from the new `src.__version__`).
 
 ### Fixed
 - The 1v1 game tiebreakers (GW and OGW) now score a game won with the

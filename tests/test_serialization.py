@@ -1,6 +1,7 @@
 import unittest
 import os
 
+from src import __version__
 from src.core import Player, Round, Tournament, TournamentAction, TournamentConfiguration
 from src.misc import generate_player_names
 
@@ -136,7 +137,7 @@ class TestSerialization(unittest.TestCase):
         serialized = self.t.serialize()
 
         self.assertEqual(serialized["format_version"], Tournament.LOG_FORMAT_VERSION)
-        self.assertEqual(serialized["generator"], {"name": "EDH_matchmaker"})
+        self.assertEqual(serialized["generator"], {"name": "EDH_matchmaker", "version": __version__})
         # Must round-trip through fromisoformat without raising.
         dt.datetime.fromisoformat(serialized["created_at"])
         dt.datetime.fromisoformat(serialized["updated_at"])

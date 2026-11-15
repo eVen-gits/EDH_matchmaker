@@ -29,6 +29,13 @@
           </property>
          </widget>
         </item>
+        <item row="2" column="1">
+         <widget class="QPushButton" name="pb_new_seed">
+          <property name="text">
+           <string>New Seed</string>
+          </property>
+         </widget>
+        </item>
         <item row="0" column="2" rowspan="3">
          <widget class="QScrollArea" name="sa_pods">
           <property name="sizePolicy">

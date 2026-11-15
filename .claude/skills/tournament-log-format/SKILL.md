@@ -6,7 +6,7 @@ description: Use this skill whenever touching tournament save/load or persistenc
 # Working with the tournament log format
 
 `docs/tournament-log-spec.md` is the authoritative specification for the
-save/load JSON format (currently format version `1.1`) and for scoring
+save/load JSON format (including its current format version) and for scoring
 formulas that get persisted (e.g. Hareruya wagering). **Read it before
 changing any persistence behavior** — it documents exact field semantics
 that aren't always obvious from the code alone.

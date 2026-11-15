@@ -126,7 +126,7 @@ it). It uses the reported VP, while the VP tiebreaker before it caps each game a
 Catan's games 1-3 (rule 1.1.6). `PairingCatanPrelim` plans them together at
 game 1, ignoring results: different opponents first, then rotating play order.
 Each round seats its game from the plan. The plan is not saved; it is
-recomputed from a seed of the tournament uid, the plan's first round and its
+recomputed from the seed of the plan's first round, that round and its
 seated players.
 
 **Lives in:** `src/logic/catan/matching.py` (`PairingCatanPrelim.plan`)

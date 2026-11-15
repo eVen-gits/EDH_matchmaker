@@ -102,6 +102,26 @@ class PrelimPlanTests(unittest.TestCase):
         t2 = cast(Tournament, Tournament.inflate(saved))
         self.assertEqual(_play(t2, 2), expected)
 
+    def test_new_seed_at_game_two_replans(self):
+        t = _tour(16)
+        t.create_pairings(seed=1)
+        t.random_results()
+        saved = t.serialize()
+        planned = _plan(t)
+        t.create_pairings()
+        self.assertEqual(_round(t).seed, 1)
+        self.assertEqual(_tables(t), planned[1])
+
+        Tournament.CACHE.clear()
+        t2 = cast(Tournament, Tournament.inflate(saved))
+        t2.create_pairings(seed=2)
+        replan = _plan(t2)
+        self.assertEqual(len(replan), 2)
+        self.assertEqual(_tables(t2), replan[0])
+        self.assertNotEqual(_tables(t2), planned[1])
+        t2.random_results()
+        self.assertEqual(_play(t2, 1), replan[1:])
+
     def test_drop_after_game_one_replans(self):
         t = _tour(20)
         game1 = _play(t, 1)

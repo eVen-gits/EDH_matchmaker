@@ -9,6 +9,7 @@ import csv
 import functools
 import importlib
 import io
+import hashlib
 import json
 import math
 import os
@@ -26,6 +27,7 @@ import requests
 from tqdm import tqdm
 from typing_extensions import override
 
+from . import __version__
 from .interface import (
     IGameResult,
     IHashable,
@@ -954,12 +956,12 @@ class Tournament(ITournament):
     # Version of the tournament-log JSON format written by TournamentAction.store.
     # Bump this, and add the new version to KNOWN_FORMAT_VERSIONS, whenever a
     # change to serialize()/inflate() is not backward compatible.
-    LOG_FORMAT_VERSION = "1.3"
+    LOG_FORMAT_VERSION = "1.4"
     # Every format_version this implementation can read without warning - a
     # reader must not assume a default for a missing config field beyond
     # what inflate() already handles, but a known older version is not
     # itself cause for a warning (only a version outside this set is).
-    KNOWN_FORMAT_VERSIONS = frozenset({"1.0", "1.1", "1.2", "1.3"})
+    KNOWN_FORMAT_VERSIONS = frozenset({"1.0", "1.1", "1.2", "1.3", "1.4"})
 
     @classmethod
     def _discover_logic(
@@ -1863,12 +1865,17 @@ class Tournament(ITournament):
         return True
 
     @TournamentAction.action
-    def create_pairings(self) -> bool:
+    def create_pairings(self, seed: int | None = None) -> bool:
         """Creates pairings for the current round.
 
         If the round has not been initialized or previous rounds are not complete, this method attempts
         to handle those states. The Swiss pairing logic per round comes from
         config.pairing_logics (see __compute_stage_and_logic).
+
+        Args:
+            seed: The seed for this round's random choices, saved with the
+                round. Pass a different one to get a different pairing. If
+                None, see `Round.create_pairings`.
 
         Returns:
             bool: True if pairings were successfully created (or were already created). False if
@@ -1890,7 +1897,7 @@ class Tournament(ITournament):
                 tour_round.stage, tour_round.logic = result
         assert self.last_round is not None
         if not self.last_round.all_players_assigned:
-            self.last_round.create_pairings()
+            self.last_round.create_pairings(seed)
             return True
         return False
 
@@ -2229,7 +2236,7 @@ class Tournament(ITournament):
             tour_round = self.tour_round
         if tour_round is None:
             # No round has been created yet - nothing to rank on.
-            return sorted(self.players, key=lambda x: x.name)
+            return sorted(self.players, key=lambda x: (x.name, x.uid))
 
         method = Player.SORT_METHOD
         order = Player.SORT_ORDER
@@ -2243,8 +2250,10 @@ class Tournament(ITournament):
             ratings = self.field_ratings(tour_round)
             scoring = self.get_scoring_logic(self.config.scoring_logic)
             keys = scoring.standings_keys(self, tour_round, ratings)
+            # Pre-sorted by uid, so tied players keep the same order every run
+            # (the sort is stable, also with reverse=True).
             standings = sorted(
-                self.players,
+                sorted(self.players, key=lambda x: x.uid),
                 key=lambda x: keys[x.uid],
                 reverse=True,
             )
@@ -2475,7 +2484,7 @@ class Tournament(ITournament):
 
         data: dict[str, Any] = {}
         data["format_version"] = self.LOG_FORMAT_VERSION
-        data["generator"] = {"name": "EDH_matchmaker"}
+        data["generator"] = {"name": "EDH_matchmaker", "version": __version__}
         data["created_at"] = self.created_at.isoformat()
         data["updated_at"] = datetime.now(timezone.utc).isoformat()
         data["uid"] = str(self.uid)
@@ -2511,7 +2520,10 @@ class Tournament(ITournament):
         cls.__validate_config_values(config)
         tour_uid = UUID(data["uid"])
         if tour_uid in Tournament.CACHE:
-            tour = Tournament.CACHE[tour_uid]
+            tour = cast(Tournament, Tournament.CACHE[tour_uid])
+            tour.PLAYER_CACHE.clear()
+            tour.POD_CACHE.clear()
+            tour.ROUND_CACHE.clear()
         else:
             tour = cls(config, tour_uid)
         # Older log files (before format_version existed) have no created_at;
@@ -2532,6 +2544,7 @@ class Tournament(ITournament):
         # for d_player in data['dropped']:
         #    Player.inflate(tour, d_player)
         tour._rounds = [UUID(d_round["uid"]) for d_round in data["rounds"]]
+        tour._round = None
         for _, d_round in tqdm(enumerate(data["rounds"]), desc="Inflating rounds"):
             r = Round.inflate(tour, d_round)
             tour._round = r.uid
@@ -3405,9 +3418,10 @@ class Pod(IPod):
                 sum([1 for x in average_positions if x < average_positions[i]]) + 1
             )
         # randomize players with same average_seat
-        seat_assignment = [x + random.random() for x in seat_assignment]
+        rng = self.tour_round.rng("seats", self.table)
+        seat_assignment = [x + rng.random() for x in seat_assignment]
         # sort players based on seat assignment
-        self._players[:] = np.take(self._players, np.argsort(seat_assignment))
+        self._players[:] = np.take(self._players, np.argsort(seat_assignment))  # pyright: ignore[reportCallIssue, reportArgumentType]
 
         pass
 
@@ -3574,6 +3588,7 @@ class Round(IRound):
         disabled: set[UUID] | None = None,
         byes: set[UUID] | None = None,
         game_loss: set[UUID] | None = None,
+        seed: int | None = None,
     ):
         """Initializes a new Round instance.
 
@@ -3587,12 +3602,16 @@ class Round(IRound):
             disabled: Optional set of disabled player UUIDs.
             byes: Optional set of player UUIDs who have byes.
             game_loss: Optional set of player UUIDs who have game losses.
+            seed: The seed this round is paired with, if known (see
+                `create_pairings`).
         """
         self._tour: UUID = tour.uid
         super().__init__(uid=uid)
         self.tour.ROUND_CACHE[self.uid] = self
         self.seq: int = seq
         self.stage: Round.Stage = stage
+        self.seed: int | None = seed
+        self._digest: str | None = None  # input_digest() while pairing
 
         self._pods: list[UUID] = list()
         self._players: list[UUID] = list()
@@ -3927,12 +3946,27 @@ class Round(IRound):
         for p in standings[self.stage.value : :]:
             self.disable_player(p, set_disabled=True)
 
-    def create_pairings(self) -> None:
+    def create_pairings(self, seed: int | None = None) -> None:
         """Executes the pairing logic to assign players to pods.
 
         This method uses the round's `pairing_logic` to determine match-ups and assigns
         players to the pods created by `create_pods`.
+
+        Args:
+            seed: The seed for this round's random choices. If None, the
+                round keeps the seed it was already paired with, else takes
+                the previous round's seed; a first round (or one after a
+                round without a seed) draws a new one from the global
+                `random` generator.
         """
+        if seed is not None:
+            if isinstance(seed, bool) or not isinstance(seed, int):
+                raise TypeError(f"seed must be an int, not {type(seed).__name__}")
+            self.seed = seed
+        elif self.seed is None:
+            prev_round = self.tour.previous_round(self)
+            prev_seed = prev_round.seed if prev_round is not None else None
+            self.seed = random.getrandbits(32) if prev_seed is None else prev_seed
         if self.stage != Round.Stage.SWISS:
             # Reset disabled set to the previous round's baseline so that re-pairing
             # after reset_pods() + config change doesn't keep stale topcut entries.
@@ -3964,11 +3998,17 @@ class Round(IRound):
         self.create_pods()
         pods = [p for p in self.pods if all([not p.done, len(p) < p.cap])]
 
-        self.logic.make_pairings(self, cast(set[IPlayer], self.unassigned), pods)
+        # The inputs stay fixed while pairing, so digest them once for every
+        # draw instead of once per draw (per pod for seats).
+        self._digest = self.input_digest()
+        try:
+            self.logic.make_pairings(self, cast(set[IPlayer], self.unassigned), pods)
 
-        if self.seq < self.tour.config.n_rounds and self.tour.ruleset.SEAT_BALANCING:
-            for pod in self.pods:
-                pod.auto_assign_seats()
+            if self.seq < self.tour.config.n_rounds and self.tour.ruleset.SEAT_BALANCING:
+                for pod in self.pods:
+                    pod.auto_assign_seats()
+        finally:
+            self._digest = None
 
         self.sort_pods()
 
@@ -4142,6 +4182,48 @@ class Round(IRound):
         else:
             self._disabled.discard(player.uid)
 
+    @override
+    def rng(self, *purpose: object) -> random.Random:
+        """The generator for one random decision in this round.
+
+        Keyed on the seed this round is paired with, its seq and stage,
+        `input_digest()` and `purpose`. Identical inputs give the identical
+        draw (pairing the round again gives the same result); any change in
+        the inputs gives an independent draw.
+        """
+        key = (self.seed, self.seq, self.stage.value, self._digest or self.input_digest(), *purpose)
+        return random.Random(":".join(map(str, key)))
+
+    def input_digest(self) -> str:
+        """A stable digest of what this round's pairing depends on.
+
+        Covers the players taking part (sorted uids) and every earlier round's
+        stage, pods (players in seat order), recorded games, byes, game
+        losses, dropped and disabled players. Pods and rounds are described by
+        their content, never by their own uids.
+        """
+        ids = lambda xs: sorted(str(x) for x in xs)  # noqa: E731
+        history = [
+            [
+                r.seq,
+                r.stage.value,
+                ids(r._byes),
+                ids(r._game_loss),
+                ids(r._dropped),
+                ids(r._disabled),
+                [
+                    [
+                        [str(u) for u in pod._players],
+                        [Pod._serialize_game(g) for g in pod._games],
+                    ]
+                    for pod in r.pods
+                ],
+            ]
+            for r in self.tour.rounds[: self.seq]
+        ]
+        data = [ids(p.uid for p in self.active_players), history]
+        return hashlib.sha256(json.dumps(data).encode()).hexdigest()[:16]
+
     def serialize(self) -> dict[str, Any]:
         return {
             "tour": str(self._tour),
@@ -4154,7 +4236,7 @@ class Round(IRound):
             "byes": [str(p) for p in self._byes],
             "game_loss": [str(p) for p in self._game_loss],
             "pods": [pod.serialize() for pod in self.pods],
-        }
+        } | ({} if self.seed is None else {"seed": self.seed})
 
     @classmethod
     def inflate(cls, tour: Tournament, data: dict[str, Any]) -> Round:
@@ -4173,6 +4255,7 @@ class Round(IRound):
             new_round._disabled = {UUID(x) for x in data["disabled"]}
             new_round._byes = {UUID(x) for x in data["byes"]}
             new_round._game_loss = {UUID(x) for x in data["game_loss"]}
+            new_round.seed = data.get("seed")
         else:
             new_round = cls(
                 tour,
@@ -4184,6 +4267,7 @@ class Round(IRound):
                 disabled={UUID(x) for x in data["disabled"]},
                 byes={UUID(x) for x in data["byes"]},
                 game_loss={UUID(x) for x in data["game_loss"]},
+                seed=data.get("seed"),
             )
         pods = [Pod.inflate(new_round, pod) for pod in data["pods"]]
         new_round._pods = [pod.uid for pod in pods]

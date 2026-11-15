@@ -1,4 +1,5 @@
 from __future__ import annotations
+import random
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import IntEnum
@@ -76,7 +77,14 @@ class IHashable:
                 self.uid = uid
         else:
             self.uid: UUID = uuid4()
+        self._hash = hash(self.uid)
         self.CACHE[self.uid] = self
+
+    def __hash__(self) -> int:
+        # By uid, not memory address, so iterating a set of players follows
+        # the same order in every run that uses the same player uids.
+        # Precomputed: UUID.__hash__ is slow Python on a hot path.
+        return self._hash
 
     @classmethod
     def get(cls, ID: UUID) -> IHashable:
@@ -183,6 +191,7 @@ class ITournament(IHashable, ABC):
     def get_standings(self, tour_round: IRound) -> list[IPlayer]: ...
 
 
+
 class IPod(IHashable, ABC):
     """Interface for a pod."""
 
@@ -233,6 +242,7 @@ class IRound(IHashable, ABC):
 
     seq: int
     stage: Any
+    seed: int | None
     logic: IPairingLogic
     _tour: UUID
     _pods: list[UUID]
@@ -256,6 +266,11 @@ class IRound(IHashable, ABC):
 
     @abstractmethod
     def remove_pod(self, pod: IPod) -> bool: ...
+
+    @abstractmethod
+    def rng(self, *purpose: object) -> random.Random:
+        """The generator for one random decision in this round, keyed on the
+        round's seed, seq, stage, pairing inputs and `purpose`."""
 
 
 class IPairingLogic(ABC):
