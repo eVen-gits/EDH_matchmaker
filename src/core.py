@@ -2595,7 +2595,7 @@ class Player(IPlayer):
         Args:
             tour: The tournament the player belongs to.
             name: The name of the player.
-            uid: The unique identifier for the player. If None, a new UUID is generated.
+            uid: The unique identifier for the player. If None, one is derived from the tournament seed (see `Tournament.new_uid`).
             decklist: Optional URL or string representing the player's decklist.
         """
         self._tour = tour.uid
