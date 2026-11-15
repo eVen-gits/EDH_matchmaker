@@ -5,6 +5,7 @@ import itertools
 import unittest
 from collections import Counter
 from typing import cast
+from uuid import UUID
 
 from src.core import Tournament, TournamentAction, TournamentConfiguration
 from src.logic.catan.matching import PairingCatanPrelim
@@ -198,3 +199,36 @@ class SerpentineTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# Pinned plans: a change here means the planner changed, and events already in
+# progress would re-plan their remaining games. Update only deliberately.
+# Each game is a set of tables; each table lists player indexes in play order.
+PINNED_PLANS = {
+    16: [
+        {(9, 13, 10, 12), (2, 1, 6, 3), (11, 0, 7, 8), (14, 15, 4, 5)},
+        {(1, 10, 11, 14), (15, 3, 8, 9), (5, 6, 13, 0), (4, 12, 2, 7)},
+        {(13, 11, 3, 4), (10, 7, 15, 6), (0, 9, 14, 2), (8, 5, 12, 1)},
+    ],
+    13: [
+        {(12, 1, 4, 8), (5, 3, 2), (9, 10, 7), (6, 11, 0)},
+        {(3, 0, 10, 7), (4, 9, 1), (8, 6, 5), (2, 12, 11)},
+        {(11, 2, 9, 5), (0, 8, 12), (10, 4, 6), (1, 7, 3)},
+    ],
+}
+
+
+class PinnedPlanTests(unittest.TestCase):
+    def test_plan_is_pinned(self):
+        for n, expected in PINNED_PLANS.items():
+            with self.subTest(players=n):
+                t = Tournament(
+                    TournamentConfiguration(ruleset="CatanRuleset", auto_export=False, n_rounds=3)
+                )
+                t.add_player([(f"P{i}", UUID(int=i + 1)) for i in range(n)])
+                got = []
+                for g in range(3):
+                    t.create_pairings(seed=12345 if g == 0 else None)
+                    got.append({tuple(u.int - 1 for u in tbl) for tbl in _tables(t)})
+                    t.random_results()
+                self.assertEqual(got, expected)
