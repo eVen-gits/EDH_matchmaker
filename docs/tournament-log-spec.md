@@ -120,6 +120,9 @@ field:
 
 - `pods[].games[].scores`: optional per-player score for that game (see
   [Pod objects](#pod-objects)). Commander and 1v1 MTG never write it.
+- `players[].decklist` is now optional: a writer omits it when no decklist is
+  recorded, and no longer writes `null`. A reader still accepts a missing key
+  and `null` as the same thing.
 
 ### Minimal example
 
@@ -151,8 +154,8 @@ field:
     }
   },
   "players": [
-    {"uid": "aaaaaaaa-0000-0000-0000-000000000001", "name": "Alice", "decklist": null},
-    {"uid": "aaaaaaaa-0000-0000-0000-000000000002", "name": "Bob", "decklist": null}
+    {"uid": "aaaaaaaa-0000-0000-0000-000000000001", "name": "Alice"},
+    {"uid": "aaaaaaaa-0000-0000-0000-000000000002", "name": "Bob"}
   ],
   "rounds": [
     {
@@ -231,7 +234,7 @@ Each entry in the top-level `players` array:
 |---|---|---|
 | `uid` | string (UUID) | The player's unique ID. Unique within this file. |
 | `name` | string | Display name. |
-| `decklist` | string or `null` | Free text, commonly a URL to the player's decklist. This format places no constraint on its content. See [Known gaps](#known-gaps-and-open-decisions). |
+| `decklist` | string or `null` (optional) | Omitted when no decklist is recorded; older files may write `null`, which readers must accept. Free text, commonly a URL to the player's decklist. This format places no constraint on its content. See [Known gaps](#known-gaps-and-open-decisions). |
 
 A player object holds no per-round state. Seating, results, byes, drops,
 and game losses all live on the round and pod objects instead. To find a

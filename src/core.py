@@ -3155,12 +3155,14 @@ class Player(IPlayer):
         return " | ".join(fields)
 
     def serialize(self) -> dict[str, Any]:
-        return {
+        data: dict[str, Any] = {
             #'tour': str(self._tour),
             "uid": str(self.uid),
             "name": self.name,
-            "decklist": self.decklist,
         }
+        if self.decklist is not None:
+            data["decklist"] = self.decklist
+        return data
 
     @classmethod
     def inflate(cls, tour: Tournament, data: dict[str, Any]) -> Player:

@@ -60,6 +60,20 @@ class TestPlayer(unittest.TestCase):
         self.assertEqual(p8.uid, u8)
         self.assertEqual(p8.decklist, decklist_url)
 
+    def test_decklist_serialization_optional(self):
+        none_p = Player(self.t, "NoList")
+        self.assertNotIn("decklist", none_p.serialize())
+        self.assertIsNone(Player.inflate(self.t, none_p.serialize()).decklist)
+
+        listed = Player(self.t, "Listed", decklist="http://list.com")
+        data = listed.serialize()
+        self.assertEqual(data["decklist"], "http://list.com")
+        self.assertEqual(Player.inflate(self.t, data).decklist, "http://list.com")
+
+        # older files wrote null
+        old = {"uid": str(uuid4()), "name": "Old", "decklist": None}
+        self.assertIsNone(Player.inflate(self.t, old).decklist)
+
     def test_add_player_new_interface(self):
         self.t.new_round()
         u1 = uuid4()
