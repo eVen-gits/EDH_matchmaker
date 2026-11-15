@@ -26,6 +26,7 @@ import requests
 from tqdm import tqdm
 from typing_extensions import override
 
+from . import __version__
 from .interface import (
     IGameResult,
     IHashable,
@@ -1169,9 +1170,6 @@ class Tournament(ITournament):
         self._round: UUID | None = None
         self.created_at: datetime = datetime.now(timezone.utc)
         self.seed: int = random.getrandbits(32) if seed is None else seed
-        # Generators handed out so far; saved, so a loaded tournament
-        # continues the same sequence (see rng()).
-        self._rng_counter: int = 0
         # Per-tournament log file override; see TournamentAction.log_path.
         self.log_path: str | None = None
 
@@ -1206,19 +1204,36 @@ class Tournament(ITournament):
         return {Player.get(self, x) for x in self._players}
 
     @override
-    def rng(self) -> random.Random:
-        """Returns a new generator for one random decision.
+    def rng(self, *key: object) -> random.Random:
+        """Returns the generator for one random decision, named by `key`.
 
-        Each generator is derived from the seed and a counter saved with the
-        tournament, so the same seed and the same actions give the same
-        draws, also across a save and load.
+        The generator depends only on the seed and the key (for example the
+        round's seq and stage and the decision's purpose), never on earlier
+        draws. So a tournament rebuilt from its log, or a round paired again,
+        makes the same decision.
+
+        Args:
+            key: Stable identifiers of the decision (ints and strings).
         """
-        self._rng_counter += 1
-        return random.Random(f"{self.seed}:{self._rng_counter}")
+        return random.Random(":".join(map(str, (self.seed, *key))))
 
-    def new_uid(self) -> UUID:
-        """Returns a seed-derived UUID for a new player, pod or round."""
-        return UUID(int=self.rng().getrandbits(128), version=4)
+    def new_uid(self, *key: object) -> UUID:
+        """Returns a seed-derived UUID for a new player, pod or round.
+
+        Derived from the seed and `key`; skips any uid this tournament
+        already uses, so it never collides.
+
+        Args:
+            key: Stable identifiers of the new object (kind and position).
+        """
+        n = 0
+        while True:
+            uid = UUID(int=self.rng("uid", *key, n).getrandbits(128), version=4)
+            if not (
+                uid in self.PLAYER_CACHE or uid in self.POD_CACHE or uid in self.ROUND_CACHE
+            ):
+                return uid
+            n += 1
 
     @property
     def tour_round(self) -> Round | None:
@@ -2251,7 +2266,7 @@ class Tournament(ITournament):
             tour_round = self.tour_round
         if tour_round is None:
             # No round has been created yet - nothing to rank on.
-            return sorted(self.players, key=lambda x: x.name)
+            return sorted(self.players, key=lambda x: (x.name, x.uid))
 
         method = Player.SORT_METHOD
         order = Player.SORT_ORDER
@@ -2265,8 +2280,10 @@ class Tournament(ITournament):
             ratings = self.field_ratings(tour_round)
             scoring = self.get_scoring_logic(self.config.scoring_logic)
             keys = scoring.standings_keys(self, tour_round, ratings)
+            # Pre-sorted by uid, so tied players keep the same order every run
+            # (the sort is stable, also with reverse=True).
             standings = sorted(
-                self.players,
+                sorted(self.players, key=lambda x: x.uid),
                 key=lambda x: keys[x.uid],
                 reverse=True,
             )
@@ -2497,12 +2514,11 @@ class Tournament(ITournament):
 
         data: dict[str, Any] = {}
         data["format_version"] = self.LOG_FORMAT_VERSION
-        data["generator"] = {"name": "EDH_matchmaker"}
+        data["generator"] = {"name": "EDH_matchmaker", "version": __version__}
         data["created_at"] = self.created_at.isoformat()
         data["updated_at"] = datetime.now(timezone.utc).isoformat()
         data["uid"] = str(self.uid)
         data["seed"] = self.seed
-        data["rng_counter"] = self._rng_counter
         data["config"] = self.config.serialize()
         data["players"] = list(p.serialize() for p in self.players)
         # data['dropped'] = [p.serialize() for p in self.dropped_players]
@@ -2548,7 +2564,6 @@ class Tournament(ITournament):
             tour.created_at = datetime.fromisoformat(data["created_at"])
         # Older files have no seed: keep the one __init__ drew.
         tour.seed = data.get("seed", tour.seed)
-        tour._rng_counter = data.get("rng_counter", tour._rng_counter)
         tour._players = {UUID(d_player["uid"]) for d_player in data["players"]}
         # tour._dropped = [UUID(d_player['uid']) for d_player in data['dropped']]
         # tour._disabled = [UUID(d_player['uid']) for d_player in data['disabled']]
@@ -2599,7 +2614,7 @@ class Player(IPlayer):
             decklist: Optional URL or string representing the player's decklist.
         """
         self._tour = tour.uid
-        super().__init__(uid=uid or tour.new_uid())
+        super().__init__(uid=uid or tour.new_uid("player", len(tour.PLAYER_CACHE)))
         self.name = name
         self.decklist = decklist
         self.CACHE[self.uid] = self
@@ -3236,7 +3251,7 @@ class Pod(IPod):
         """
         self._tour = tour_round._tour
         self._round = tour_round.uid
-        super().__init__(uid=uid or tour_round.tour.new_uid())
+        super().__init__(uid=uid or tour_round.tour.new_uid("pod", tour_round.seq, table))
         self.cap: int = cap
         self._players: list[UUID] = list()
         # The pod's whole-match report, in play order. Validated and
@@ -3436,7 +3451,7 @@ class Pod(IPod):
                 sum([1 for x in average_positions if x < average_positions[i]]) + 1
             )
         # randomize players with same average_seat
-        rng = self.tour.rng()
+        rng = self.tour_round.rng("seats", self.table)
         seat_assignment = [x + rng.random() for x in seat_assignment]
         # sort players based on seat assignment
         self._players[:] = np.take(self._players, np.argsort(seat_assignment))  # pyright: ignore[reportCallIssue, reportArgumentType]
@@ -3621,7 +3636,7 @@ class Round(IRound):
             game_loss: Optional set of player UUIDs who have game losses.
         """
         self._tour: UUID = tour.uid
-        super().__init__(uid=uid or tour.new_uid())
+        super().__init__(uid=uid or tour.new_uid("round", seq))
         self.tour.ROUND_CACHE[self.uid] = self
         self.seq: int = seq
         self.stage: Round.Stage = stage

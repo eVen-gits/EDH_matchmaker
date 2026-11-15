@@ -97,13 +97,16 @@ class CommonPairing(IPairingLogic, ABC):
         matching: Callable[[IPlayer], tuple] = lambda x: self.bye_matching(
             x, tour_round, ratings
         )
-        player_matches = {p: matching(p) for p in players}
+        # Ordered by uid, not set order, so the draw below depends only on the
+        # seed and the players, not on how the set was built.
+        ordered = sorted(players, key=lambda p: p.uid)
+        player_matches = {p: matching(p) for p in ordered}
         keys: list[tuple] = sorted(set(player_matches.values()), reverse=True)
 
-        buckets = [[p for p in players if player_matches[p] == k] for k in keys]
+        buckets = [[p for p in ordered if player_matches[p] == k] for k in keys]
 
         byes = set()
-        rng = tour_round.tour.rng()
+        rng = tour_round.rng("byes")
         for b in buckets[::-1]:
             byes.update(rng.sample(b, min(len(b), n_byes - len(byes))))
             if len(byes) >= n_byes:

@@ -54,21 +54,17 @@ having a single writer.
 | `created_at` | string (ISO 8601) | optional | When the tournament was first created. Absent in files written before format `1.0`. |
 | `updated_at` | string (ISO 8601) | optional | When this file was last written. |
 | `uid` | string (UUID) | must | The tournament's unique ID. |
-| `seed` | integer | optional | The seed for the tournament's random choices (pairing, byes, later-round seat tie-breaks, and the `uid` of every player, pod and round). Absent in files written before format `1.4`; a reader then picks a new seed. See [Reproducibility](#reproducibility). |
-| `rng_counter` | integer | optional (default `0`) | How many random generators the tournament has derived from `seed` so far. See [Reproducibility](#reproducibility). |
+| `seed` | integer | optional | The seed for the tournament's random choices (pairing, byes, later-round seat tie-breaks, and the `uid` of every player, pod and round it creates). Absent in files written before format `1.4`; a reader then picks a new seed. See [Reproducibility](#reproducibility). |
 | `config` | object | must | Tournament rules and settings. See [The config object](#the-config-object). |
 | `players` | array of object | must | Every player in the tournament. See [Player objects](#player-objects). |
 | `rounds` | array of object | must | Every round played, in order. See [Round objects](#round-objects). |
 
-`generator`, when present, is an object with one field:
+`generator`, when present, is an object with these fields:
 
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `name` | string | must (within `generator`) | Name of the software that wrote the file, for example `"EDH_matchmaker"`. |
-
-A future writer can add a `version` field to `generator`. This spec does
-not require one, since EDH_matchmaker itself has no version-numbering
-scheme yet.
+| `version` | string | optional | Version of the software that wrote the file. EDH_matchmaker writes its engine version (`src.__version__`, for example `"4.1.0.dev0"`) from format `1.4` on. See [Reproducibility](#reproducibility). |
 
 ### Format versioning
 
@@ -131,22 +127,41 @@ field:
 Purely additive - a `1.3` file is already a valid `1.4` file. Every saved
 file now carries `format_version` `"1.4"`:
 
-- Top-level `seed` and `rng_counter` (see [Reproducibility](#reproducibility)).
-  A file without them still loads; the tournament gets a new seed.
+- Top-level `seed` and `generator.version` (see
+  [Reproducibility](#reproducibility)). A file without a seed still loads; the
+  tournament gets a new seed.
 
 ### Reproducibility
 
-Every random choice the tournament makes (byes, shuffles, later-round seat
-tie-breaks, MTG tie-breaks, the Catan plan, and the `uid` of each new player, pod and round)
-comes from `seed`. Each choice, except the Catan plan (see
-[`PairingCatanPrelim`](#pairingcatanprelim)), uses a new `random.Random`
-seeded with the string `"<seed>:<n>"`, where `n` is `rng_counter` plus one,
-and `rng_counter` then goes up by one. With the same `seed` and the same actions (players added,
-results reported, rounds paired), EDH_matchmaker writes the same file, apart
-from `created_at`, `updated_at` and the tournament's own `uid`, which stays a
-random UUID so that two tournaments never share an ID or a log file. A loaded
-file continues from its saved `rng_counter`, so it pairs the next round the
-same as a run that never stopped. Seating is deterministic for a given seed.
+`seed`, `generator.version`, `config`, `players` (with their `uid`s) and the
+`rounds` played so far are enough to reproduce the next round's pairing. No
+other state is needed: a program can build a new tournament from these fields
+alone, rebuild the earlier rounds from their pods and results without pairing
+them, and pair the next round, and it gets the same pods, seat order and byes
+as the run that wrote the file. Pairing the same round again also gives the
+same result. Reproduction needs the same engine version, since a later version
+may pair differently.
+
+Each random choice (byes, shuffles, later-round seat tie-breaks, MTG
+tie-breaks, and the `uid` of each new player, pod and round) uses its own
+`random.Random`, seeded with a string made of `seed` and stable keys only: the
+round's `seq` and `stage` and the choice's purpose (for a seat tie-break, also
+the table). The Catan plan has its own seed, also made from `seed` (see
+[`PairingCatanPrelim`](#pairingcatanprelim)). No choice depends on how many
+draws came before it, and players are always taken in `uid` order before a
+random choice or a tie-break, never in the order they were added. So the
+pairing depends on the players' `uid`s, not on the `uid`s of pods and rounds.
+
+When players are added without a `uid`, EDH_matchmaker derives one from
+`seed`, so the same seed and the same actions write the same file, apart from
+`created_at`, `updated_at` and the tournament's own `uid`. The tournament's
+`uid` stays a random UUID, so two tournaments never share an ID or a log file.
+Seating is deterministic for a given seed.
+
+In Python, pass the seed when you construct the tournament:
+`Tournament(config, seed=log["seed"])`. Then add each player with its logged
+`uid` (`tournament.add_player(name=..., uid=UUID(...))`). Without `seed=`, the
+tournament draws a new seed from the global `random` generator.
 
 ### Minimal example
 

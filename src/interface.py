@@ -191,8 +191,8 @@ class ITournament(IHashable, ABC):
     def get_standings(self, tour_round: IRound) -> list[IPlayer]: ...
 
     @abstractmethod
-    def rng(self) -> random.Random:
-        """A new generator, derived from the tournament seed, for one random decision."""
+    def rng(self, *key: object) -> random.Random:
+        """The generator for one random decision, from the tournament seed and `key`."""
 
 
 class IPod(IHashable, ABC):
@@ -268,6 +268,14 @@ class IRound(IHashable, ABC):
 
     @abstractmethod
     def remove_pod(self, pod: IPod) -> bool: ...
+
+    def rng(self, *purpose: object) -> random.Random:
+        """The generator for one random decision in this round.
+
+        Keyed on the tournament seed, this round's seq and stage, and
+        `purpose`, so pairing the round again gives the same result.
+        """
+        return self.tour.rng(self.seq, self.stage.value, *purpose)
 
 
 class IPairingLogic(ABC):

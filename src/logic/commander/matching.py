@@ -33,7 +33,7 @@ class PairingSnake(CommonPairing):
         prev_round: IRound = tour_round.tour.rounds[tour_round.seq - 1]
         ratings = self.field_ratings(tour_round)
         byes = self.assign_byes(tour_round, players, pods, ratings)
-        active_players = tour_round.active_players - byes
+        active_players = sorted(tour_round.active_players - byes, key=lambda p: p.uid)
 
         snake_ranking: Callable[[IPlayer], tuple[float, int]] = (
             lambda x: self.snake_ranking(x, tour_round, ratings)
@@ -52,7 +52,7 @@ class PairingSnake(CommonPairing):
         bucket_order = sorted(buckets.keys(), reverse=True)
 
         # Shuffle players within buckets for randomness
-        rng = tour_round.tour.rng()
+        rng = tour_round.rng("snake")
         for b in buckets.values():
             rng.shuffle(b)
 
@@ -227,7 +227,8 @@ class PairingDefault(CommonPairing):
 
         byes = self.assign_byes(tour_round, players, pods, ratings)
 
-        active_players = players - byes
+        # Pre-sorted by uid, so ties in `matching` break the same way every run.
+        active_players = sorted(players - byes, key=lambda p: p.uid)
 
         assignment_order = sorted(active_players, key=matching, reverse=True)
         for i, p in enumerate(assignment_order):

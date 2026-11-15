@@ -296,7 +296,7 @@ class PairingCatanSerpentine(CommonPairing):
         byes = self.assign_byes(tour_round, players, pods)
         prev = tour_round.tour.previous_round(tour_round)  # type: ignore[attr-defined]
         rank = {p: i for i, p in enumerate(tour_round.tour.get_standings(prev))}  # type: ignore[attr-defined]
-        ranked = sorted(players - byes, key=lambda p: rank.get(p, len(rank)))
+        ranked = sorted(players - byes, key=lambda p: (rank.get(p, len(rank)), p.uid))
         tables = sorted(pods, key=lambda pod: pod.cap)  # 3-player tables first
         order = [
             pod

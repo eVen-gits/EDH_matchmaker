@@ -88,7 +88,7 @@ class Pairing1v1(CommonPairing):
         gap_unit = n_byes * n_players + 1
         rematch_unit = gap_unit * (n_edges + 1) * (n_groups**2 + 1)
 
-        rng = tour.rng()
+        rng = tour_round.rng("jitter")
 
         def weight(cost: int) -> int:
             return -cost * unit + rng.randrange(jitter_range)
