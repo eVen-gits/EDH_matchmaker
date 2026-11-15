@@ -320,7 +320,8 @@ A ruleset can also opt in to three shared hooks. Each default keeps core's
 existing behaviour, so Commander and 1v1 Magic are unchanged:
 
 - `DEFAULT_ALLOW_BYE` (default `true`) is the `config.allow_bye` default of a
-  new tournament under that ruleset.
+  new tournament under that ruleset, and what the GUI configuration dialog
+  resets the allow-bye checkbox to when the game is changed.
 - `playoff_standings(tour, tour_round)` (default `None`) is asked first by
   `Tournament.get_standings` for a playoff round. A returned list is the
   standings; `None` runs core's built-in playoff ordering.
