@@ -9,8 +9,9 @@ Eventually, there will probably be some sort of Discord integration, but first, 
 
 Besides Commander (EDH), the tool now also runs 1v1 Magic Swiss tournaments
 (maximum-weight-matching pairing, best-of-N match reporting, single-
-elimination top cut, and Magic Tournament Rules standings tiebreakers). Pick
-the ruleset when you create a tournament.
+elimination top cut, and Magic Tournament Rules standings tiebreakers) and
+Catan tournaments (victory-point scoring, preliminary rounds and playoffs).
+Pick the ruleset when you create a tournament.
 
 ## Installation: ##
 

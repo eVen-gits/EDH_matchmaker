@@ -93,6 +93,67 @@ different game's rules mid-tournament.
 For standings ownership, see the `IPairingLogic` / `IScoringLogic` /
 `IRuleset` entry below.
 
+## Victory points (VP)
+
+The score each player gets in a Catan game, stored per player in
+`IGameResult.scores`. The winner must reach `victory_points` (default 10) and
+everyone else must finish below it. Only the Catan ruleset requires them.
+
+**Lives in:** `src/interface.py` (`IGameResult.scores`),
+`src/logic/catan/rules.py` (`CatanRuleset.validate_report`)
+
+## Finishing place
+
+A player's rank in one Catan game, by victory points (1st = most). Tied
+players share the better place. `ScoringCatan` counts a player's 2nd and 3rd
+places as tiebreakers.
+
+**Lives in:** `src/logic/catan/scoring.py` (`finishing_places`)
+
+## VP%
+
+A Catan tiebreaker: the sum over a player's games of their VP divided by the
+table's VP total, kept as an exact `Fraction` (the rules ask for 16 decimals, so
+near-ties must not flip). A 3-player table adds a dummy fourth score, the mean of
+the three rounded half-up (Python's `round()` rounds half to even, so do not use
+it). It uses the reported VP, while the VP tiebreaker before it caps each game at
+`victory_points`.
+
+**Lives in:** `src/logic/catan/scoring.py` (`vp_share`, `dummy_score`)
+
+## Preliminary schedule
+
+Catan's games 1-3 (rule 1.1.6). `PairingCatanPrelim` plans them together at
+game 1, ignoring results: different opponents first, then rotating play order.
+Each round seats its game from the plan. The plan is not saved; it is
+recomputed from a seed of the tournament uid, the plan's first round and its
+seated players.
+
+**Lives in:** `src/logic/catan/matching.py` (`PairingCatanPrelim.plan`)
+**Invariant:** A plan holds only while the seated players stay the same and
+every round is seated as planned. A drop, a late player or a hand change to
+seating (a swap, pods filled by hand) re-plans the remaining games, with the
+actual earlier seating as history. The plan's params come from its first
+round. Every
+random choice uses the seeded `random.Random`, never the global one, or a
+reload gives a different plan.
+
+## Elimination
+
+Catan's cut before game 4 of an event with 80 or more players (rule 1.1.5):
+on a Swiss round whose `eliminate_below_wins` ruleset param is set (1 on game
+4), players with fewer game wins are disabled before the round is paired. It is
+not a top-cut stage: how many continue varies, the round still counts as a
+preliminary game toward wins, VP and VP%, and eliminated players keep their
+Swiss rank instead of dropping below the players who continue.
+
+**Lives in:** `src/logic/catan/rules.py` (`CatanRuleset.swiss_eliminations`),
+`src/core.py` (`Round.create_pairings` calls the hook)
+**Invariant:** An eliminated player is disabled, never dropped: they stay in
+the standings and their history stays. Each pairing of the round resets the
+disabled players to the previous round's first, so a re-pair after
+`reset_pods` does not keep stale eliminations.
+
 ## Stage
 
 `Round.stage` / `config.top_cut`'s non-zero values are the number of
@@ -191,6 +252,22 @@ what it's allowed to fall back to, and the config GUI checks both
 filter their dropdowns, so leaving it `None` on an algorithm that actually
 can't handle 3-player pods is a silent correctness bug, not just a GUI
 omission.
+
+## `RULESETS`
+
+A tuple of ruleset names on a pairing-logic or scoring-logic class: the
+algorithm is offered only under those rulesets. `None` (the default) means
+every ruleset. A game's own logic sets it so it stays out of other games'
+selector lists even when the pod sizes match (Catan's logics, for 3-4 player
+pods, set `("CatanRuleset",)` and so never show for Commander).
+
+**Lives in:** `src/interface.py` (`IPairingLogic.RULESETS`,
+`IScoringLogic.RULESETS`), filtered by
+`Tournament.selectable_pairing_logics()`/`selectable_scoring_logics()`
+**Invariant:** It filters what is offered, not what runs: a name set
+explicitly in the config, or picked by a ruleset's `swiss_pairing_logic` or
+`PLAYOFFS`, is still looked up by name. With no ruleset given, a logic that
+sets `RULESETS` is never offered.
 
 ## `SELECTABLE`
 

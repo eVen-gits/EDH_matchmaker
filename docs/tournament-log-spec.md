@@ -6,7 +6,7 @@ compatible files, without reading the EDH_matchmaker source code.
 
 ## Status of this document
 
-This page describes format version `1.2`, the format that EDH_matchmaker
+This page describes format version `1.3`, the format that EDH_matchmaker
 writes today. [Known gaps](#known-gaps-and-open-decisions) lists the parts
 of the format that a stricter cross-software standard must still decide.
 
@@ -73,7 +73,7 @@ scheme yet.
 A reader must accept a file with no `format_version` field as `"1.0"`.
 
 A reader must not reject a file whose `format_version` is a known older
-version (`"1.0"`, `"1.1"`) - attempt to read it without warning, since
+version (`"1.0"`, `"1.1"`, `"1.2"`) - attempt to read it without warning, since
 format changes are expected to stay additive (new optional fields) for
 the foreseeable future. Only a `format_version` this reader does not
 recognize at all warrants a warning. A breaking change bumps
@@ -112,6 +112,18 @@ Purely additive - a `1.1` file is already a valid `1.2` file:
   round 2 defaults to `PairingSnake` otherwise. See `snake_pods` in
   [The `config` object](#the-config-object).
 
+#### `1.2` → `1.3`
+
+Purely additive - a `1.2` file is already a valid `1.3` file. Every saved
+file now carries `format_version` `"1.3"`, whether or not it uses the new
+field:
+
+- `pods[].games[].scores`: optional per-player score for that game (see
+  [Pod objects](#pod-objects)). Commander and 1v1 MTG never write it.
+- `players[].decklist` is now optional: a writer omits it when no decklist is
+  recorded, and no longer writes `null`. A reader still accepts a missing key
+  and `null` as the same thing.
+
 ### Minimal example
 
 ```json
@@ -142,8 +154,8 @@ Purely additive - a `1.1` file is already a valid `1.2` file:
     }
   },
   "players": [
-    {"uid": "aaaaaaaa-0000-0000-0000-000000000001", "name": "Alice", "decklist": null},
-    {"uid": "aaaaaaaa-0000-0000-0000-000000000002", "name": "Bob", "decklist": null}
+    {"uid": "aaaaaaaa-0000-0000-0000-000000000001", "name": "Alice"},
+    {"uid": "aaaaaaaa-0000-0000-0000-000000000002", "name": "Bob"}
   ],
   "rounds": [
     {
@@ -192,6 +204,7 @@ draw, or a pending game).
 | `global_wr_seats` | array of float | `CommanderRuleset` only; optional, default in `CommanderConfiguration` (`src/logic/commander/rules.py`). Win rate per seat, seat 1 first; `1 - sum` is the draw rate. Drives simulated results and seat balancing. Older writers stored it for every ruleset; other rulesets ignore it. |
 | `match_wr_seats` | array of float | `Mtg1v1Ruleset` only; optional, default in `Mtg1v1Configuration` (`src/logic/mtg/rules.py`). Relative chance each seat (play, draw) wins a decided simulated match. |
 | `match_draw_rate` | float | `Mtg1v1Ruleset` only; optional, default in `Mtg1v1Configuration`. Chance a simulated Swiss match ends drawn (playoff matches never draw). |
+| `seat_win_rates` | array of float | `CatanRuleset` only; optional, default in `CatanConfiguration` (`src/logic/catan/rules.py`). Relative chance each seat (play order, first player first) wins a simulated game; a 3-player pod uses the first three entries. |
 | `top_cut` | int | The playoff cut size. See [`top_cut` and `stage` values](#top_cut-and-stage-values). `0` means no playoff cut (Swiss only). |
 | `scoring_logic` | string | optional, default `"ScoringDefault"`. Which algorithm computes player points and standings tiebreakers. See [Scoring logic](#scoring-logic). |
 | `scoring_params` | object | optional, default `{}`. Parameters for whichever algorithm `scoring_logic` names - field names, types, and defaults are owned by that algorithm, not by this format. See [Scoring logic](#scoring-logic) for the fields each shipped algorithm reads. |
@@ -221,7 +234,7 @@ Each entry in the top-level `players` array:
 |---|---|---|
 | `uid` | string (UUID) | The player's unique ID. Unique within this file. |
 | `name` | string | Display name. |
-| `decklist` | string or `null` | Free text, commonly a URL to the player's decklist. This format places no constraint on its content. See [Known gaps](#known-gaps-and-open-decisions). |
+| `decklist` | string or `null` (optional) | Omitted when no decklist is recorded; older files may write `null`, which readers must accept. Free text, commonly a URL to the player's decklist. This format places no constraint on its content. See [Known gaps](#known-gaps-and-open-decisions). |
 
 A player object holds no per-round state. Seating, results, byes, drops,
 and game losses all live on the round and pod objects instead. To find a
@@ -260,6 +273,12 @@ Each entry in a round's `pods` array:
 | `games` | array of object | optional, default `[]`. The pod's whole match report: one object per completed game, in play order, `{"winners": [<uid>, ...]}`. A new report always **replaces** the previous one - see [Match report](#match-report) below. |
 | `players` | array of string (UUID) | Players seated at this pod, in seat order. |
 
+A game object may also hold `scores`, optional and absent by default: an
+array of `[<uid>, <int>]` pairs, one per scored player, sorted by UID
+(for example victory points in a game that scores them). A reader must
+accept a game without `scores`. When a player is removed from a pod's
+report, that player's pair is removed too.
+
 Each game object's `winners` array encodes that game's outcome by how many
 player UIDs it holds (`minItems: 1` - an empty array is not a valid game;
 "no game played yet" is simply an empty `games` array):
@@ -297,6 +316,26 @@ and `rounds[].byes`/`game_loss` does not need to know the ruleset.
 Replaying a playoff plan depends on the ruleset. Swiss standings order
 and tiebreaker export columns belong to the selected scoring logic.
 
+A ruleset can also opt in to three shared hooks. Each default keeps core's
+existing behaviour, so Commander and 1v1 Magic are unchanged:
+
+- `DEFAULT_ALLOW_BYE` (default `true`) is the `config.allow_bye` default of a
+  new tournament under that ruleset, and what the GUI configuration dialog
+  resets the allow-bye checkbox to when the game is changed.
+- `playoff_standings(tour, tour_round)` (default `None`) is asked first by
+  `Tournament.get_standings` for a playoff round. A returned list is the
+  standings; `None` runs core's built-in playoff ordering.
+- `swiss_eliminations(tour_round, standings)` (default: no one) is called
+  when a Swiss round after the first is paired, with the previous round's
+  standings. Returned players are disabled like a top-cut cut: they sit out
+  the round but stay ranked. When a ruleset overrides it, each pairing of the
+  round first resets the disabled players to the previous round's, so a
+  re-pair after `reset_pods` drops stale eliminations. As with top cut, a
+  player disabled by hand in this round must be disabled again after a
+  re-pair.
+
+None of the three changes the saved format.
+
 ### `CommanderRuleset`
 
 The default (`config.ruleset` absent or `"CommanderRuleset"`).
@@ -332,6 +371,80 @@ count (including an all-drawn report) is a match draw.
 citations this implements; this page states only what changes the wire
 format's validity, not the rules text itself.
 
+### `CatanRuleset`
+
+Rules for Catan tournaments (`config.ruleset: "CatanRuleset"`), pod sizes
+`3` and `4` only (default `[4, 3]`, no seat balancing, `allow_bye` defaults to
+`false` because 3-player pods absorb remainders). Its default scoring logic is
+[`ScoringCatan`](#scoringcatan). Its default Swiss pairing is
+[`PairingCatanPrelim`](#pairingcatanprelim), or
+[`PairingCatanSerpentine`](#pairingcatanserpentine) for a round whose
+`eliminate_below_wins` is set.
+
+`victory_points` (default `10`) and `eliminate_below_wins` (default `0`, off)
+are `ruleset_params` fields; see `src/logic/catan/CatanRuleset.params.yaml`.
+`seat_win_rates` is a `config` field that only drives simulated results
+(`src/logic/catan/CatanConfiguration.params.yaml`).
+
+A pod's `games` holds exactly one game with exactly one UID in `winners`;
+there are no draws. The game's `scores` is required and lists every seated
+player's victory points (VP), and no one else. A valid report has the winner at
+`victory_points` or more and every other player below it. A win reported
+without VP (`report_win`) is refused. The match `result` is the game's
+`winners`.
+
+#### Catan structure
+
+The organizer sets `n_rounds`, `top_cut` and any elimination round in the
+config; nothing is derived from the player count. `recommended_structure` in
+`src/logic/catan/rules.py` gives the structure of rules 1.1.3 and 1.1.5, and
+pairing game 1 logs a warning when the event has fewer than 12 players or its
+config differs from it. The warning comes from the Catan pairing logics
+(`PairingCatanPrelim`, `PairingCatanSerpentine`), once per tournament and set of
+warnings, so re-pairing game 1 does not repeat it. A generic pairing logic picked
+by hand for game 1 (e.g. `PairingRandom`) skips the check:
+
+| Players | `n_rounds` | Elimination | `top_cut` | Playoffs |
+|---|---|---|---|---|
+| 12-28 | `3` | none | `4` | A final of the top 4. |
+| 29-79 | `3` | none | `16` | Serpentine semifinals of the top 16, then a final of the four semifinal winners. |
+| 80+ | `4` | `eliminate_below_wins: 1` on round 4 (`pairing_rounds[3].ruleset_params`) | `16` | As for 29-79. |
+
+28 players follow rule 1.1.5 ("12-28"), not rule 1.1.12 ("12 to 27"). The
+variant format with several preliminary events (rule 1.2) is not supported:
+run each preliminary event as its own tournament and seed the top-16 event by
+hand.
+
+**Elimination.** On a Swiss round whose `eliminate_below_wins` is above `0`,
+every active player with fewer game wins than that in the earlier rounds is
+disabled before the round is paired (the `swiss_eliminations` hook, see
+[Rulesets](#rulesets)). An eliminated player is listed in the round's
+`disabled` set, sits out every later round and stays in the standings, ranked
+by the Swiss scoring. The round is seated by
+[`PairingCatanSerpentine`](#pairingcatanserpentine) and still counts as a
+preliminary game for wins, VP and VP%.
+
+**Playoffs.** `top_cut` accepts `4` and `16`. Both use the `PairingTopCut`
+logic (the one `CommanderRuleset` uses, named in `PLAYOFFS`). At `TOP_16` it
+seats the semifinals in a snake by rank: Table 1 = ranks 1, 8, 9, 16 ...
+Table 4 = ranks 4, 5, 12, 13 (rule 1.1.10). At `TOP_4` all four players share
+one pod. Seat order in `players` is the standings order, the order players
+pick seats (rule 1.1.12). The winner of each semifinal table advances to the
+final.
+
+**Playoff standings (rule 1.4.4).** After a playoff round, the players seated
+in it come first, grouped by their finishing place at their table: after the
+semifinals, places 1-4 are the winners, 5-8 the 2nds, 9-12 the 3rds and 13-16
+the 4ths; after the final, places 1-4 follow the final table. Players tied on
+VP at a table share the better place, so a group can be larger and the next
+one smaller. Within a place, the rule 1.4.2 tiebreakers (total VP, VP%, 2nds,
+3rds, then the UID order as the lot) over the preliminary and playoff games so
+far decide; a final-table game adds the same to every player tied on it.
+Everyone else keeps the previous round's order, so after the final, places
+5-16 stay as the semifinals set them. Until every table of the playoff round
+has reported, the previous round's standings stand. A semifinalist who drops
+from a table ranks after the players who played.
+
 ## Enum reference
 
 The fields below carry integer values over the wire. A reader must
@@ -352,12 +465,12 @@ whichever the tournament's ruleset produced.
 |---|---|---|---|---|
 | 0 | `NONE` | `SWISS` | No playoff cut / a Swiss round. | every ruleset |
 | 2 | `TOP_2` | `TOP_2` | Top-2 (final) playoff. | `Mtg1v1Ruleset` |
-| 4 | `TOP_4` | `TOP_4` | Top-4 playoff. | `CommanderRuleset`, `Mtg1v1Ruleset` |
+| 4 | `TOP_4` | `TOP_4` | Top-4 playoff. | `CommanderRuleset`, `Mtg1v1Ruleset`, `CatanRuleset` |
 | 7 | `TOP_7` | `TOP_7` | Top-7 playoff. | `CommanderRuleset` |
 | 8 | `TOP_8` | `TOP_8` | Top-8 playoff. | `Mtg1v1Ruleset` |
 | 10 | `TOP_10` | `TOP_10` | Top-10 playoff. | `CommanderRuleset` |
 | 13 | `TOP_13` | `TOP_13` | Top-13 playoff. | `CommanderRuleset` |
-| 16 | `TOP_16` | `TOP_16` | Top-16 playoff. | `CommanderRuleset`, `Mtg1v1Ruleset` |
+| 16 | `TOP_16` | `TOP_16` | Top-16 playoff. | `CommanderRuleset`, `Mtg1v1Ruleset`, `CatanRuleset` |
 | 40 | `TOP_40` | `TOP_40` | Top-40 playoff: 8 byes (seeds 1-8) and 8 pods of 4; the 8 byes and 8 pod winners form `TOP_16`. | `CommanderRuleset` |
 
 ### `StandingsExport.Field` values
@@ -471,6 +584,9 @@ The selected scoring logic also defines the Swiss standings order:
 - `Scoring1v1`: points, then the MTR OMW/GW/OGW chain and percentage floor
   specified in [the MTR reference](../src/logic/mtg/mtr-1v1-spec.md#3-standings-and-tiebreakers-31-appendix-c).
   Its standings exports include OMW, GW, and OGW columns.
+- `ScoringCatan`: wins, then total VP, VP%, 2nd places and 3rd places, as in
+  [`ScoringCatan`](#scoringcatan). Its standings exports include VP, VP%, 2nd
+  and 3rd columns.
 - `ScoringHareruya` and `ScoringModifiedHareruya`: points only, without
   competitive tiebreakers.
 
@@ -510,6 +626,35 @@ Magic Tournament Rules' match points (Appendix C) instead of Commander's:
 | `win_points` | int | `3` | Points awarded for a pod (match) win. |
 | `bye_points` | int | `3` | Points awarded for a bye (an automatic match win). |
 | `draw_points` | int | `1` | Points awarded to each player in a draw. |
+
+### `ScoringCatan`
+
+Scoring for `CatanRuleset` (`src/logic/catan/scoring.py`), for pod sizes `3`
+and `4`. Like `ScoringDefault` it inherits `FixedPointsScoring`, so a player's
+rating is `win_points` per game won plus `bye_points` per bye. `scoring_params` fields:
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `win_points` | int | `1` | Points awarded for a game win, so the rating is a win count (rule 1.4.1). |
+| `bye_points` | int | `0` | Points awarded for a forced bye. A bye adds no VP and no VP%. |
+| `draw_points` | int | `0` | Unused: a Catan game has no draws. |
+
+Players with equal ratings are ordered by these keys, in order (rule 1.4.2).
+Only Swiss rounds count, and only games with a reported `scores` list:
+
+1. Total VP over all games, at most `victory_points` per game.
+2. VP%: the sum over games of the player's VP divided by the table's VP total
+   (rule 1.4.3). It uses the reported VP, not the capped VP, and is computed
+   with exact fractions. A 3-player table adds a dummy fourth score to its
+   total: the mean of the three scores, rounded half-up (8, 10, 7 gives 8;
+   a `.5` rounds up, a `.4` down).
+3. More 2nd-place finishes, then more 3rd-place finishes. A game's places come
+   from VP (1st = most VP); players tied on VP share the better place, so two
+   players on 7 VP behind the winner both finish 2nd and nobody finishes 3rd.
+4. The stable UID order, which stands in for the drawing of lots.
+
+Export columns: `VP`, `VP%` (the exact sum, written with 4 decimals), `2nd` and
+`3rd`.
 
 ### `ScoringHareruya`
 
@@ -679,9 +824,13 @@ how a file was produced, not how a stored result is read back.
 Each pairing algorithm declares which sizes it supports; an algorithm is offered
 for a round only if it supports every size in `config.pod_sizes`. `PairingDefault`
 and `PairingSnake` support `3`, `4`, and `5`; `Pairing1v1` supports `2`;
+`PairingCatanPrelim` and `PairingCatanSerpentine` support `3` and `4`;
 `PairingRandom` supports any size. So a tournament with pod sizes `[2]` can use
-`Pairing1v1` or `PairingRandom`. This is a constraint the writer applies; the
-format itself does not enforce it.
+`Pairing1v1` or `PairingRandom`. An algorithm can also name the rulesets it is
+offered under: `PairingCatanPrelim`, `PairingCatanSerpentine` and
+`ScoringCatan` are offered only under `CatanRuleset`, so they do not appear for
+Commander's `[4, 3]` pods. These are constraints the writer applies; the format
+itself does not enforce them.
 
 A "small" pod, for the `small_pod_penalty` below, is one smaller than the
 preferred (first) size in `config.pod_sizes`. So with `[4, 3]` the 3-player pod
@@ -698,8 +847,8 @@ Additional fields in the `params` object for a round that uses
 | `rematch_penalty_exponent` | int | `2` | Exponent on the repeat-opponent count when scoring how well a player fits a pod. A higher value pushes harder against seating players who already met. |
 | `small_pod_penalty` | int | `10` | Penalty for seating a player in a pod smaller than the preferred (first) pod size, for example a 3-player pod, when the player already sat in a small pod. A higher value spreads the small pods across more players. |
 
-`PairingRandom`, `PairingSnake`, and the top-cut pairings read no
-parameters. A per-round match format (such as games needed to win a match)
+`PairingRandom`, `PairingSnake`, `PairingCatanSerpentine`, and the top-cut
+pairings read no parameters. A per-round match format (such as games needed to win a match)
 is a ruleset concern, not a pairing-logic parameter - see `ruleset_params`
 in the `config` table and [Rulesets](#rulesets).
 
@@ -729,6 +878,38 @@ never reseeded afterward: a later stage's pairings are a pure function of
 that fixed seed list and who is still active. A seed whose bracket
 opponent has since dropped, or does not exist because the field was
 smaller than `top_cut`, gets a bye and advances instead of being paired.
+
+### `PairingCatanPrelim`
+
+Catan's preliminary pairing (`src/logic/catan/matching.py`, rule 1.1.6). It
+ignores results. The first game plans all preliminary games (games 1-3)
+together: different opponents first, then rotating play-order positions
+(seat order in `players`). Each round seats its game from that plan. The
+plan is not stored: it is recomputed from a seed made of the tournament
+`uid`, the plan's first round and the set of players seated in it, so the
+same file always gives the same games. When the seated players change (a
+drop, a late player), the games from that round on are re-planned for the
+players still in, with the earlier rounds as history. When a round was not
+seated as its plan said (the organizer swapped players or filled pods by
+hand), the games after it are re-planned the same way, with its actual
+seating as history. The plan's params come from its first round. A round after game 3
+is planned on its own. Friends and family are not kept apart; the organizer
+moves players by hand. `params` fields, with the same meaning as for
+[`PairingDefault`](#pairingdefault) but applied to the whole plan:
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `rematch_penalty_exponent` | int | `2` | Exponent on the repeat-opponent count. |
+| `small_pod_penalty` | int | `10` | Penalty for a player's second and later seat at a 3-player table. |
+
+### `PairingCatanSerpentine`
+
+Catan's game-4 pairing for large events (`src/logic/catan/matching.py`, rule
+1.1.7). It ranks the players by the previous round's standings, puts the
+3-player pods first and deals the ranks across the pods in a snake (1 to n,
+then n to 1). Seat order in `players` is rank order, the order players pick
+color, chair and play order. Table numbers follow the core's usual pod
+order, not the rule's numbering.
 
 ## Adjacent outputs (not part of this format)
 
@@ -803,9 +984,10 @@ formulas from [Scoring logic](#scoring-logic); they are not part of the
 JSON schema themselves, only the `config.scoring_logic` string that names
 one of them.
 
-`CommanderRuleset` (`src/logic/commander/rules.py`) and `Mtg1v1Ruleset`
-(`src/logic/mtg/rules.py`) implement [Rulesets](#rulesets); like the
-scoring logics above, neither is part of the JSON schema itself, only the
+`CommanderRuleset` (`src/logic/commander/rules.py`), `Mtg1v1Ruleset`
+(`src/logic/mtg/rules.py`) and `CatanRuleset` (`src/logic/catan/rules.py`)
+implement [Rulesets](#rulesets); like the scoring logics above, none is part
+of the JSON schema itself, only the
 `config.ruleset` string that names one of them.
 
 `tests/test_serialization.py` holds round-trip tests that double as

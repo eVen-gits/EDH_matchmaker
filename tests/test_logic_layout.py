@@ -13,6 +13,11 @@ import pytest
         ("commander", "mtg"),
         ("common", "commander"),
         ("common", "mtg"),
+        ("catan", "commander"),
+        ("catan", "mtg"),
+        ("commander", "catan"),
+        ("mtg", "catan"),
+        ("common", "catan"),
     ],
 )
 def test_game_imports_do_not_load_other_game(game, forbidden):

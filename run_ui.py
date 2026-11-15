@@ -435,6 +435,15 @@ def _scored(pod: Pod) -> bool:
     return "games_to_win" in ruleset.PARAM_SPEC and len(pod.players) == 2
 
 
+def _vp_scored(pod: Pod) -> bool:
+    """Whether pod takes a victory-point report via CatanReportDialog.
+
+    Capability check: true under a ruleset whose params include
+    victory_points (today, only CatanRuleset).
+    """
+    return "victory_points" in pod.tour_round.tour.ruleset.PARAM_SPEC
+
+
 def _game_loss_target(players: list, tour_round) -> Pod | None:
     """The scored pod a lone seated player's game-loss penalty routes into
     (Bo3 opponent gets a game win), or None when the ordinary
@@ -567,6 +576,94 @@ class MatchReportDialog(QDialog):
         dlg = MatchReportDialog(app, pod, preset=preset)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             app.report_match(pod, dlg._games())
+
+
+class CatanReportDialog(QDialog):
+    """Per-player victory-point entry for a one-game match (Catan).
+
+    One spin box per seated player, in seat order. The winner is whoever has
+    the most VP; live validation against the ruleset disables OK until the
+    report is valid. Built in code, like MatchReportDialog.
+    """
+
+    def __init__(self, app: MainWindow, pod: Pod, parent=None):
+        QDialog.__init__(self, parent)
+        self.app = app
+        self.pod = pod
+        self.ruleset = pod.tour_round.tour.ruleset
+        target = self.ruleset.params(pod.tour_round)["victory_points"]
+        self.setWindowTitle(f"{pod.name} - first to {target} VP")
+
+        layout = QVBoxLayout(self)
+        form = QFormLayout()
+        layout.addLayout(form)
+
+        prior = dict(pod.games[-1].scores or ()) if pod.games else {}
+        self._spins: dict[Player, QSpinBox] = {}
+        for p in pod.players:
+            spin = QSpinBox()
+            spin.setRange(0, 99)
+            spin.setValue(prior.get(p.uid, 0))
+            spin.valueChanged.connect(self._update_status)
+            form.addRow(p.display_name, spin)
+            self._spins[p] = spin
+
+        self.lbl_status = QLabel()
+        layout.addWidget(self.lbl_status)
+
+        buttons = QHBoxLayout()
+        layout.addLayout(buttons)
+        self.pb_ok = QPushButton("OK")
+        self.pb_cancel = QPushButton("Cancel")
+        buttons.addWidget(self.pb_ok)
+        buttons.addWidget(self.pb_cancel)
+        self.pb_ok.clicked.connect(self.accept)
+        self.pb_cancel.clicked.connect(self.reject)
+
+        self._update_status()
+
+    def _winner(self) -> Player | None:
+        """The player with the most VP, or None on a tie for the top."""
+        top = max(spin.value() for spin in self._spins.values())
+        leaders = [p for p, spin in self._spins.items() if spin.value() == top]
+        return leaders[0] if len(leaders) == 1 else None
+
+    def _games(self) -> list[IGameResult] | None:
+        """The report the spin boxes describe; None on a tie for the top."""
+        winner = self._winner()
+        if winner is None:
+            return None
+        return [
+            IGameResult(
+                frozenset({winner.uid}),
+                tuple((p.uid, spin.value()) for p, spin in self._spins.items()),
+            )
+        ]
+
+    def _update_status(self, *_):
+        games = self._games()
+        try:
+            if games is None:
+                raise ValueError(f"{self.pod.name}: a Catan game has exactly one winner.")
+            self.ruleset.validate_report(self.pod, games)
+        except ValueError as e:
+            self.lbl_status.setText(str(e))
+            self.pb_ok.setEnabled(False)
+            return
+        self.pb_ok.setEnabled(True)
+        winner = self._winner()
+        assert winner is not None
+        self.lbl_status.setText(
+            f"{winner.display_name} wins with {self._spins[winner].value()} VP"
+        )
+
+    @staticmethod
+    def show_dialog(app: MainWindow, pod: Pod):
+        dlg = CatanReportDialog(app, pod)
+        if dlg.exec() == QDialog.DialogCode.Accepted:
+            games = dlg._games()
+            if games is not None:  # OK is disabled on a tie
+                app.report_match(pod, games)
 
 
 class MainWindow(QMainWindow):
@@ -1262,7 +1359,7 @@ class PodWidget(QWidget):
         self.ui.lw_players.itemDoubleClicked.connect(self._on_double_click)
 
     def _on_double_click(self, *_):
-        if _scored(self.pod):
+        if _scored(self.pod) or _vp_scored(self.pod):
             self.report_score()
 
     def refresh_ui(self, context: TournamentContext | None = None):
@@ -1333,11 +1430,13 @@ class PodWidget(QWidget):
 
         # Check if it is on the item when you right-click, if it is not, delete and modify will not be displayed.
         if self.ui.lw_players.itemAt(position):
-            if _scored(self.pod):
+            if _scored(self.pod) or _vp_scored(self.pod):
                 pop_menu.addAction(
                     QAction("Report score...", self, triggered=self.report_score)
                 )
-            if n_selected == 1:
+            if _vp_scored(self.pod):
+                pass  # a Catan win needs VP: Report score is the only report
+            elif n_selected == 1:
                 pop_menu.addAction(
                     QAction(
                         "Report win (g-0)" if _scored(self.pod) else "Report win",
@@ -1389,7 +1488,10 @@ class PodWidget(QWidget):
         pop_menu.exec(self.ui.lw_players.mapToGlobal(position))
 
     def report_score(self):
-        MatchReportDialog.show_dialog(self.app, self.pod)
+        if _vp_scored(self.pod):
+            CatanReportDialog.show_dialog(self.app, self.pod)
+        else:
+            MatchReportDialog.show_dialog(self.app, self.pod)
         self.refresh_ui()
 
     def report_win(self):
@@ -1629,6 +1731,12 @@ class TournamentConfigDialog(QDialog):
         self.ui.cb_topCut.setCurrentIndex(idx if idx >= 0 else 0)
         self.ui.cb_topCut.blockSignals(False)
 
+        # allow_bye follows the ruleset's default on a game change, like the
+        # pod sizes above (Catan: off).
+        if not initial:
+            assert self.ui is not None
+            self.ui.cb_allow_bye.setChecked(ruleset.DEFAULT_ALLOW_BYE)
+
         # Byes: a ruleset that requires them (e.g. Mtg1v1Ruleset) hides the
         # controls and pins allow_bye on.
         required = ruleset.BYES_REQUIRED
@@ -1657,7 +1765,8 @@ class TournamentConfigDialog(QDialog):
         tournament's current pod sizes (see selectable_scoring_logics), then
         preselects `preselect` if still offered, else the first choice."""
         pod_sizes = self._pod_size_editor.values() if self._pod_size_editor else None
-        selectable = Tournament.selectable_scoring_logics(pod_sizes)
+        assert self.ui is not None
+        selectable = Tournament.selectable_scoring_logics(pod_sizes, self.ui.cb_ruleset.currentData())
         self.ui.cb_scoringLogic.blockSignals(True)
         self.ui.cb_scoringLogic.clear()
         for logic_name in selectable:
@@ -1724,7 +1833,8 @@ class TournamentConfigDialog(QDialog):
         self._pairing_forms = []
         self._ruleset_forms = []
         pod_sizes = self._pod_size_editor.values() if self._pod_size_editor else None
-        selectable = Tournament.selectable_pairing_logics(pod_sizes)
+        assert self.ui is not None
+        selectable = Tournament.selectable_pairing_logics(pod_sizes, self.ui.cb_ruleset.currentData())
         configured = self.core.config.pairing_logics
         configured_params = self.core.config.pairing_params
         configured_ruleset_params = (

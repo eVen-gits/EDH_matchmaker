@@ -1,7 +1,7 @@
 import json
 import unittest
 
-from src.core import StandingsExport, TournamentAction, TournamentConfiguration
+from src.core import StandingsExport, Tournament, TournamentAction, TournamentConfiguration
 from src.param_catalog import catalog
 from src.param_spec import validate_values
 
@@ -14,8 +14,9 @@ class TestConfigSidecars(unittest.TestCase):
     def test_config_defaults_from_sidecar(self):
         spec = TournamentConfiguration.PARAM_SPEC
         config = TournamentConfiguration()
-        for name in ("ruleset", "allow_bye", "n_rounds", "max_byes", "auto_export"):
+        for name in ("ruleset", "n_rounds", "max_byes", "auto_export"):
             self.assertEqual(getattr(config, name), spec[name].default)
+        self.assertEqual(config.allow_bye, Tournament.get_ruleset(config.ruleset).DEFAULT_ALLOW_BYE)
         self.assertEqual(config.top_cut, TournamentConfiguration.TopCut.NONE)
         self.assertEqual(spec["max_byes"].visible_when, ("allow_bye", True))
         self.assertEqual(spec["standings_export"].visible_when, ("auto_export", True))

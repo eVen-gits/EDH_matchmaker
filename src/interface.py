@@ -15,15 +15,29 @@ class IGameResult:
 
     One UID means that player won the game. Two or more mean the game was
     drawn among them. Every other player seated in the pod lost the game.
+    ``scores`` optionally records each player's score for the game; Commander
+    and 1v1 MTG never set it.
     """
 
     winners: frozenset[UUID]
+    # Optional per-player score for the game (e.g. victory points), stored as
+    # a tuple sorted by UID so equality and hashing are order-independent.
+    # Accepts a mapping or an iterable of (UID, score) pairs; None = unscored.
+    scores: tuple[tuple[UUID, int], ...] | None = None
 
     def __post_init__(self) -> None:
         winners = frozenset(self.winners)
         if not winners:
             raise ValueError("IGameResult.winners must not be empty.")
         object.__setattr__(self, "winners", winners)
+        if self.scores is not None:
+            raw: Any = self.scores
+            pairs = raw.items() if isinstance(raw, Mapping) else raw
+            object.__setattr__(
+                self,
+                "scores",
+                tuple(sorted((UUID(str(u)), int(v)) for u, v in pairs)),
+            )
 
 
 class SortMethod(IntEnum):
@@ -255,6 +269,10 @@ class IPairingLogic(ABC):
     # The tournament's pod sizes must all be supported for this algorithm to be
     # offered - see supports_pod_sizes and Tournament.selectable_pairing_logics.
     SUPPORTED_POD_SIZES: tuple[int, ...] | None = None
+    # Rulesets (config.ruleset names) this algorithm is offered under. None
+    # (the default) means every ruleset; a tuple keeps a game's own logic out
+    # of other games' selector lists - see Tournament.selectable_*_logics.
+    RULESETS: tuple[str, ...] | None = None
     # Former class names this logic replaced. Saved logs name each round's
     # logic, so Tournament.get_pairing_logic resolves these to this logic.
     ALIASES: tuple[str, ...] = ()
@@ -323,6 +341,10 @@ class IScoringLogic(ABC):
     # The tournament's pod sizes must all be supported for this algorithm to be
     # offered - see supports_pod_sizes and Tournament.selectable_scoring_logics.
     SUPPORTED_POD_SIZES: tuple[int, ...] | None = None
+    # Rulesets (config.ruleset names) this algorithm is offered under. None
+    # (the default) means every ruleset; a tuple keeps a game's own logic out
+    # of other games' selector lists - see Tournament.selectable_*_logics.
+    RULESETS: tuple[str, ...] | None = None
     # This algorithm's parameter spec, loaded at class definition from the
     # sidecar `<ClassName>.params.yaml` (name, default, type, range,
     # description). DEFAULT_PARAMS is derived from it - the names and defaults
@@ -447,6 +469,8 @@ class IRuleset(ABC):
     # Whether this ruleset requires an odd player count to get a bye rather
     # than leave someone unseated (config.allow_bye and max_byes >= 1).
     BYES_REQUIRED: bool = False
+    # config.allow_bye of a new config.
+    DEFAULT_ALLOW_BYE: bool = True
     # top_cut -> playoff rounds in play order, each (stage value, top-cut
     # pairing logic name). Its keys are the only non-zero top_cut values
     # the ruleset accepts.
@@ -522,6 +546,36 @@ class IRuleset(ABC):
         """Default pairing logic for Swiss round seq when
         config.pairing_rounds sets none."""
         ...
+
+    def playoff_standings(
+        self, tour: ITournament, tour_round: IRound
+    ) -> list[IPlayer] | None:
+        """Opt-in hook: the full standings after a playoff round.
+
+        Tournament.get_standings asks this first for a non-Swiss
+        tour_round. None (the default) means "not handled": core runs its
+        built-in playoff ordering unchanged.
+        """
+        return None
+
+    def swiss_eliminations(
+        self, tour_round: IRound, standings: Sequence[IPlayer]
+    ) -> set[IPlayer]:
+        """Opt-in hook: players out of the tournament before this Swiss round.
+
+        Round.create_pairings calls it for each Swiss round after the first,
+        before the pods are built, with the previous round's standings.
+        Returned players are disabled like a top-cut cut (same
+        disable_player), so they sit out but stay ranked. The default
+        eliminates no one.
+
+        When a ruleset overrides this hook, each pairing of the round first
+        resets its disabled players to the previous round's, so re-pairing
+        after reset_pods drops stale eliminations. As with top cut, a player
+        disabled by hand in this round must be disabled again after a
+        re-pair.
+        """
+        return set()
 
 
 class IStandingsExport(ABC):

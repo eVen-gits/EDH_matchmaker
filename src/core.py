@@ -260,6 +260,11 @@ class StandingsExport(DataExport, IStandingsExport):
 
     @staticmethod
     def _get_avg_seat(player: Player, context: TournamentContext) -> float:
+        # Middle seats need Commander's global_wr_seats; games without it
+        # (Catan) have no seat average.
+        config = context.tour.config
+        if config.max_pod_size > 2 and not hasattr(config, "global_wr_seats"):
+            return 0
         return player.average_seat(context.tour.rounds)
 
     @staticmethod
@@ -704,7 +709,9 @@ class TournamentConfiguration(ITournamentConfiguration):
         self.pod_sizes: Sequence[int] = kwargs.get(
             "pod_sizes", list(ruleset_cls.DEFAULT_POD_SIZES)
         )
-        self.allow_bye: bool = kwargs.get("allow_bye", default["allow_bye"])
+        self.allow_bye: bool = kwargs.get(
+            "allow_bye", ruleset_cls.DEFAULT_ALLOW_BYE
+        )
         self.n_rounds: int = kwargs.get("n_rounds", default["n_rounds"])
         # Parse int or enum for TopCut
         tc_val: TournamentConfiguration.TopCut | int = kwargs.get(
@@ -947,12 +954,12 @@ class Tournament(ITournament):
     # Version of the tournament-log JSON format written by TournamentAction.store.
     # Bump this, and add the new version to KNOWN_FORMAT_VERSIONS, whenever a
     # change to serialize()/inflate() is not backward compatible.
-    LOG_FORMAT_VERSION = "1.2"
+    LOG_FORMAT_VERSION = "1.3"
     # Every format_version this implementation can read without warning - a
     # reader must not assume a default for a missing config field beyond
     # what inflate() already handles, but a known older version is not
     # itself cause for a warning (only a version outside this set is).
-    KNOWN_FORMAT_VERSIONS = frozenset({"1.0", "1.1", "1.2"})
+    KNOWN_FORMAT_VERSIONS = frozenset({"1.0", "1.1", "1.2", "1.3"})
 
     @classmethod
     def _discover_logic(
@@ -1020,14 +1027,16 @@ class Tournament(ITournament):
 
     @classmethod
     def selectable_pairing_logics(
-        cls, pod_sizes: Sequence[int] | None = None
+        cls, pod_sizes: Sequence[int] | None = None, ruleset: str | None = None
     ) -> list[str]:
         """Names of pairing logics a user may pick for a Swiss round.
 
         Excludes top-cut pairings (SELECTABLE == False), which are chosen
         automatically by stage. When pod_sizes is given, also excludes any
         logic that does not support all of those sizes (see
-        IPairingLogic.supports_pod_sizes).
+        IPairingLogic.supports_pod_sizes). A logic that names its rulesets
+        (IPairingLogic.RULESETS) is offered only under one of them, so
+        never when ruleset is None.
         """
         cls.discover_pairing_logic()
         return sorted(
@@ -1035,6 +1044,7 @@ class Tournament(ITournament):
             for name, obj in cls._pairing_logic_cache.items()
             if obj.SELECTABLE
             and (pod_sizes is None or obj.supports_pod_sizes(pod_sizes))
+            and (obj.RULESETS is None or ruleset in obj.RULESETS)
         )
 
     @classmethod
@@ -1072,19 +1082,22 @@ class Tournament(ITournament):
 
     @classmethod
     def selectable_scoring_logics(
-        cls, pod_sizes: Sequence[int] | None = None
+        cls, pod_sizes: Sequence[int] | None = None, ruleset: str | None = None
     ) -> list[str]:
         """Names of scoring logics a user may pick for this tournament.
 
         When pod_sizes is given, excludes any logic that does not support
-        all of those sizes (see IScoringLogic.supports_pod_sizes) - the
-        same filter selectable_pairing_logics applies to pairing logic.
+        all of those sizes (see IScoringLogic.supports_pod_sizes), and a
+        logic that names its rulesets (IScoringLogic.RULESETS) is offered
+        only under one of them - the same filters selectable_pairing_logics
+        applies to pairing logic.
         """
         cls.discover_scoring_logic()
         return sorted(
             name
             for name, obj in cls._scoring_logic_cache.items()
-            if pod_sizes is None or obj.supports_pod_sizes(pod_sizes)
+            if (pod_sizes is None or obj.supports_pod_sizes(pod_sizes))
+            and (obj.RULESETS is None or ruleset in obj.RULESETS)
         )
 
     @classmethod
@@ -1701,7 +1714,9 @@ class Tournament(ITournament):
         name = self.ruleset.swiss_pairing_logic(self, seq)
         logic = self.get_pairing_logic(name)
         if not logic.supports_pod_sizes(self.config.pod_sizes):
-            compatible = self.selectable_pairing_logics(self.config.pod_sizes)
+            compatible = self.selectable_pairing_logics(
+                self.config.pod_sizes, self.config.ruleset
+            )
             name = compatible[0] if compatible else "PairingRandom"
             logic = self.get_pairing_logic(name)
         return logic
@@ -2233,6 +2248,10 @@ class Tournament(ITournament):
                 key=lambda x: keys[x.uid],
                 reverse=True,
             )
+        elif (
+            playoff_override := self.ruleset.playoff_standings(self, tour_round)
+        ) is not None:
+            standings = cast(list[Player], playoff_override)
         else:
             final_swiss = self.final_swiss_round
             assert final_swiss is not None
@@ -3144,12 +3163,14 @@ class Player(IPlayer):
         return " | ".join(fields)
 
     def serialize(self) -> dict[str, Any]:
-        return {
+        data: dict[str, Any] = {
             #'tour': str(self._tour),
             "uid": str(self.uid),
             "name": self.name,
-            "decklist": self.decklist,
         }
+        if self.decklist is not None:
+            data["decklist"] = self.decklist
+        return data
 
     @classmethod
     def inflate(cls, tour: Tournament, data: dict[str, Any]) -> Player:
@@ -3239,7 +3260,12 @@ class Pod(IPod):
         for game in self._games:
             winners = game.winners - {player.uid}
             if winners:
-                new_games.append(IGameResult(winners))
+                scores = (
+                    None
+                    if game.scores is None
+                    else tuple(kv for kv in game.scores if kv[0] != player.uid)
+                )
+                new_games.append(IGameResult(winners, scores))
         self._games = new_games
 
     def reset_result(self):
@@ -3425,6 +3451,13 @@ class Pod(IPod):
             maxlen = 0
         else:
             maxlen = max([len(p.display_name) for p in self.players])
+        # Middle seats need Commander's global_wr_seats (Player.average_seat);
+        # games without it (Catan) show no seat average.
+        seat = (
+            ["-s"]
+            if self.cap <= 2 or hasattr(self.tour.config, "global_wr_seats")
+            else []
+        )
         ret = "Pod {} with {}/{} players:\n\t{}".format(
             self.table,
             len(self),
@@ -3440,7 +3473,7 @@ class Pod(IPod):
                         if self.result_type == Pod.EResult.DRAW
                         and p.uid in self._result
                         else "L",
-                        p.__repr__(["-s", str(maxlen), "-p"], context=context),
+                        p.__repr__([*seat, str(maxlen), "-p"], context=context),
                     )
                     for _, p in zip(range(1, len(self) + 1), self.players)
                 ]
@@ -3455,11 +3488,16 @@ class Pod(IPod):
             "table": self.table,
             "cap": self.cap,
             "result": sorted([str(p) for p in self._result]),
-            "games": [
-                {"winners": sorted(str(u) for u in g.winners)} for g in self._games
-            ],
+            "games": [self._serialize_game(g) for g in self._games],
             "players": [str(p) for p in self._players],
         }
+
+    @staticmethod
+    def _serialize_game(g: IGameResult) -> dict[str, Any]:
+        out: dict[str, Any] = {"winners": sorted(str(u) for u in g.winners)}
+        if g.scores is not None:
+            out["scores"] = [[str(u), v] for u, v in g.scores]
+        return out
 
     @classmethod
     def inflate(cls, tour_round: Round, data: dict[str, Any]) -> Pod:
@@ -3478,7 +3516,12 @@ class Pod(IPod):
                 IGameResult(
                     frozenset(
                         UUID(x) for x in (g["winners"] if isinstance(g, dict) else g)
-                    )
+                    ),
+                    (
+                        tuple((UUID(u), v) for u, v in g["scores"])
+                        if isinstance(g, dict) and g.get("scores") is not None
+                        else None
+                    ),
                 )
                 for g in games
             ]
@@ -3902,6 +3945,21 @@ class Round(IRound):
             # the base IPairingLogic.advance_topcut is a no-op, so a stage
             # whose pairing logic doesn't give seeded byes is unaffected.
             self.logic.advance_topcut(self, cast(list[IPlayer], standings))
+        else:
+            prev_round = self.tour.previous_round(self)
+            ruleset = self.tour.ruleset
+            if (
+                prev_round is not None
+                and type(ruleset).swiss_eliminations
+                is not IRuleset.swiss_eliminations
+            ):
+                # Opt-in ruleset hook. Like top cut, reset to the previous
+                # round's baseline so a re-pair drops stale eliminations.
+                self._disabled = set(prev_round._disabled)
+                for p in ruleset.swiss_eliminations(
+                    self, self.tour.get_standings(prev_round)
+                ):
+                    self.disable_player(cast(Player, p), set_disabled=True)
 
         self.create_pods()
         pods = [p for p in self.pods if all([not p.done, len(p) < p.cap])]

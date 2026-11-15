@@ -30,11 +30,13 @@ pod_sizes:
     3. A ruleset with ALLOWED_POD_SIZES limits them; None allows any size.
 
 allow_bye:
-  default: true
+  type: bool
+  default_from: ruleset.DEFAULT_ALLOW_BYE
   label: Allow byes
   description: >
     Whether a player left over after seating everyone else gets a bye. A
-    ruleset with BYES_REQUIRED (1v1 Magic) needs this on.
+    ruleset with BYES_REQUIRED (1v1 Magic) needs this on. The ruleset's
+    DEFAULT_ALLOW_BYE supplies the default.
 
 max_byes:
   default: 2
