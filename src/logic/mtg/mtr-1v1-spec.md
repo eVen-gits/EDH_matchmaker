@@ -151,8 +151,10 @@ verified against Wizards' software:
 3. Pair from the highest group down. If a group has an odd player left,
    that player **pairs down** into the next lower group.
 4. Never pair a rematch. If you cannot avoid one, pair down further.
-5. With an odd field, the bye goes to the **lowest-ranked player who has
-   not had a bye**.
+5. With an odd field, the bye goes to a player with the **fewest byes so
+   far**; among those, to one in the lowest score group, then the
+   lowest-ranked. This rule outranks rule 4: a rematch is paired before
+   a player gets a second bye while another still has none.
 
 ## 5. Drops (2.10)
 

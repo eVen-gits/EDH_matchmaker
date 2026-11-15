@@ -32,6 +32,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`generator.version`, from the new `src.__version__`).
 
 ### Fixed
+- 1v1 Swiss pairing (`Pairing1v1`) now gives the bye to a player with the
+  fewest byes so far, and among those to one with the fewest points. It used
+  to rank a second bye equal to a rematch, so in late rounds one player could
+  get a second bye while another still had none.
 - Removed a no-op `random.shuffle` from `Pod.auto_assign_seats` (it shuffled a
   copy of the player list). Round-1 seating already comes from the round's seed
   (equal seat history, so the seeded tie-break orders the pod). In the rare
