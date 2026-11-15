@@ -24,12 +24,17 @@ plugins:
 
 markdown_extensions:
   - admonition
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.highlight
 
 nav:
   - Home: index.md
   - Tournament Log Format Spec: tournament-log-spec.md
+  - Catan Architecture: catan.md
   - API Reference:
       - src.core: src/core.md
       - src.interface: src/interface.md
