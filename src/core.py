@@ -3406,10 +3406,6 @@ class Pod(IPod):
         ]
         n = len(average_positions)
 
-        if not any(average_positions):
-            random.shuffle(self.players)
-            return
-
         # partially sort players based on seating positions
         # those that have same average_seat should be randomly ordered
         seat_assignment = [0] * n

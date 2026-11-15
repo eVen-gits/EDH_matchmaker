@@ -41,3 +41,34 @@ class TestPod(unittest.TestCase):
             ValueError, "Order must not contain duplicate integers"
         ):
             self.pod.reorder_players([0, 1, 2, 2])
+
+
+class TestRoundOneSeating(unittest.TestCase):
+    @staticmethod
+    def _seats(seed: int) -> list[list[str]]:
+        from uuid import UUID
+
+        from src.core import TournamentConfiguration
+
+        t = Tournament(
+            TournamentConfiguration(auto_export=False, pod_sizes=[4], n_rounds=3)
+        )
+        t.add_player([(f"P{i:02d}", UUID(int=i + 1)) for i in range(8)])
+        t.create_pairings(seed=seed)
+        rnd = t.tour_round
+        assert rnd is not None
+        for pod in rnd.pods:
+            names = [p.name for p in pod.players]
+            pod.reorder_players(sorted(range(len(names)), key=names.__getitem__))
+            pod.auto_assign_seats()
+        return [[p.name for p in pod.players] for pod in rnd.pods]
+
+    def test_same_seed_same_seats(self):
+        self.assertEqual(self._seats(1), self._seats(1))
+
+    def test_seats_differ_across_seeds(self):
+        self.assertTrue(
+            any(
+                pod != sorted(pod) for s in range(1, 6) for pod in self._seats(s)
+            )
+        )
