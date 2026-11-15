@@ -75,6 +75,9 @@ configured two-player pairings.
 
 ### Running a Catan event
 
+How Catan plugs into the engine (architecture, event flow, data, code tour):
+[docs/catan.md](docs/catan.md).
+
 Pick the Catan ruleset when you create the tournament. Set the number of
 games and the top cut yourself; the structure the rules recommend
 (catanevents.com tournament rules 1.1.3 and 1.1.5) is:
