@@ -9,8 +9,8 @@ class Pairing1v1(CommonPairing):
     """Swiss pairing for 1v1 (2-player pod) Magic tournaments.
 
     A maximum-weight perfect matching (networkx), not Commander's greedy
-    pod-fill: spec 4.1's rules (no rematch when avoidable, fewest and
-    smallest pair-downs, the bye to the lowest-ranked player without one)
+    pod-fill: spec 4.1's rules (the bye to a fewest-byes, fewest-points
+    player, no rematch when avoidable, fewest and smallest pair-downs)
     are exact priorities a greedy fill can't guarantee, but a matching
     can. The shared CommonPairing base supplies rating helpers. This
     algorithm has no tunable parameters, so it ships no sidecar.
