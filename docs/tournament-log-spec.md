@@ -6,7 +6,7 @@ compatible files, without reading the EDH_matchmaker source code.
 
 ## Status of this document
 
-This page describes format version `1.3`, the format that EDH_matchmaker
+This page describes format version `1.4`, the format that EDH_matchmaker
 writes today. [Known gaps](#known-gaps-and-open-decisions) lists the parts
 of the format that a stricter cross-software standard must still decide.
 
@@ -54,6 +54,8 @@ having a single writer.
 | `created_at` | string (ISO 8601) | optional | When the tournament was first created. Absent in files written before format `1.0`. |
 | `updated_at` | string (ISO 8601) | optional | When this file was last written. |
 | `uid` | string (UUID) | must | The tournament's unique ID. |
+| `seed` | integer | optional | The seed for the tournament's random choices (pairing, byes, seating, and the `uid` of every player, pod and round). Absent in files written before format `1.4`; a reader then picks a new seed. See [Reproducibility](#reproducibility). |
+| `rng_counter` | integer | optional (default `0`) | How many random generators the tournament has derived from `seed` so far. See [Reproducibility](#reproducibility). |
 | `config` | object | must | Tournament rules and settings. See [The config object](#the-config-object). |
 | `players` | array of object | must | Every player in the tournament. See [Player objects](#player-objects). |
 | `rounds` | array of object | must | Every round played, in order. See [Round objects](#round-objects). |
@@ -73,7 +75,7 @@ scheme yet.
 A reader must accept a file with no `format_version` field as `"1.0"`.
 
 A reader must not reject a file whose `format_version` is a known older
-version (`"1.0"`, `"1.1"`, `"1.2"`) - attempt to read it without warning, since
+version (`"1.0"`, `"1.1"`, `"1.2"`, `"1.3"`) - attempt to read it without warning, since
 format changes are expected to stay additive (new optional fields) for
 the foreseeable future. Only a `format_version` this reader does not
 recognize at all warrants a warning. A breaking change bumps
@@ -123,6 +125,28 @@ field:
 - `players[].decklist` is now optional: a writer omits it when no decklist is
   recorded, and no longer writes `null`. A reader still accepts a missing key
   and `null` as the same thing.
+
+#### `1.3` → `1.4`
+
+Purely additive - a `1.3` file is already a valid `1.4` file. Every saved
+file now carries `format_version` `"1.4"`:
+
+- Top-level `seed` and `rng_counter` (see [Reproducibility](#reproducibility)).
+  A file without them still loads; the tournament gets a new seed.
+
+### Reproducibility
+
+Every random choice the tournament makes (byes, shuffles, seating, MTG
+tie-breaks, the Catan plan, and the `uid` of each new player, pod and round)
+comes from `seed`. Each choice, except the Catan plan (see
+[`PairingCatanPrelim`](#pairingcatanprelim)), uses a new `random.Random`
+seeded with the string `"<seed>:<n>"`, where `n` is `rng_counter` plus one,
+and `rng_counter` then goes up by one. With the same `seed` and the same actions (players added,
+results reported, rounds paired), EDH_matchmaker writes the same file, apart
+from `created_at`, `updated_at` and the tournament's own `uid`, which stays a
+random UUID so that two tournaments never share an ID or a log file. A loaded
+file continues from its saved `rng_counter`, so it pairs the next round the
+same as a run that never stopped.
 
 ### Minimal example
 
@@ -886,7 +910,7 @@ ignores results. The first game plans all preliminary games (games 1-3)
 together: different opponents first, then rotating play-order positions
 (seat order in `players`). Each round seats its game from that plan. The
 plan is not stored: it is recomputed from a seed made of the tournament
-`uid`, the plan's first round and the set of players seated in it, so the
+`seed`, the plan's first round and the set of players seated in it, so the
 same file always gives the same games. When the seated players change (a
 drop, a late player), the games from that round on are re-planned for the
 players still in, with the earlier rounds as history. When a round was not

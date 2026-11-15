@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import random
 import sys
 from abc import ABC
 from collections.abc import Callable, Mapping, Sequence
@@ -104,8 +103,9 @@ class CommonPairing(IPairingLogic, ABC):
         buckets = [[p for p in players if player_matches[p] == k] for k in keys]
 
         byes = set()
+        rng = tour_round.tour.rng()
         for b in buckets[::-1]:
-            byes.update(random.sample(b, min(len(b), n_byes - len(byes))))
+            byes.update(rng.sample(b, min(len(b), n_byes - len(byes))))
             if len(byes) >= n_byes:
                 break
         for p in byes:

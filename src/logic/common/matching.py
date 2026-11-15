@@ -1,5 +1,4 @@
 from __future__ import annotations
-import random
 from collections.abc import Sequence
 
 from ...interface import IPlayer, IPod, IRound
@@ -22,7 +21,7 @@ class PairingRandom(CommonPairing):
     ) -> set[IPlayer]:
         byes = self.assign_byes(tour_round, players, pods)
         active_players = list(players - byes)
-        random.shuffle(active_players)
+        tour_round.tour.rng().shuffle(active_players)
         # PairingRandom ignores ratings for placement; assign_byes computes
         # the field ratings once internally when not passed one.
 

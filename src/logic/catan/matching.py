@@ -33,9 +33,9 @@ def _history(rounds: Sequence[IRound]) -> Schedule:
     return [[list(pod._players) for pod in r.pods] for r in rounds]  # type: ignore[attr-defined]
 
 
-def plan_seed(tour_uid: UUID, field: frozenset[UUID], first_game: int) -> int:
-    """Stable seed from the tournament, the plan's first game and its field."""
-    text = "|".join([str(tour_uid), str(first_game), *sorted(map(str, field))])
+def plan_seed(tour_seed: int, field: frozenset[UUID], first_game: int) -> int:
+    """Stable seed from the tournament seed, the plan's first game and its field."""
+    text = "|".join([str(tour_seed), str(first_game), *sorted(map(str, field))])
     return int.from_bytes(hashlib.sha256(text.encode()).digest()[:8], "big")
 
 
@@ -46,7 +46,7 @@ class PairingCatanPrelim(CommonPairing):
     (games 1-3) at once, ignoring results: different opponents first, then
     rotating play order. Friends and family are not kept apart; the
     organizer swaps players by hand. Each round seats its own game from the
-    plan, which is recomputed from a seed (tournament uid, the plan's first
+    plan, which is recomputed from a seed (tournament seed, the plan's first
     game and its field), so nothing extra is saved.
 
     A plan holds while the field stays the same and every round is seated
@@ -107,7 +107,7 @@ class PairingCatanPrelim(CommonPairing):
             while start > 0 and _field(rounds[start - 1]) == field:
                 start -= 1
         while True:
-            rng = random.Random(plan_seed(tour.uid, field, start))  # type: ignore[attr-defined]
+            rng = random.Random(plan_seed(tour.seed, field, start))  # type: ignore[attr-defined]
             schedule = self._schedule(
                 rounds[start],
                 sorted(field, key=str),

@@ -1,7 +1,7 @@
 """Frozen-output (golden) tests for Commander and 1v1 MTG.
 
-Each scenario plays a seeded tournament with a fixed clock and deterministic
-UUIDs, then compares everything observable to a stored fixture in
+Each scenario plays a tournament with a fixed seed and a fixed clock, then
+compares everything observable to a stored fixture in
 ``tests/golden/``: pods per round, standings in every export format, the pods
 export, and the saved JSON. A later change that alters existing behaviour makes
 these fail. Regenerate deliberately with ``GOLDEN_UPDATE=1`` (see
@@ -15,9 +15,7 @@ import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest import mock
-from uuid import UUID
 
-from src.interface import IHashable
 from src.core import StandingsExport, Tournament, TournamentAction, TournamentConfiguration
 
 TournamentAction.LOGF = False  # type: ignore
@@ -35,17 +33,12 @@ class _FixedDatetime(datetime):
 
 def _scenario(config: dict, n_players: int, n_swiss: int, cut_stages: int = 0) -> dict:
     """Plays one seeded tournament and returns all frozen outputs as plain data."""
+    # The tournament seed drives pairing; random_results simulates results
+    # with the global generator.
     random.seed(SEED)
-    counter = iter(range(1, 10**6))
     out: dict = {"rounds": []}
-    with (
-        mock.patch("src.interface.uuid4", lambda: UUID(int=next(counter))),
-        mock.patch("src.core.datetime", _FixedDatetime),
-        # Default object hashes are memory addresses, which change set iteration
-        # order (and so seeded shuffles) between runs; hash by uid instead.
-        mock.patch.object(IHashable, "__hash__", lambda self: hash(self.uid), create=True),
-    ):
-        t = Tournament(TournamentConfiguration(auto_export=False, **config))
+    with mock.patch("src.core.datetime", _FixedDatetime):
+        t = Tournament(TournamentConfiguration(auto_export=False, **config), seed=SEED)
         t.add_player([f"P{i:02d}" for i in range(n_players)])
         for _ in range(n_swiss + cut_stages):
             assert t.create_pairings()
@@ -64,7 +57,10 @@ def _scenario(config: dict, n_players: int, n_swiss: int, cut_stages: int = 0) -
                     },
                 }
             )
-        out["saved"] = t.serialize()
+        # The tournament's own uid stays random (uuid4): it names the log file
+        # and keys the global Tournament cache, so two tournaments never share
+        # one. Everything else in the save comes from the seed.
+        out["saved"] = json.loads(json.dumps(t.serialize()).replace(str(t.uid), "TOUR_UID"))
     return out
 
 

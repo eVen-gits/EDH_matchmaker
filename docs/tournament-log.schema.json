@@ -23,6 +23,8 @@
     "created_at": { "type": "string", "format": "date-time" },
     "updated_at": { "type": "string", "format": "date-time" },
     "uid": { "$ref": "#/$defs/uid" },
+    "seed": { "type": "integer", "description": "Seed for the tournament's random choices. Absent before format 1.4." },
+    "rng_counter": { "type": "integer", "minimum": 0, "description": "Generators derived from seed so far. Absent means 0." },
     "config": { "$ref": "#/$defs/config" },
     "players": {
       "type": "array",

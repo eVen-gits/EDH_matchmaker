@@ -1,4 +1,5 @@
 from __future__ import annotations
+import random
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import IntEnum
@@ -76,7 +77,14 @@ class IHashable:
                 self.uid = uid
         else:
             self.uid: UUID = uuid4()
+        self._hash = hash(self.uid)
         self.CACHE[self.uid] = self
+
+    def __hash__(self) -> int:
+        # By uid, not memory address, so iterating a set of players or pods
+        # follows the same order in every run (uids come from the seed).
+        # Precomputed: UUID.__hash__ is slow Python on a hot path.
+        return self._hash
 
     @classmethod
     def get(cls, ID: UUID) -> IHashable:
@@ -181,6 +189,10 @@ class ITournament(IHashable, ABC):
 
     @abstractmethod
     def get_standings(self, tour_round: IRound) -> list[IPlayer]: ...
+
+    @abstractmethod
+    def rng(self) -> random.Random:
+        """A new generator, derived from the tournament seed, for one random decision."""
 
 
 class IPod(IHashable, ABC):

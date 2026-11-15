@@ -954,12 +954,12 @@ class Tournament(ITournament):
     # Version of the tournament-log JSON format written by TournamentAction.store.
     # Bump this, and add the new version to KNOWN_FORMAT_VERSIONS, whenever a
     # change to serialize()/inflate() is not backward compatible.
-    LOG_FORMAT_VERSION = "1.3"
+    LOG_FORMAT_VERSION = "1.4"
     # Every format_version this implementation can read without warning - a
     # reader must not assume a default for a missing config field beyond
     # what inflate() already handles, but a known older version is not
     # itself cause for a warning (only a version outside this set is).
-    KNOWN_FORMAT_VERSIONS = frozenset({"1.0", "1.1", "1.2", "1.3"})
+    KNOWN_FORMAT_VERSIONS = frozenset({"1.0", "1.1", "1.2", "1.3", "1.4"})
 
     @classmethod
     def _discover_logic(
@@ -1144,12 +1144,15 @@ class Tournament(ITournament):
         self,
         config: TournamentConfiguration | None = None,
         uid: UUID | None = None,
+        seed: int | None = None,
     ):  # type: ignore
         """Initializes a new Tournament instance.
 
         Args:
             config: The configuration object for the tournament. If None, a default configuration is used.
             uid: The unique identifier for the tournament. If None, a new UUID is generated.
+            seed: Seed for every random decision (see `rng`). If None, one is
+                drawn from the global `random` generator.
         """
         if config is None:
             config = TournamentConfiguration()
@@ -1165,6 +1168,10 @@ class Tournament(ITournament):
         # self._disabled: list[UUID] = list()  # Players disabled from top cut (but still in tournament)
         self._round: UUID | None = None
         self.created_at: datetime = datetime.now(timezone.utc)
+        self.seed: int = random.getrandbits(32) if seed is None else seed
+        # Generators handed out so far; saved, so a loaded tournament
+        # continues the same sequence (see rng()).
+        self._rng_counter: int = 0
         # Per-tournament log file override; see TournamentAction.log_path.
         self.log_path: str | None = None
 
@@ -1197,6 +1204,21 @@ class Tournament(ITournament):
     @property
     def players(self) -> set[Player]:
         return {Player.get(self, x) for x in self._players}
+
+    @override
+    def rng(self) -> random.Random:
+        """Returns a new generator for one random decision.
+
+        Each generator is derived from the seed and a counter saved with the
+        tournament, so the same seed and the same actions give the same
+        draws, also across a save and load.
+        """
+        self._rng_counter += 1
+        return random.Random(f"{self.seed}:{self._rng_counter}")
+
+    def new_uid(self) -> UUID:
+        """Returns a seed-derived UUID for a new player, pod or round."""
+        return UUID(int=self.rng().getrandbits(128), version=4)
 
     @property
     def tour_round(self) -> Round | None:
@@ -2479,6 +2501,8 @@ class Tournament(ITournament):
         data["created_at"] = self.created_at.isoformat()
         data["updated_at"] = datetime.now(timezone.utc).isoformat()
         data["uid"] = str(self.uid)
+        data["seed"] = self.seed
+        data["rng_counter"] = self._rng_counter
         data["config"] = self.config.serialize()
         data["players"] = list(p.serialize() for p in self.players)
         # data['dropped'] = [p.serialize() for p in self.dropped_players]
@@ -2511,14 +2535,17 @@ class Tournament(ITournament):
         cls.__validate_config_values(config)
         tour_uid = UUID(data["uid"])
         if tour_uid in Tournament.CACHE:
-            tour = Tournament.CACHE[tour_uid]
+            tour = cast(Tournament, Tournament.CACHE[tour_uid])
         else:
-            tour = cls(config, tour_uid)
+            tour = cls(config, tour_uid, seed=data.get("seed"))
         # Older log files (before format_version existed) have no created_at;
         # __init__ already stamped tour.created_at with the load time, which
         # is the best available fallback.
         if "created_at" in data:
             tour.created_at = datetime.fromisoformat(data["created_at"])
+        # Older files have no seed: keep the one __init__ drew.
+        tour.seed = data.get("seed", tour.seed)
+        tour._rng_counter = data.get("rng_counter", tour._rng_counter)
         tour._players = {UUID(d_player["uid"]) for d_player in data["players"]}
         # tour._dropped = [UUID(d_player['uid']) for d_player in data['dropped']]
         # tour._disabled = [UUID(d_player['uid']) for d_player in data['disabled']]
@@ -2568,7 +2595,7 @@ class Player(IPlayer):
             decklist: Optional URL or string representing the player's decklist.
         """
         self._tour = tour.uid
-        super().__init__(uid=uid)
+        super().__init__(uid=uid or tour.new_uid())
         self.name = name
         self.decklist = decklist
         self.CACHE[self.uid] = self
@@ -3205,7 +3232,7 @@ class Pod(IPod):
         """
         self._tour = tour_round._tour
         self._round = tour_round.uid
-        super().__init__(uid=uid)
+        super().__init__(uid=uid or tour_round.tour.new_uid())
         self.cap: int = cap
         self._players: list[UUID] = list()
         # The pod's whole-match report, in play order. Validated and
@@ -3405,9 +3432,10 @@ class Pod(IPod):
                 sum([1 for x in average_positions if x < average_positions[i]]) + 1
             )
         # randomize players with same average_seat
-        seat_assignment = [x + random.random() for x in seat_assignment]
+        rng = self.tour.rng()
+        seat_assignment = [x + rng.random() for x in seat_assignment]
         # sort players based on seat assignment
-        self._players[:] = np.take(self._players, np.argsort(seat_assignment))
+        self._players[:] = np.take(self._players, np.argsort(seat_assignment))  # pyright: ignore[reportCallIssue, reportArgumentType]
 
         pass
 
@@ -3589,7 +3617,7 @@ class Round(IRound):
             game_loss: Optional set of player UUIDs who have game losses.
         """
         self._tour: UUID = tour.uid
-        super().__init__(uid=uid)
+        super().__init__(uid=uid or tour.new_uid())
         self.tour.ROUND_CACHE[self.uid] = self
         self.seq: int = seq
         self.stage: Round.Stage = stage

@@ -36,7 +36,7 @@ class TestGameScores(unittest.TestCase):
         t2 = cast(Tournament, Tournament.inflate(ser))
         assert t2.tour_round is not None
         self.assertEqual(t2.tour_round.pods[0].games, pod.games)
-        self.assertEqual(t2.serialize()["format_version"], "1.3")
+        self.assertEqual(t2.serialize()["format_version"], "1.4")
 
         pod.remove_result(pod.players[1])
         self.assertEqual(pod.games[0].scores, tuple(sorted(((a, 10), (c, 5), (d, 3)))))

@@ -6,7 +6,6 @@ from ...interface import IPlayer, IPod, IRound
 from ..common.pairing import CommonPairing
 
 from typing_extensions import override
-import random
 
 
 class PairingSnake(CommonPairing):
@@ -53,8 +52,9 @@ class PairingSnake(CommonPairing):
         bucket_order = sorted(buckets.keys(), reverse=True)
 
         # Shuffle players within buckets for randomness
+        rng = tour_round.tour.rng()
         for b in buckets.values():
-            random.shuffle(b)
+            rng.shuffle(b)
 
         # 2. Pre-process Candidates
         # Structure: bucket_key -> prev_pod_id -> List[Player]

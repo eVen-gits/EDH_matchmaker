@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   elimination, and playoffs. In the GUI, the **Report score** pod action opens
   a VP dialog for Catan tables. See the README's "Running a Catan event".
 - Frozen-output golden tests for Commander and 1v1 MTG.
+- Tournaments are reproducible from a seed: `Tournament(seed=...)` drives every
+  random choice (byes, shuffles, seating, the uids of players, pods and
+  rounds), so the same seed and the same actions give the same tournament in
+  any process. The seed is saved (log format `1.4`, fields `seed` and
+  `rng_counter`), so a loaded tournament continues the same sequence.
 
 ### Fixed
 - The 1v1 game tiebreakers (GW and OGW) now score a game won with the

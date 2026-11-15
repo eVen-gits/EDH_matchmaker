@@ -1,5 +1,4 @@
 from __future__ import annotations
-import random
 from typing import Any
 
 from ..common.pairing import CommonPairing
@@ -89,30 +88,40 @@ class Pairing1v1(CommonPairing):
         gap_unit = n_byes * n_players + 1
         rematch_unit = gap_unit * (n_edges + 1) * (n_groups**2 + 1)
 
+        rng = tour.rng()
+
         def weight(cost: int) -> int:
-            return -cost * unit + random.randrange(jitter_range)
+            return -cost * unit + rng.randrange(jitter_range)
 
         graph: Any = nx.Graph()
         bye_nodes = [f"__bye_{i}__" for i in range(n_byes)]
-        graph.add_nodes_from(ordered_players)
-        graph.add_nodes_from(bye_nodes)
+        # The graph's nodes are indices into `nodes`: max_weight_matching
+        # hashes nodes O(P^3) times, and an int hashes much faster than a
+        # player (whose hash is a Python method).
+        nodes: list[Any] = [*ordered_players, *bye_nodes]
+        n_ordered = len(ordered_players)
+        graph.add_nodes_from(range(len(nodes)))
 
         for i, a in enumerate(ordered_players):
-            for b in ordered_players[i + 1 :]:
+            for j in range(i + 1, n_ordered):
+                b = ordered_players[j]
                 if a in anchored_set and b in anchored_set:
                     continue
                 cost = rematch_unit * met(a, b) + gap_unit * (g[a] - g[b]) ** 2
-                graph.add_edge(a, b, weight=weight(cost))
+                graph.add_edge(i, j, weight=weight(cost))
             if a in free_set:
-                for bye_node in bye_nodes:
+                for k in range(n_ordered, len(nodes)):
                     cost = (
                         rematch_unit * a.byes(tour_round)
                         + gap_unit * (g_low - g[a]) ** 2
                         + rank_from_bottom[a]
                     )
-                    graph.add_edge(a, bye_node, weight=weight(cost))
+                    graph.add_edge(i, k, weight=weight(cost))
 
-        matching = nx.max_weight_matching(graph, maxcardinality=True)
+        matching = [
+            (nodes[u], nodes[v])
+            for u, v in nx.max_weight_matching(graph, maxcardinality=True)
+        ]
         matched = {node for pair in matching for node in pair}
         if matched != set(ordered_players) | set(bye_nodes):
             raise ValueError(
