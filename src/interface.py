@@ -81,8 +81,8 @@ class IHashable:
         self.CACHE[self.uid] = self
 
     def __hash__(self) -> int:
-        # By uid, not memory address, so iterating a set of players or pods
-        # follows the same order in every run (uids come from the seed).
+        # By uid, not memory address, so iterating a set of players follows
+        # the same order in every run that uses the same player uids.
         # Precomputed: UUID.__hash__ is slow Python on a hot path.
         return self._hash
 
@@ -190,10 +190,6 @@ class ITournament(IHashable, ABC):
     @abstractmethod
     def get_standings(self, tour_round: IRound) -> list[IPlayer]: ...
 
-    @abstractmethod
-    def rng(self, *key: object, seed: int | None = None) -> random.Random:
-        """The generator for one random decision, from the seed (the
-        tournament's current one unless given) and `key`."""
 
 
 class IPod(IHashable, ABC):
@@ -246,7 +242,7 @@ class IRound(IHashable, ABC):
 
     seq: int
     stage: Any
-    seed: int
+    seed: int | None
     logic: IPairingLogic
     _tour: UUID
     _pods: list[UUID]

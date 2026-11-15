@@ -48,10 +48,11 @@ GUI tests (marked `gui`) run locally only; CI deselects them with `-m "not slow 
 `tests/test_golden.py` plays seeded Commander and 1v1 MTG tournaments and
 compares everything observable (pods per round, standings in every export
 format, the pods export and the saved JSON) to fixtures in `tests/golden/`.
-It passes a fixed tournament seed, seeds the global `random` (which simulates
-results) and patches only the clock (`datetime.now`); the tournament's own
-`uid` is random and replaced by a placeholder. If one of these tests fails,
-existing behaviour changed.
+It adds players with given `uid`s, passes a fixed seed to the first pairing
+(later rounds keep it), seeds the global `random` (which simulates results)
+and patches only the clock (`datetime.now`). Tournament, round and pod `uid`s
+are random, so they are replaced by placeholders. If one of these tests
+fails, existing behaviour changed.
 
 If the change is intended, regenerate the fixtures, review the diff of
 `tests/golden/` and commit it with the code change:

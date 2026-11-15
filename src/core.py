@@ -1146,15 +1146,12 @@ class Tournament(ITournament):
         self,
         config: TournamentConfiguration | None = None,
         uid: UUID | None = None,
-        seed: int | None = None,
     ):  # type: ignore
         """Initializes a new Tournament instance.
 
         Args:
             config: The configuration object for the tournament. If None, a default configuration is used.
             uid: The unique identifier for the tournament. If None, a new UUID is generated.
-            seed: Seed for every random decision (see `rng`). If None, one is
-                drawn from the global `random` generator.
         """
         if config is None:
             config = TournamentConfiguration()
@@ -1170,7 +1167,6 @@ class Tournament(ITournament):
         # self._disabled: list[UUID] = list()  # Players disabled from top cut (but still in tournament)
         self._round: UUID | None = None
         self.created_at: datetime = datetime.now(timezone.utc)
-        self.seed: int = random.getrandbits(32) if seed is None else seed
         # Per-tournament log file override; see TournamentAction.log_path.
         self.log_path: str | None = None
 
@@ -1203,56 +1199,6 @@ class Tournament(ITournament):
     @property
     def players(self) -> set[Player]:
         return {Player.get(self, x) for x in self._players}
-
-    @override
-    def rng(self, *key: object, seed: int | None = None) -> random.Random:
-        """Returns the generator for one random decision, named by `key`.
-
-        The generator depends only on the seed and the key (for example the
-        round's seq and stage and the decision's purpose), never on earlier
-        draws. So a tournament rebuilt from its log, or a round paired again,
-        makes the same decision.
-
-        Args:
-            key: Stable identifiers of the decision (ints and strings).
-            seed: The seed to use instead of the tournament's current one
-                (a round passes the seed it is paired with).
-        """
-        seed = self.seed if seed is None else seed
-        return random.Random(":".join(map(str, (seed, *key))))
-
-    @TournamentAction.action
-    def set_seed(self, seed: int) -> None:
-        """Changes the seed that the next pairing uses.
-
-        Rounds already paired keep the seed they were paired with
-        (`Round.seed`, saved per round), so they stay reproducible. Pairing a
-        round again after a change uses the new seed.
-
-        Args:
-            seed: The new seed.
-        """
-        if isinstance(seed, bool) or not isinstance(seed, int):
-            raise TypeError(f"seed must be an int, not {type(seed).__name__}")
-        self.seed = seed
-
-    def new_uid(self, *key: object) -> UUID:
-        """Returns a seed-derived UUID for a new player, pod or round.
-
-        Derived from the seed and `key`; skips any uid this tournament
-        already uses, so it never collides.
-
-        Args:
-            key: Stable identifiers of the new object (kind and position).
-        """
-        n = 0
-        while True:
-            uid = UUID(int=self.rng("uid", *key, n).getrandbits(128), version=4)
-            if not (
-                uid in self.PLAYER_CACHE or uid in self.POD_CACHE or uid in self.ROUND_CACHE
-            ):
-                return uid
-            n += 1
 
     @property
     def tour_round(self) -> Round | None:
@@ -1919,12 +1865,17 @@ class Tournament(ITournament):
         return True
 
     @TournamentAction.action
-    def create_pairings(self) -> bool:
+    def create_pairings(self, seed: int | None = None) -> bool:
         """Creates pairings for the current round.
 
         If the round has not been initialized or previous rounds are not complete, this method attempts
         to handle those states. The Swiss pairing logic per round comes from
         config.pairing_logics (see __compute_stage_and_logic).
+
+        Args:
+            seed: The seed for this round's random choices, saved with the
+                round. Pass a different one to get a different pairing. If
+                None, see `Round.create_pairings`.
 
         Returns:
             bool: True if pairings were successfully created (or were already created). False if
@@ -1946,7 +1897,7 @@ class Tournament(ITournament):
                 tour_round.stage, tour_round.logic = result
         assert self.last_round is not None
         if not self.last_round.all_players_assigned:
-            self.last_round.create_pairings()
+            self.last_round.create_pairings(seed)
             return True
         return False
 
@@ -2537,7 +2488,6 @@ class Tournament(ITournament):
         data["created_at"] = self.created_at.isoformat()
         data["updated_at"] = datetime.now(timezone.utc).isoformat()
         data["uid"] = str(self.uid)
-        data["seed"] = self.seed
         data["config"] = self.config.serialize()
         data["players"] = list(p.serialize() for p in self.players)
         # data['dropped'] = [p.serialize() for p in self.dropped_players]
@@ -2575,14 +2525,12 @@ class Tournament(ITournament):
             tour.POD_CACHE.clear()
             tour.ROUND_CACHE.clear()
         else:
-            tour = cls(config, tour_uid, seed=data.get("seed"))
+            tour = cls(config, tour_uid)
         # Older log files (before format_version existed) have no created_at;
         # __init__ already stamped tour.created_at with the load time, which
         # is the best available fallback.
         if "created_at" in data:
             tour.created_at = datetime.fromisoformat(data["created_at"])
-        # Older files have no seed: keep the one __init__ drew.
-        tour.seed = data.get("seed", tour.seed)
         tour._players = {UUID(d_player["uid"]) for d_player in data["players"]}
         # tour._dropped = [UUID(d_player['uid']) for d_player in data['dropped']]
         # tour._disabled = [UUID(d_player['uid']) for d_player in data['disabled']]
@@ -2629,11 +2577,11 @@ class Player(IPlayer):
         Args:
             tour: The tournament the player belongs to.
             name: The name of the player.
-            uid: The unique identifier for the player. If None, one is derived from the tournament seed (see `Tournament.new_uid`).
+            uid: The unique identifier for the player. If None, a new UUID is generated.
             decklist: Optional URL or string representing the player's decklist.
         """
         self._tour = tour.uid
-        super().__init__(uid=uid or tour.new_uid("player", len(tour.PLAYER_CACHE)))
+        super().__init__(uid=uid)
         self.name = name
         self.decklist = decklist
         self.CACHE[self.uid] = self
@@ -3270,7 +3218,7 @@ class Pod(IPod):
         """
         self._tour = tour_round._tour
         self._round = tour_round.uid
-        super().__init__(uid=uid or tour_round.tour.new_uid("pod", tour_round.seq, table))
+        super().__init__(uid=uid)
         self.cap: int = cap
         self._players: list[UUID] = list()
         # The pod's whole-match report, in play order. Validated and
@@ -3654,15 +3602,15 @@ class Round(IRound):
             disabled: Optional set of disabled player UUIDs.
             byes: Optional set of player UUIDs who have byes.
             game_loss: Optional set of player UUIDs who have game losses.
-            seed: The seed this round is paired with. Defaults to the
-                tournament's current seed; pairing sets it again.
+            seed: The seed this round is paired with, if known (see
+                `create_pairings`).
         """
         self._tour: UUID = tour.uid
-        super().__init__(uid=uid or tour.new_uid("round", seq))
+        super().__init__(uid=uid)
         self.tour.ROUND_CACHE[self.uid] = self
         self.seq: int = seq
         self.stage: Round.Stage = stage
-        self.seed: int = tour.seed if seed is None else seed
+        self.seed: int | None = seed
         self._digest: str | None = None  # input_digest() while pairing
 
         self._pods: list[UUID] = list()
@@ -3998,13 +3946,27 @@ class Round(IRound):
         for p in standings[self.stage.value : :]:
             self.disable_player(p, set_disabled=True)
 
-    def create_pairings(self) -> None:
+    def create_pairings(self, seed: int | None = None) -> None:
         """Executes the pairing logic to assign players to pods.
 
         This method uses the round's `pairing_logic` to determine match-ups and assigns
         players to the pods created by `create_pods`.
+
+        Args:
+            seed: The seed for this round's random choices. If None, the
+                round keeps the seed it was already paired with, else takes
+                the previous round's seed; a first round (or one after a
+                round without a seed) draws a new one from the global
+                `random` generator.
         """
-        self.seed = self.tour.seed
+        if seed is not None:
+            if isinstance(seed, bool) or not isinstance(seed, int):
+                raise TypeError(f"seed must be an int, not {type(seed).__name__}")
+            self.seed = seed
+        elif self.seed is None:
+            prev_round = self.tour.previous_round(self)
+            prev_seed = prev_round.seed if prev_round is not None else None
+            self.seed = random.getrandbits(32) if prev_seed is None else prev_seed
         if self.stage != Round.Stage.SWISS:
             # Reset disabled set to the previous round's baseline so that re-pairing
             # after reset_pods() + config change doesn't keep stale topcut entries.
@@ -4229,8 +4191,8 @@ class Round(IRound):
         draw (pairing the round again gives the same result); any change in
         the inputs gives an independent draw.
         """
-        key = (self.seq, self.stage.value, self._digest or self.input_digest(), *purpose)
-        return self.tour.rng(*key, seed=self.seed)
+        key = (self.seed, self.seq, self.stage.value, self._digest or self.input_digest(), *purpose)
+        return random.Random(":".join(map(str, key)))
 
     def input_digest(self) -> str:
         """A stable digest of what this round's pairing depends on.
@@ -4273,9 +4235,8 @@ class Round(IRound):
             "disabled": [str(p) for p in self._disabled],
             "byes": [str(p) for p in self._byes],
             "game_loss": [str(p) for p in self._game_loss],
-            "seed": self.seed,
             "pods": [pod.serialize() for pod in self.pods],
-        }
+        } | ({} if self.seed is None else {"seed": self.seed})
 
     @classmethod
     def inflate(cls, tour: Tournament, data: dict[str, Any]) -> Round:
@@ -4294,7 +4255,7 @@ class Round(IRound):
             new_round._disabled = {UUID(x) for x in data["disabled"]}
             new_round._byes = {UUID(x) for x in data["byes"]}
             new_round._game_loss = {UUID(x) for x in data["game_loss"]}
-            new_round.seed = data.get("seed", tour.seed)
+            new_round.seed = data.get("seed")
         else:
             new_round = cls(
                 tour,

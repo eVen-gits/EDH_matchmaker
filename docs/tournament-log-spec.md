@@ -54,7 +54,6 @@ having a single writer.
 | `created_at` | string (ISO 8601) | optional | When the tournament was first created. Absent in files written before format `1.0`. |
 | `updated_at` | string (ISO 8601) | optional | When this file was last written. |
 | `uid` | string (UUID) | must | The tournament's unique ID. |
-| `seed` | integer | optional | The current seed for the tournament's random choices (pairing, byes, later-round seat tie-breaks, and the `uid` of every player, pod and round it creates): the one the next pairing uses. Each round records the seed it was paired with in `rounds[].seed`. Absent in files written before format `1.4`; a reader then picks a new seed. See [Reproducibility](#reproducibility). |
 | `config` | object | must | Tournament rules and settings. See [The config object](#the-config-object). |
 | `players` | array of object | must | Every player in the tournament. See [Player objects](#player-objects). |
 | `rounds` | array of object | must | Every round played, in order. See [Round objects](#round-objects). |
@@ -127,27 +126,34 @@ field:
 Purely additive - a `1.3` file is already a valid `1.4` file. Every saved
 file now carries `format_version` `"1.4"`:
 
-- Top-level `seed`, `rounds[].seed` and `generator.version` (see
-  [Reproducibility](#reproducibility)). A file without a seed still loads; the
-  tournament gets a new seed.
+- `rounds[].seed` and `generator.version` (see
+  [Reproducibility](#reproducibility)). A file without round seeds still
+  loads; its next pairing draws a new seed.
 
 ### Reproducibility
 
-`seed`, `generator.version`, `config`, `players` (with their `uid`s) and the
-`rounds` played so far are enough to reproduce the next round's pairing. No
-other state is needed: a program can build a new tournament from these fields
-alone, rebuild the earlier rounds from their pods and results without pairing
-them, and pair the next round, and it gets the same pods, seat order and byes
-as the run that wrote the file. Pairing the same round again (for example
-after undoing it) with the same inputs also gives the same result.
+`generator.version`, `config`, `players` (with their `uid`s), the `rounds`
+played so far (each with its `seed`) and the next round's seed are enough to
+reproduce the next round's pairing. No other state is needed: a program can
+build a new tournament from these fields alone, rebuild the earlier rounds
+from their pods, results and seeds without pairing them, and pair the next
+round with its seed, and it gets the same pods, seat order and byes as the
+run that wrote the file. Pairing the same round again (for example after
+undoing it) with the same seed and inputs also gives the same result.
 Reproduction needs the same engine version, since a later version may pair
 differently.
 
-The seed can change between rounds (`Tournament.set_seed(n)` in Python). A new
-seed gives a different pairing for the next round. Each round records the seed
-it was paired with (`rounds[].seed`), and the top-level `seed` is the current
-one. To reproduce round `k`, use `rounds[k].seed` as the seed, with the rounds
-before `k`.
+The seed belongs to a round, not to the tournament: there is no top-level
+seed. Each round records the seed it was paired with (`rounds[].seed`). The
+seed for a pairing comes from the caller, or else from this rule:
+
+1. If the caller passes a seed, the round uses it. Passing a different seed
+   gives a different pairing.
+2. If not, a round that already has a seed (it is being paired again) keeps
+   it.
+3. If not, the round takes the previous round's seed.
+4. If there is no previous round, or it has no seed (a file written before
+   format `1.4`), a new seed is drawn at random.
 
 Each random choice in a round (byes, shuffles, later-round seat tie-breaks, MTG
 tie-breaks) uses its own `random.Random`, seeded with a string made of the
@@ -157,25 +163,29 @@ table). The digest covers the players taking part (their sorted `uid`s) and
 every earlier round's stage, pods (players in seat order), games, byes, game
 losses, dropped and disabled players. Identical inputs give the identical
 draw. Any change, such as a player added or dropped or a result changed, gives
-an independent draw, not a slightly shifted one. The `uid` of each new player,
-pod and round comes from `seed` and its kind and position. The Catan plan has
-its own seed, made from the round's `seed`, its first round and its field, and
-ignores results (see [`PairingCatanPrelim`](#pairingcatanprelim)). No choice
-depends on how many draws came before it, and players are always taken in
-`uid` order before a random choice or a tie-break, never in the order they were
-added. So the pairing depends on the players' `uid`s, not on the `uid`s of pods
-and rounds.
+an independent draw, not a slightly shifted one. The Catan plan has its own
+seed, made from the `seed` of the plan's first round, that round and its
+field, and ignores results (see [`PairingCatanPrelim`](#pairingcatanprelim)).
+No choice depends on how many draws came before it, and players are always
+taken in `uid` order before a random choice or a tie-break, never in the
+order they were added.
 
-When players are added without a `uid`, EDH_matchmaker derives one from
-`seed`, so the same seed and the same actions write the same file, apart from
-`created_at`, `updated_at` and the tournament's own `uid`. The tournament's
-`uid` stays a random UUID, so two tournaments never share an ID or a log file.
-Seating is deterministic for a given seed.
+The pairing depends on the players' `uid`s, which are inputs, and never on
+the `uid`s of the tournament, its pods or its rounds, which are random
+UUIDs. A player added without a `uid` also gets a random UUID, so two fresh
+runs that add the same names are not identical. Reproduce from the log, or
+from inputs that include each player's `uid`. Seating is deterministic for a
+given seed and inputs.
 
-In Python, pass the seed when you construct the tournament:
-`Tournament(config, seed=log["seed"])`. Then add each player with its logged
-`uid` (`tournament.add_player(name=..., uid=UUID(...))`). Without `seed=`, the
-tournament draws a new seed from the global `random` generator.
+In Python:
+
+- **Next round:** pass the seed when you pair, with
+  `tournament.create_pairings(seed=n)`. Without `seed=`, the rule above
+  applies.
+- **Stateless rebuild:** add each player with its logged `uid`
+  (`tournament.add_player(name=..., uid=UUID(...))`). Rebuild each earlier
+  round with its logged seed (`Round(..., seed=rounds[k]["seed"])`), then call
+  `create_pairings(seed=...)` for the next round.
 
 ### Minimal example
 
@@ -310,7 +320,7 @@ Each entry in the top-level `rounds` array:
 | `disabled` | array of string (UUID) | Players still in the tournament but not eligible to play this round, for example players eliminated from a playoff cut. |
 | `byes` | array of string (UUID) | Players who received a bye this round instead of a pod. |
 | `game_loss` | array of string (UUID) | Players who received a game loss this round. |
-| `seed` | integer | Optional. The seed this round was paired with. Absent before format `1.4`; a reader then uses the top-level `seed`. See [Reproducibility](#reproducibility). |
+| `seed` | integer | Optional. The seed this round was paired with. Absent before format `1.4`, and for a round not paired yet. See [Reproducibility](#reproducibility). |
 | `pods` | array of object | The pods played this round. See [Pod objects](#pod-objects). |
 
 ### Pod objects
@@ -939,8 +949,8 @@ Catan's preliminary pairing (`src/logic/catan/matching.py`, rule 1.1.6). It
 ignores results. The first game plans all preliminary games (games 1-3)
 together: different opponents first, then rotating play-order positions
 (seat order in `players`). Each round seats its game from that plan. The
-plan is not stored: it is recomputed from a seed made of the round's
-`seed`, the plan's first round and the set of players seated in it, so the
+plan is not stored: it is recomputed from a seed made of the `seed` of the
+plan's first round, that round and the set of players seated in it, so the
 same file always gives the same games. When the seated players change (a
 drop, a late player), the games from that round on are re-planned for the
 players still in, with the earlier rounds as history. When a round was not

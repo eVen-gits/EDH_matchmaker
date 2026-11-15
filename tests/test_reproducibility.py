@@ -1,8 +1,10 @@
-"""A tournament is reproducible from its seed, with no test-time patching.
+"""A tournament is reproducible from its round seeds and inputs, with no
+test-time patching.
 
-Each game's tournament is played in separate processes with different
-PYTHONHASHSEED values, memory layouts and real uuid4; pairings, standings and the saved JSON
-must match. A save and load mid-tournament must continue the same sequence,
+Each game's tournament (players with given uids, a seed for the first
+round) is played in separate processes with different PYTHONHASHSEED values,
+memory layouts and real uuid4 for pods and rounds; pairings, standings and
+the saved JSON must match. A save and load mid-tournament must continue the same sequence,
 and a tournament rebuilt statelessly from its log (the way a wrapper service
 rebuilds one on every call) must pair each next round the same.
 """
@@ -30,6 +32,25 @@ GAMES = {
 }
 
 
+def _new(config: dict, n_players: int) -> Tournament:
+    """A tournament with players P00.. whose uids are given inputs."""
+    t = Tournament(TournamentConfiguration(auto_export=False, **config))
+    t.add_player([(f"P{i:02d}", UUID(int=i + 1)) for i in range(n_players)])
+    return t
+
+
+def normalized_log(t: Tournament) -> dict:
+    """The saved log with the random tournament, round and pod uids named
+    by position (they are not inputs, so they differ between runs)."""
+    log = t.serialize()
+    text = json.dumps(log).replace(str(t.uid), "TOUR")
+    for k, r in enumerate(log["rounds"]):
+        text = text.replace(r["uid"], f"ROUND{k}")
+        for j, pod in enumerate(r["pods"]):
+            text = text.replace(pod["uid"], f"POD{k}.{j}")
+    return json.loads(text)
+
+
 def _round_out(t: Tournament) -> dict:
     r = t.tour_round
     assert r is not None
@@ -44,32 +65,31 @@ def play(game: str, reload_after: int | None = None) -> dict:
     """Plays one seeded tournament; with reload_after, saves and reloads it then."""
     config, n_players, n_rounds = GAMES[game]
     random.seed(SEED)  # random_results simulates results with the global generator
-    t = Tournament(TournamentConfiguration(auto_export=False, **config), seed=SEED)
-    t.add_player([f"P{i:02d}" for i in range(n_players)])
+    t = _new(config, n_players)
     rounds = []
     for i in range(n_rounds):
         if i == reload_after:
             # Under a new uid, so it is a fresh load, not the cached tournament.
             saved = json.dumps(t.serialize()).replace(str(t.uid), str(uuid4()))
             t = cast(Tournament, Tournament.inflate(json.loads(saved)))
-        assert t.create_pairings()
+        # A seed for the first round only: later rounds keep the previous one.
+        assert t.create_pairings(seed=SEED if i == 0 else None)
         t.random_results()
         rounds.append(_round_out(t))
-    # The tournament uid stays random by design; everything else is seeded.
-    saved = json.dumps(t.serialize()).replace(str(t.uid), "TOUR_UID")
-    return {"rounds": rounds, "saved": json.loads(saved)}
+    return {"rounds": rounds, "saved": normalized_log(t)}
 
 
 def pair_statelessly(log: dict, seq: int) -> dict:
     """Pairs round `seq` from the log alone, as a stateless wrapper does.
 
-    Builds a fresh tournament from the logged config and seed, adds the
-    players with their logged uids (in reverse order, so nothing can lean on
-    insertion order), rebuilds rounds before `seq` directly from their pods
-    and results with no pairing call, then pairs once.
+    Builds a fresh tournament from the logged config, adds the players with
+    their logged uids (in reverse order, so nothing can lean on insertion
+    order), rebuilds rounds before `seq` directly from their pods and results
+    with no pairing call (each with its logged seed, which a Catan plan reads),
+    then pairs once with round `seq`'s logged seed.
     """
     config = TournamentConfiguration.inflate(log["config"])
-    t = Tournament(config, seed=log["seed"])
+    t = Tournament(config)
     try:
         players = {
             d["uid"]: t.add_player(name=d["name"], uid=UUID(d["uid"]))[0]
@@ -86,6 +106,7 @@ def pair_statelessly(log: dict, seq: int) -> dict:
                 game_loss=uids(d_round["game_loss"]),
                 dropped=uids(d_round["dropped"]),
                 disabled=uids(d_round["disabled"]),
+                seed=d_round.get("seed"),
             )
             t._rounds.append(r.uid)
             t._round = r.uid
@@ -104,7 +125,7 @@ def pair_statelessly(log: dict, seq: int) -> dict:
                     ]
                 )
             r.refresh_player_location_map()
-        assert t.create_pairings()
+        assert t.create_pairings(seed=log["rounds"][seq]["seed"])
         r = t.tour_round
         assert r is not None
         return {
@@ -165,9 +186,8 @@ class TestReproducibility(unittest.TestCase):
     def test_repairing_a_round_gives_the_same_pods(self):
         for game, (config, n_players, _) in GAMES.items():
             with self.subTest(game=game):
-                t = Tournament(TournamentConfiguration(auto_export=False, **config), seed=SEED)
-                t.add_player([f"P{i:02d}" for i in range(n_players)])
-                t.create_pairings()
+                t = _new(config, n_players)
+                t.create_pairings(seed=SEED)
                 t.random_results()
                 t.create_pairings()
                 first = _round_out(t)
@@ -178,9 +198,8 @@ class TestReproducibility(unittest.TestCase):
     def test_undo_round_and_pair_again_gives_the_same_pods(self):
         for game, (config, n_players, _) in GAMES.items():
             with self.subTest(game=game):
-                t = Tournament(TournamentConfiguration(auto_export=False, **config), seed=SEED)
-                t.add_player([f"P{i:02d}" for i in range(n_players)])
-                t.create_pairings()
+                t = _new(config, n_players)
+                t.create_pairings(seed=SEED)
                 t.random_results()
                 t.create_pairings()
                 first = _round_out(t)
@@ -192,36 +211,46 @@ class TestReproducibility(unittest.TestCase):
     def test_changed_seed_changes_next_round_and_keeps_past_seeds(self):
         config, n_players, _ = GAMES["commander"]
 
-        def two_rounds_then_pair(new_seed: int | None) -> Tournament:
+        def one_round_then_pair(new_seed: int | None) -> Tournament:
             random.seed(SEED)
-            t = Tournament(TournamentConfiguration(auto_export=False, **config), seed=SEED)
-            t.add_player([f"P{i:02d}" for i in range(n_players)])
-            for _ in range(2):
-                t.create_pairings()
-                t.random_results()
-            if new_seed is not None:
-                t.set_seed(new_seed)
-            t.create_pairings()
+            t = _new(config, n_players)
+            t.create_pairings(seed=SEED)
+            t.random_results()
+            t.create_pairings(seed=new_seed)
             return t
 
-        same, changed = two_rounds_then_pair(None), two_rounds_then_pair(SEED + 1)
+        same, changed = one_round_then_pair(None), one_round_then_pair(SEED + 1)
         self.assertNotEqual(_round_out(changed)["pods"], _round_out(same)["pods"])
         log = changed.serialize()
-        self.assertEqual(log["seed"], SEED + 1)
-        self.assertEqual([r["seed"] for r in log["rounds"]], [SEED, SEED, SEED + 1])
+        self.assertNotIn("seed", log)  # the seed is per round only
+        self.assertEqual([r["seed"] for r in log["rounds"]], [SEED, SEED + 1])
         # Each round stays reproducible statelessly from the seed it records.
-        replay = dict(log, seed=log["rounds"][2]["seed"])
-        self.assertEqual(
-            pair_statelessly(replay, 2)["pods"], _round_out(changed)["pods"]
-        )
+        for seq in range(2):
+            stateful = changed.rounds[seq]
+            self.assertEqual(
+                pair_statelessly(log, seq)["pods"],
+                [[p.name for p in pod.players] for pod in stateful.pods],
+            )
+        t = _new(config, n_players)
         with self.assertRaises(TypeError):
-            changed.set_seed("1")  # type: ignore[arg-type]
+            t.create_pairings(seed="1")  # type: ignore[arg-type]
+
+    def test_first_round_without_a_seed_draws_one(self):
+        config, n_players, _ = GAMES["commander"]
+        t = _new(config, n_players)
+        t.create_pairings()
+        r = t.tour_round
+        assert r is not None
+        self.assertIsInstance(r.seed, int)
+        t.random_results()
+        t.create_pairings()
+        assert t.tour_round is not None
+        self.assertEqual(t.tour_round.seed, r.seed)
 
     def test_any_input_change_gives_a_different_pairing(self):
         def round_one(n_players: int) -> list:
-            t = Tournament(TournamentConfiguration(auto_export=False, n_rounds=3), seed=SEED)
-            t.add_player([f"P{i:02d}" for i in range(n_players)])
-            t.create_pairings()
+            t = _new(dict(n_rounds=3), n_players)
+            t.create_pairings(seed=SEED)
             return _round_out(t)["pods"]
 
         # Adding a player: the original 16 are grouped differently.
@@ -229,9 +258,9 @@ class TestReproducibility(unittest.TestCase):
         self.assertNotEqual(groups(round_one(16)), groups(round_one(17)))
 
         # A changed result changes the round digest; identical inputs do not.
-        t = Tournament(TournamentConfiguration(auto_export=False, n_rounds=3), seed=SEED)
-        t.add_player([f"P{i:02d}" for i in range(16)])
-        t.create_pairings()
+        random.seed(SEED)
+        t = _new(dict(n_rounds=3), 16)
+        t.create_pairings(seed=SEED)
         t.random_results()
         t.new_round()
         r = t.tour_round
@@ -239,14 +268,14 @@ class TestReproducibility(unittest.TestCase):
         before, draw = r.input_digest(), r.rng("byes").random()
         self.assertEqual((r.input_digest(), r.rng("byes").random()), (before, draw))
         pod = t.rounds[0].pods[0]
-        other = next(p for p in pod.players if p not in pod.result)
+        # A different single winner (after a draw, every player is in result).
+        other = next((p for p in pod.players if p not in pod.result), pod.players[0])
         pod.record_result([IGameResult(frozenset({other.uid}))])
         self.assertNotEqual(r.input_digest(), before)
         self.assertNotEqual(r.rng("byes").random(), draw)
 
     def test_reload_older_save_of_open_tournament(self):
-        t = Tournament(TournamentConfiguration(auto_export=False, n_rounds=3), seed=SEED)
-        t.add_player([f"P{i:02d}" for i in range(8)])
+        t = _new(dict(n_rounds=3), 8)
         older = t.serialize()
         t.create_pairings()
         t.random_results()
@@ -264,12 +293,15 @@ class TestReproducibility(unittest.TestCase):
         t.random_results()
         saved = json.dumps(t.serialize()).replace(str(t.uid), str(uuid4()))
         data = json.loads(saved)
-        del data["seed"]
+        for r in data["rounds"]:
+            del r["seed"]
         data["format_version"] = "1.3"
         loaded = cast(Tournament, Tournament.inflate(data))
-        self.assertIsInstance(loaded.seed, int)
         self.assertEqual(len(loaded.players), 8)
+        self.assertIsNone(loaded.rounds[0].seed)
         self.assertTrue(loaded.create_pairings())
+        assert loaded.tour_round is not None
+        self.assertIsInstance(loaded.tour_round.seed, int)
 
 
 if __name__ == "__main__":

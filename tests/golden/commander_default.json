@@ -4,108 +4,108 @@
    "byes": [],
    "pods": [
     [
-     "P04",
+     "P15",
+     "P06",
+     "P09",
+     "P01"
+    ],
+    [
      "P03",
-     "P07",
-     "P06"
-    ],
-    [
-     "P10",
-     "P12",
-     "P14",
-     "P13"
-    ],
-    [
+     "P04",
      "P02",
-     "P01",
-     "P05",
      "P08"
     ],
     [
-     "P15",
-     "P09",
-     "P00",
-     "P11"
-    ]
-   ],
-   "pods_export": "Pod 1 with 4/4 players:\n\t[W] P04 | rating: 7 | seat: 100%\t\n\t[L] P03 | rating: 0 | seat: 62%\t\n\t[L] P07 | rating: 0 | seat: 29%\t\n\t[L] P06 | rating: 0 | seat: 00%\t\n\nPod 2 with 4/4 players:\n\t[L] P10 | rating: 0 | seat: 100%\t\n\t[W] P12 | rating: 7 | seat: 62%\t\n\t[L] P14 | rating: 0 | seat: 29%\t\n\t[L] P13 | rating: 0 | seat: 00%\t\n\nPod 3 with 4/4 players:\n\t[W] P02 | rating: 7 | seat: 100%\t\n\t[L] P01 | rating: 0 | seat: 62%\t\n\t[L] P05 | rating: 0 | seat: 29%\t\n\t[L] P08 | rating: 0 | seat: 00%\t\n\nPod 4 with 4/4 players:\n\t[D] P15 | rating: 1 | seat: 100%\t\n\t[D] P09 | rating: 1 | seat: 62%\t\n\t[D] P00 | rating: 1 | seat: 29%\t\n\t[D] P11 | rating: 1 | seat: 00%\t",
-   "stage": 0,
-   "standings": {
-    "CSV": "#,name,pts,record,opp. win %,# opp. beat,seat record,avg. seat\n1,P12,7,W,0.00%,3,2/4,61.88%\n2,P02,7,W,0.00%,3,1/4,100.00%\n3,P04,7,W,0.00%,3,1/4,100.00%\n4,P11,1,D,14.29%,0,4/4,0.00%\n5,P00,1,D,14.29%,0,3/4,28.83%\n6,P09,1,D,14.29%,0,2/4,61.88%\n7,P15,1,D,14.29%,0,1/4,100.00%\n8,P06,0,L,33.33%,0,4/4,0.00%\n9,P08,0,L,33.33%,0,4/4,0.00%\n10,P13,0,L,33.33%,0,4/4,0.00%\n11,P05,0,L,33.33%,0,3/4,28.83%\n12,P14,0,L,33.33%,0,3/4,28.83%\n13,P07,0,L,33.33%,0,3/4,28.83%\n14,P01,0,L,33.33%,0,2/4,61.88%\n15,P03,0,L,33.33%,0,2/4,61.88%\n16,P10,0,L,33.33%,0,1/4,100.00%\n",
-    "JSON": "[\n  {\n    \"#\": \"1\",\n    \"name\": \"P12\",\n    \"pts\": \"7\",\n    \"record\": \"W\",\n    \"opp. win %\": \"0.00%\",\n    \"# opp. beat\": \"3\",\n    \"seat record\": \"2/4\",\n    \"avg. seat\": \"61.88%\"\n  },\n  {\n    \"#\": \"2\",\n    \"name\": \"P02\",\n    \"pts\": \"7\",\n    \"record\": \"W\",\n    \"opp. win %\": \"0.00%\",\n    \"# opp. beat\": \"3\",\n    \"seat record\": \"1/4\",\n    \"avg. seat\": \"100.00%\"\n  },\n  {\n    \"#\": \"3\",\n    \"name\": \"P04\",\n    \"pts\": \"7\",\n    \"record\": \"W\",\n    \"opp. win %\": \"0.00%\",\n    \"# opp. beat\": \"3\",\n    \"seat record\": \"1/4\",\n    \"avg. seat\": \"100.00%\"\n  },\n  {\n    \"#\": \"4\",\n    \"name\": \"P11\",\n    \"pts\": \"1\",\n    \"record\": \"D\",\n    \"opp. win %\": \"14.29%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"4/4\",\n    \"avg. seat\": \"0.00%\"\n  },\n  {\n    \"#\": \"5\",\n    \"name\": \"P00\",\n    \"pts\": \"1\",\n    \"record\": \"D\",\n    \"opp. win %\": \"14.29%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"3/4\",\n    \"avg. seat\": \"28.83%\"\n  },\n  {\n    \"#\": \"6\",\n    \"name\": \"P09\",\n    \"pts\": \"1\",\n    \"record\": \"D\",\n    \"opp. win %\": \"14.29%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"2/4\",\n    \"avg. seat\": \"61.88%\"\n  },\n  {\n    \"#\": \"7\",\n    \"name\": \"P15\",\n    \"pts\": \"1\",\n    \"record\": \"D\",\n    \"opp. win %\": \"14.29%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"1/4\",\n    \"avg. seat\": \"100.00%\"\n  },\n  {\n    \"#\": \"8\",\n    \"name\": \"P06\",\n    \"pts\": \"0\",\n    \"record\": \"L\",\n    \"opp. win %\": \"33.33%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"4/4\",\n    \"avg. seat\": \"0.00%\"\n  },\n  {\n    \"#\": \"9\",\n    \"name\": \"P08\",\n    \"pts\": \"0\",\n    \"record\": \"L\",\n    \"opp. win %\": \"33.33%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"4/4\",\n    \"avg. seat\": \"0.00%\"\n  },\n  {\n    \"#\": \"10\",\n    \"name\": \"P13\",\n    \"pts\": \"0\",\n    \"record\": \"L\",\n    \"opp. win %\": \"33.33%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"4/4\",\n    \"avg. seat\": \"0.00%\"\n  },\n  {\n    \"#\": \"11\",\n    \"name\": \"P05\",\n    \"pts\": \"0\",\n    \"record\": \"L\",\n    \"opp. win %\": \"33.33%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"3/4\",\n    \"avg. seat\": \"28.83%\"\n  },\n  {\n    \"#\": \"12\",\n    \"name\": \"P14\",\n    \"pts\": \"0\",\n    \"record\": \"L\",\n    \"opp. win %\": \"33.33%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"3/4\",\n    \"avg. seat\": \"28.83%\"\n  },\n  {\n    \"#\": \"13\",\n    \"name\": \"P07\",\n    \"pts\": \"0\",\n    \"record\": \"L\",\n    \"opp. win %\": \"33.33%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"3/4\",\n    \"avg. seat\": \"28.83%\"\n  },\n  {\n    \"#\": \"14\",\n    \"name\": \"P01\",\n    \"pts\": \"0\",\n    \"record\": \"L\",\n    \"opp. win %\": \"33.33%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"2/4\",\n    \"avg. seat\": \"61.88%\"\n  },\n  {\n    \"#\": \"15\",\n    \"name\": \"P03\",\n    \"pts\": \"0\",\n    \"record\": \"L\",\n    \"opp. win %\": \"33.33%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"2/4\",\n    \"avg. seat\": \"61.88%\"\n  },\n  {\n    \"#\": \"16\",\n    \"name\": \"P10\",\n    \"pts\": \"0\",\n    \"record\": \"L\",\n    \"opp. win %\": \"33.33%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"1/4\",\n    \"avg. seat\": \"100.00%\"\n  }\n]",
-    "PLAIN": "#  | name | pts | record | opp. win % | # opp. beat | seat record | avg. seat\n-- | ---- | --- | ------ | ---------- | ----------- | ----------- | ---------\n1  | P12  | 7   | W      | 0.00%      | 3           | 2/4         | 61.88%   \n2  | P02  | 7   | W      | 0.00%      | 3           | 1/4         | 100.00%  \n3  | P04  | 7   | W      | 0.00%      | 3           | 1/4         | 100.00%  \n4  | P11  | 1   | D      | 14.29%     | 0           | 4/4         | 0.00%    \n5  | P00  | 1   | D      | 14.29%     | 0           | 3/4         | 28.83%   \n6  | P09  | 1   | D      | 14.29%     | 0           | 2/4         | 61.88%   \n7  | P15  | 1   | D      | 14.29%     | 0           | 1/4         | 100.00%  \n8  | P06  | 0   | L      | 33.33%     | 0           | 4/4         | 0.00%    \n9  | P08  | 0   | L      | 33.33%     | 0           | 4/4         | 0.00%    \n10 | P13  | 0   | L      | 33.33%     | 0           | 4/4         | 0.00%    \n11 | P05  | 0   | L      | 33.33%     | 0           | 3/4         | 28.83%   \n12 | P14  | 0   | L      | 33.33%     | 0           | 3/4         | 28.83%   \n13 | P07  | 0   | L      | 33.33%     | 0           | 3/4         | 28.83%   \n14 | P01  | 0   | L      | 33.33%     | 0           | 2/4         | 61.88%   \n15 | P03  | 0   | L      | 33.33%     | 0           | 2/4         | 61.88%   \n16 | P10  | 0   | L      | 33.33%     | 0           | 1/4         | 100.00%  "
-   }
-  },
-  {
-   "byes": [],
-   "pods": [
-    [
-     "P11",
-     "P03",
-     "P02",
-     "P10"
-    ],
-    [
-     "P06",
-     "P00",
-     "P01",
+     "P05",
+     "P10",
+     "P13",
      "P12"
     ],
     [
-     "P13",
-     "P05",
-     "P04",
-     "P15"
-    ],
-    [
-     "P08",
-     "P14",
+     "P11",
      "P07",
-     "P09"
+     "P00",
+     "P14"
     ]
    ],
-   "pods_export": "Pod 1 with 4/4 players:\n\t[D] P11 | rating: 2 | seat: 50%\t\n\t[D] P03 | rating: 1 | seat: 62%\t\n\t[D] P02 | rating: 8 | seat: 64%\t\n\t[D] P10 | rating: 1 | seat: 50%\t\n\nPod 2 with 4/4 players:\n\t[L] P06 | rating: 0 | seat: 50%\t\n\t[W] P00 | rating: 8 | seat: 45%\t\n\t[L] P01 | rating: 0 | seat: 45%\t\n\t[L] P12 | rating: 7 | seat: 31%\t\n\nPod 3 with 4/4 players:\n\t[D] P13 | rating: 1 | seat: 50%\t\n\t[D] P05 | rating: 1 | seat: 45%\t\n\t[D] P04 | rating: 8 | seat: 64%\t\n\t[D] P15 | rating: 2 | seat: 50%\t\n\nPod 4 with 4/4 players:\n\t[W] P08 | rating: 7 | seat: 50%\t\n\t[L] P14 | rating: 0 | seat: 45%\t\n\t[L] P07 | rating: 0 | seat: 29%\t\n\t[L] P09 | rating: 1 | seat: 31%\t",
+   "pods_export": "Pod 1 with 4/4 players:\n\t[W] P15 | rating: 7 | seat: 100%\t\n\t[L] P06 | rating: 0 | seat: 62%\t\n\t[L] P09 | rating: 0 | seat: 29%\t\n\t[L] P01 | rating: 0 | seat: 00%\t\n\nPod 2 with 4/4 players:\n\t[L] P03 | rating: 0 | seat: 100%\t\n\t[W] P04 | rating: 7 | seat: 62%\t\n\t[L] P02 | rating: 0 | seat: 29%\t\n\t[L] P08 | rating: 0 | seat: 00%\t\n\nPod 3 with 4/4 players:\n\t[W] P05 | rating: 7 | seat: 100%\t\n\t[L] P10 | rating: 0 | seat: 62%\t\n\t[L] P13 | rating: 0 | seat: 29%\t\n\t[L] P12 | rating: 0 | seat: 00%\t\n\nPod 4 with 4/4 players:\n\t[D] P11 | rating: 1 | seat: 100%\t\n\t[D] P07 | rating: 1 | seat: 62%\t\n\t[D] P00 | rating: 1 | seat: 29%\t\n\t[D] P14 | rating: 1 | seat: 00%\t",
    "stage": 0,
    "standings": {
-    "CSV": "#,name,pts,record,opp. win %,# opp. beat,seat record,avg. seat\n1,P00,8,DW,14.29%,3,3/4 2/4,45.35%\n2,P02,8,WD,14.29%,3,1/4 3/4,64.41%\n3,P04,8,WD,5.95%,3,1/4 3/4,64.41%\n4,P12,7,WL,11.90%,3,2/4 4/4,30.94%\n5,P08,7,LW,11.90%,3,4/4 1/4,50.00%\n6,P15,2,DD,25.00%,0,1/4 4/4,50.00%\n7,P11,2,DD,25.00%,0,4/4 1/4,50.00%\n8,P05,1,LD,30.95%,0,3/4 2/4,45.35%\n9,P09,1,DL,22.62%,0,2/4 4/4,30.94%\n10,P13,1,LD,22.62%,0,4/4 1/4,50.00%\n11,P10,1,LD,22.62%,0,1/4 4/4,50.00%\n12,P03,1,LD,22.62%,0,2/4 2/4,61.88%\n13,P01,0,LL,36.90%,0,2/4 3/4,45.35%\n14,P06,0,LL,28.57%,0,4/4 1/4,50.00%\n15,P07,0,LL,20.24%,0,3/4 3/4,28.83%\n16,P14,0,LL,20.24%,0,3/4 2/4,45.35%\n",
-    "JSON": "[\n  {\n    \"#\": \"1\",\n    \"name\": \"P00\",\n    \"pts\": \"8\",\n    \"record\": \"DW\",\n    \"opp. win %\": \"14.29%\",\n    \"# opp. beat\": \"3\",\n    \"seat record\": \"3/4 2/4\",\n    \"avg. seat\": \"45.35%\"\n  },\n  {\n    \"#\": \"2\",\n    \"name\": \"P02\",\n    \"pts\": \"8\",\n    \"record\": \"WD\",\n    \"opp. win %\": \"14.29%\",\n    \"# opp. beat\": \"3\",\n    \"seat record\": \"1/4 3/4\",\n    \"avg. seat\": \"64.41%\"\n  },\n  {\n    \"#\": \"3\",\n    \"name\": \"P04\",\n    \"pts\": \"8\",\n    \"record\": \"WD\",\n    \"opp. win %\": \"5.95%\",\n    \"# opp. beat\": \"3\",\n    \"seat record\": \"1/4 3/4\",\n    \"avg. seat\": \"64.41%\"\n  },\n  {\n    \"#\": \"4\",\n    \"name\": \"P12\",\n    \"pts\": \"7\",\n    \"record\": \"WL\",\n    \"opp. win %\": \"11.90%\",\n    \"# opp. beat\": \"3\",\n    \"seat record\": \"2/4 4/4\",\n    \"avg. seat\": \"30.94%\"\n  },\n  {\n    \"#\": \"5\",\n    \"name\": \"P08\",\n    \"pts\": \"7\",\n    \"record\": \"LW\",\n    \"opp. win %\": \"11.90%\",\n    \"# opp. beat\": \"3\",\n    \"seat record\": \"4/4 1/4\",\n    \"avg. seat\": \"50.00%\"\n  },\n  {\n    \"#\": \"6\",\n    \"name\": \"P15\",\n    \"pts\": \"2\",\n    \"record\": \"DD\",\n    \"opp. win %\": \"25.00%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"1/4 4/4\",\n    \"avg. seat\": \"50.00%\"\n  },\n  {\n    \"#\": \"7\",\n    \"name\": \"P11\",\n    \"pts\": \"2\",\n    \"record\": \"DD\",\n    \"opp. win %\": \"25.00%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"4/4 1/4\",\n    \"avg. seat\": \"50.00%\"\n  },\n  {\n    \"#\": \"8\",\n    \"name\": \"P05\",\n    \"pts\": \"1\",\n    \"record\": \"LD\",\n    \"opp. win %\": \"30.95%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"3/4 2/4\",\n    \"avg. seat\": \"45.35%\"\n  },\n  {\n    \"#\": \"9\",\n    \"name\": \"P09\",\n    \"pts\": \"1\",\n    \"record\": \"DL\",\n    \"opp. win %\": \"22.62%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"2/4 4/4\",\n    \"avg. seat\": \"30.94%\"\n  },\n  {\n    \"#\": \"10\",\n    \"name\": \"P13\",\n    \"pts\": \"1\",\n    \"record\": \"LD\",\n    \"opp. win %\": \"22.62%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"4/4 1/4\",\n    \"avg. seat\": \"50.00%\"\n  },\n  {\n    \"#\": \"11\",\n    \"name\": \"P10\",\n    \"pts\": \"1\",\n    \"record\": \"LD\",\n    \"opp. win %\": \"22.62%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"1/4 4/4\",\n    \"avg. seat\": \"50.00%\"\n  },\n  {\n    \"#\": \"12\",\n    \"name\": \"P03\",\n    \"pts\": \"1\",\n    \"record\": \"LD\",\n    \"opp. win %\": \"22.62%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"2/4 2/4\",\n    \"avg. seat\": \"61.88%\"\n  },\n  {\n    \"#\": \"13\",\n    \"name\": \"P01\",\n    \"pts\": \"0\",\n    \"record\": \"LL\",\n    \"opp. win %\": \"36.90%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"2/4 3/4\",\n    \"avg. seat\": \"45.35%\"\n  },\n  {\n    \"#\": \"14\",\n    \"name\": \"P06\",\n    \"pts\": \"0\",\n    \"record\": \"LL\",\n    \"opp. win %\": \"28.57%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"4/4 1/4\",\n    \"avg. seat\": \"50.00%\"\n  },\n  {\n    \"#\": \"15\",\n    \"name\": \"P07\",\n    \"pts\": \"0\",\n    \"record\": \"LL\",\n    \"opp. win %\": \"20.24%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"3/4 3/4\",\n    \"avg. seat\": \"28.83%\"\n  },\n  {\n    \"#\": \"16\",\n    \"name\": \"P14\",\n    \"pts\": \"0\",\n    \"record\": \"LL\",\n    \"opp. win %\": \"20.24%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"3/4 2/4\",\n    \"avg. seat\": \"45.35%\"\n  }\n]",
-    "PLAIN": "#  | name | pts | record | opp. win % | # opp. beat | seat record | avg. seat\n-- | ---- | --- | ------ | ---------- | ----------- | ----------- | ---------\n1  | P00  | 8   | DW     | 14.29%     | 3           | 3/4 2/4     | 45.35%   \n2  | P02  | 8   | WD     | 14.29%     | 3           | 1/4 3/4     | 64.41%   \n3  | P04  | 8   | WD     | 5.95%      | 3           | 1/4 3/4     | 64.41%   \n4  | P12  | 7   | WL     | 11.90%     | 3           | 2/4 4/4     | 30.94%   \n5  | P08  | 7   | LW     | 11.90%     | 3           | 4/4 1/4     | 50.00%   \n6  | P15  | 2   | DD     | 25.00%     | 0           | 1/4 4/4     | 50.00%   \n7  | P11  | 2   | DD     | 25.00%     | 0           | 4/4 1/4     | 50.00%   \n8  | P05  | 1   | LD     | 30.95%     | 0           | 3/4 2/4     | 45.35%   \n9  | P09  | 1   | DL     | 22.62%     | 0           | 2/4 4/4     | 30.94%   \n10 | P13  | 1   | LD     | 22.62%     | 0           | 4/4 1/4     | 50.00%   \n11 | P10  | 1   | LD     | 22.62%     | 0           | 1/4 4/4     | 50.00%   \n12 | P03  | 1   | LD     | 22.62%     | 0           | 2/4 2/4     | 61.88%   \n13 | P01  | 0   | LL     | 36.90%     | 0           | 2/4 3/4     | 45.35%   \n14 | P06  | 0   | LL     | 28.57%     | 0           | 4/4 1/4     | 50.00%   \n15 | P07  | 0   | LL     | 20.24%     | 0           | 3/4 3/4     | 28.83%   \n16 | P14  | 0   | LL     | 20.24%     | 0           | 3/4 2/4     | 45.35%   "
+    "CSV": "#,name,pts,record,opp. win %,# opp. beat,seat record,avg. seat\n1,P04,7,W,0.00%,3,2/4,61.88%\n2,P05,7,W,0.00%,3,1/4,100.00%\n3,P15,7,W,0.00%,3,1/4,100.00%\n4,P14,1,D,14.29%,0,4/4,0.00%\n5,P00,1,D,14.29%,0,3/4,28.83%\n6,P07,1,D,14.29%,0,2/4,61.88%\n7,P11,1,D,14.29%,0,1/4,100.00%\n8,P01,0,L,33.33%,0,4/4,0.00%\n9,P08,0,L,33.33%,0,4/4,0.00%\n10,P12,0,L,33.33%,0,4/4,0.00%\n11,P02,0,L,33.33%,0,3/4,28.83%\n12,P09,0,L,33.33%,0,3/4,28.83%\n13,P13,0,L,33.33%,0,3/4,28.83%\n14,P06,0,L,33.33%,0,2/4,61.88%\n15,P10,0,L,33.33%,0,2/4,61.88%\n16,P03,0,L,33.33%,0,1/4,100.00%\n",
+    "JSON": "[\n  {\n    \"#\": \"1\",\n    \"name\": \"P04\",\n    \"pts\": \"7\",\n    \"record\": \"W\",\n    \"opp. win %\": \"0.00%\",\n    \"# opp. beat\": \"3\",\n    \"seat record\": \"2/4\",\n    \"avg. seat\": \"61.88%\"\n  },\n  {\n    \"#\": \"2\",\n    \"name\": \"P05\",\n    \"pts\": \"7\",\n    \"record\": \"W\",\n    \"opp. win %\": \"0.00%\",\n    \"# opp. beat\": \"3\",\n    \"seat record\": \"1/4\",\n    \"avg. seat\": \"100.00%\"\n  },\n  {\n    \"#\": \"3\",\n    \"name\": \"P15\",\n    \"pts\": \"7\",\n    \"record\": \"W\",\n    \"opp. win %\": \"0.00%\",\n    \"# opp. beat\": \"3\",\n    \"seat record\": \"1/4\",\n    \"avg. seat\": \"100.00%\"\n  },\n  {\n    \"#\": \"4\",\n    \"name\": \"P14\",\n    \"pts\": \"1\",\n    \"record\": \"D\",\n    \"opp. win %\": \"14.29%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"4/4\",\n    \"avg. seat\": \"0.00%\"\n  },\n  {\n    \"#\": \"5\",\n    \"name\": \"P00\",\n    \"pts\": \"1\",\n    \"record\": \"D\",\n    \"opp. win %\": \"14.29%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"3/4\",\n    \"avg. seat\": \"28.83%\"\n  },\n  {\n    \"#\": \"6\",\n    \"name\": \"P07\",\n    \"pts\": \"1\",\n    \"record\": \"D\",\n    \"opp. win %\": \"14.29%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"2/4\",\n    \"avg. seat\": \"61.88%\"\n  },\n  {\n    \"#\": \"7\",\n    \"name\": \"P11\",\n    \"pts\": \"1\",\n    \"record\": \"D\",\n    \"opp. win %\": \"14.29%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"1/4\",\n    \"avg. seat\": \"100.00%\"\n  },\n  {\n    \"#\": \"8\",\n    \"name\": \"P01\",\n    \"pts\": \"0\",\n    \"record\": \"L\",\n    \"opp. win %\": \"33.33%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"4/4\",\n    \"avg. seat\": \"0.00%\"\n  },\n  {\n    \"#\": \"9\",\n    \"name\": \"P08\",\n    \"pts\": \"0\",\n    \"record\": \"L\",\n    \"opp. win %\": \"33.33%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"4/4\",\n    \"avg. seat\": \"0.00%\"\n  },\n  {\n    \"#\": \"10\",\n    \"name\": \"P12\",\n    \"pts\": \"0\",\n    \"record\": \"L\",\n    \"opp. win %\": \"33.33%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"4/4\",\n    \"avg. seat\": \"0.00%\"\n  },\n  {\n    \"#\": \"11\",\n    \"name\": \"P02\",\n    \"pts\": \"0\",\n    \"record\": \"L\",\n    \"opp. win %\": \"33.33%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"3/4\",\n    \"avg. seat\": \"28.83%\"\n  },\n  {\n    \"#\": \"12\",\n    \"name\": \"P09\",\n    \"pts\": \"0\",\n    \"record\": \"L\",\n    \"opp. win %\": \"33.33%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"3/4\",\n    \"avg. seat\": \"28.83%\"\n  },\n  {\n    \"#\": \"13\",\n    \"name\": \"P13\",\n    \"pts\": \"0\",\n    \"record\": \"L\",\n    \"opp. win %\": \"33.33%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"3/4\",\n    \"avg. seat\": \"28.83%\"\n  },\n  {\n    \"#\": \"14\",\n    \"name\": \"P06\",\n    \"pts\": \"0\",\n    \"record\": \"L\",\n    \"opp. win %\": \"33.33%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"2/4\",\n    \"avg. seat\": \"61.88%\"\n  },\n  {\n    \"#\": \"15\",\n    \"name\": \"P10\",\n    \"pts\": \"0\",\n    \"record\": \"L\",\n    \"opp. win %\": \"33.33%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"2/4\",\n    \"avg. seat\": \"61.88%\"\n  },\n  {\n    \"#\": \"16\",\n    \"name\": \"P03\",\n    \"pts\": \"0\",\n    \"record\": \"L\",\n    \"opp. win %\": \"33.33%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"1/4\",\n    \"avg. seat\": \"100.00%\"\n  }\n]",
+    "PLAIN": "#  | name | pts | record | opp. win % | # opp. beat | seat record | avg. seat\n-- | ---- | --- | ------ | ---------- | ----------- | ----------- | ---------\n1  | P04  | 7   | W      | 0.00%      | 3           | 2/4         | 61.88%   \n2  | P05  | 7   | W      | 0.00%      | 3           | 1/4         | 100.00%  \n3  | P15  | 7   | W      | 0.00%      | 3           | 1/4         | 100.00%  \n4  | P14  | 1   | D      | 14.29%     | 0           | 4/4         | 0.00%    \n5  | P00  | 1   | D      | 14.29%     | 0           | 3/4         | 28.83%   \n6  | P07  | 1   | D      | 14.29%     | 0           | 2/4         | 61.88%   \n7  | P11  | 1   | D      | 14.29%     | 0           | 1/4         | 100.00%  \n8  | P01  | 0   | L      | 33.33%     | 0           | 4/4         | 0.00%    \n9  | P08  | 0   | L      | 33.33%     | 0           | 4/4         | 0.00%    \n10 | P12  | 0   | L      | 33.33%     | 0           | 4/4         | 0.00%    \n11 | P02  | 0   | L      | 33.33%     | 0           | 3/4         | 28.83%   \n12 | P09  | 0   | L      | 33.33%     | 0           | 3/4         | 28.83%   \n13 | P13  | 0   | L      | 33.33%     | 0           | 3/4         | 28.83%   \n14 | P06  | 0   | L      | 33.33%     | 0           | 2/4         | 61.88%   \n15 | P10  | 0   | L      | 33.33%     | 0           | 2/4         | 61.88%   \n16 | P03  | 0   | L      | 33.33%     | 0           | 1/4         | 100.00%  "
    }
   },
   {
    "byes": [],
    "pods": [
     [
-     "P00",
-     "P10",
+     "P13",
+     "P06",
      "P04",
-     "P02"
+     "P11"
+    ],
+    [
+     "P01",
+     "P02",
+     "P07",
+     "P05"
     ],
     [
      "P12",
      "P08",
-     "P15",
-     "P03"
+     "P00",
+     "P15"
     ],
     [
      "P14",
-     "P05",
+     "P09",
+     "P10",
+     "P03"
+    ]
+   ],
+   "pods_export": "Pod 1 with 4/4 players:\n\t[D] P13 | rating: 1 | seat: 64%\t\n\t[D] P06 | rating: 1 | seat: 62%\t\n\t[D] P04 | rating: 8 | seat: 45%\t\n\t[D] P11 | rating: 2 | seat: 50%\t\n\nPod 2 with 4/4 players:\n\t[L] P01 | rating: 0 | seat: 50%\t\n\t[W] P02 | rating: 7 | seat: 45%\t\n\t[L] P07 | rating: 1 | seat: 45%\t\n\t[L] P05 | rating: 7 | seat: 50%\t\n\nPod 3 with 4/4 players:\n\t[D] P12 | rating: 1 | seat: 50%\t\n\t[D] P08 | rating: 1 | seat: 31%\t\n\t[D] P00 | rating: 2 | seat: 29%\t\n\t[D] P15 | rating: 8 | seat: 50%\t\n\nPod 4 with 4/4 players:\n\t[W] P14 | rating: 8 | seat: 50%\t\n\t[L] P09 | rating: 0 | seat: 45%\t\n\t[L] P10 | rating: 0 | seat: 45%\t\n\t[L] P03 | rating: 0 | seat: 50%\t",
+   "stage": 0,
+   "standings": {
+    "CSV": "#,name,pts,record,opp. win %,# opp. beat,seat record,avg. seat\n1,P04,8,WD,14.29%,3,2/4 3/4,45.35%\n2,P14,8,DW,5.95%,3,4/4 1/4,50.00%\n3,P15,8,WD,5.95%,3,1/4 4/4,50.00%\n4,P02,7,LW,20.24%,3,3/4 2/4,45.35%\n5,P05,7,WL,11.90%,3,1/4 4/4,50.00%\n6,P00,2,DD,25.00%,0,3/4 3/4,28.83%\n7,P11,2,DD,25.00%,0,1/4 4/4,50.00%\n8,P08,1,LD,30.95%,0,4/4 2/4,30.94%\n9,P07,1,DL,30.95%,0,2/4 3/4,45.35%\n10,P12,1,LD,22.62%,0,4/4 1/4,50.00%\n11,P06,1,LD,22.62%,0,2/4 2/4,61.88%\n12,P13,1,LD,22.62%,0,3/4 1/4,64.41%\n13,P01,0,LL,28.57%,0,4/4 1/4,50.00%\n14,P03,0,LL,28.57%,0,1/4 4/4,50.00%\n15,P09,0,LL,20.24%,0,3/4 2/4,45.35%\n16,P10,0,LL,20.24%,0,2/4 3/4,45.35%\n",
+    "JSON": "[\n  {\n    \"#\": \"1\",\n    \"name\": \"P04\",\n    \"pts\": \"8\",\n    \"record\": \"WD\",\n    \"opp. win %\": \"14.29%\",\n    \"# opp. beat\": \"3\",\n    \"seat record\": \"2/4 3/4\",\n    \"avg. seat\": \"45.35%\"\n  },\n  {\n    \"#\": \"2\",\n    \"name\": \"P14\",\n    \"pts\": \"8\",\n    \"record\": \"DW\",\n    \"opp. win %\": \"5.95%\",\n    \"# opp. beat\": \"3\",\n    \"seat record\": \"4/4 1/4\",\n    \"avg. seat\": \"50.00%\"\n  },\n  {\n    \"#\": \"3\",\n    \"name\": \"P15\",\n    \"pts\": \"8\",\n    \"record\": \"WD\",\n    \"opp. win %\": \"5.95%\",\n    \"# opp. beat\": \"3\",\n    \"seat record\": \"1/4 4/4\",\n    \"avg. seat\": \"50.00%\"\n  },\n  {\n    \"#\": \"4\",\n    \"name\": \"P02\",\n    \"pts\": \"7\",\n    \"record\": \"LW\",\n    \"opp. win %\": \"20.24%\",\n    \"# opp. beat\": \"3\",\n    \"seat record\": \"3/4 2/4\",\n    \"avg. seat\": \"45.35%\"\n  },\n  {\n    \"#\": \"5\",\n    \"name\": \"P05\",\n    \"pts\": \"7\",\n    \"record\": \"WL\",\n    \"opp. win %\": \"11.90%\",\n    \"# opp. beat\": \"3\",\n    \"seat record\": \"1/4 4/4\",\n    \"avg. seat\": \"50.00%\"\n  },\n  {\n    \"#\": \"6\",\n    \"name\": \"P00\",\n    \"pts\": \"2\",\n    \"record\": \"DD\",\n    \"opp. win %\": \"25.00%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"3/4 3/4\",\n    \"avg. seat\": \"28.83%\"\n  },\n  {\n    \"#\": \"7\",\n    \"name\": \"P11\",\n    \"pts\": \"2\",\n    \"record\": \"DD\",\n    \"opp. win %\": \"25.00%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"1/4 4/4\",\n    \"avg. seat\": \"50.00%\"\n  },\n  {\n    \"#\": \"8\",\n    \"name\": \"P08\",\n    \"pts\": \"1\",\n    \"record\": \"LD\",\n    \"opp. win %\": \"30.95%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"4/4 2/4\",\n    \"avg. seat\": \"30.94%\"\n  },\n  {\n    \"#\": \"9\",\n    \"name\": \"P07\",\n    \"pts\": \"1\",\n    \"record\": \"DL\",\n    \"opp. win %\": \"30.95%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"2/4 3/4\",\n    \"avg. seat\": \"45.35%\"\n  },\n  {\n    \"#\": \"10\",\n    \"name\": \"P12\",\n    \"pts\": \"1\",\n    \"record\": \"LD\",\n    \"opp. win %\": \"22.62%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"4/4 1/4\",\n    \"avg. seat\": \"50.00%\"\n  },\n  {\n    \"#\": \"11\",\n    \"name\": \"P06\",\n    \"pts\": \"1\",\n    \"record\": \"LD\",\n    \"opp. win %\": \"22.62%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"2/4 2/4\",\n    \"avg. seat\": \"61.88%\"\n  },\n  {\n    \"#\": \"12\",\n    \"name\": \"P13\",\n    \"pts\": \"1\",\n    \"record\": \"LD\",\n    \"opp. win %\": \"22.62%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"3/4 1/4\",\n    \"avg. seat\": \"64.41%\"\n  },\n  {\n    \"#\": \"13\",\n    \"name\": \"P01\",\n    \"pts\": \"0\",\n    \"record\": \"LL\",\n    \"opp. win %\": \"28.57%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"4/4 1/4\",\n    \"avg. seat\": \"50.00%\"\n  },\n  {\n    \"#\": \"14\",\n    \"name\": \"P03\",\n    \"pts\": \"0\",\n    \"record\": \"LL\",\n    \"opp. win %\": \"28.57%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"1/4 4/4\",\n    \"avg. seat\": \"50.00%\"\n  },\n  {\n    \"#\": \"15\",\n    \"name\": \"P09\",\n    \"pts\": \"0\",\n    \"record\": \"LL\",\n    \"opp. win %\": \"20.24%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"3/4 2/4\",\n    \"avg. seat\": \"45.35%\"\n  },\n  {\n    \"#\": \"16\",\n    \"name\": \"P10\",\n    \"pts\": \"0\",\n    \"record\": \"LL\",\n    \"opp. win %\": \"20.24%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"2/4 3/4\",\n    \"avg. seat\": \"45.35%\"\n  }\n]",
+    "PLAIN": "#  | name | pts | record | opp. win % | # opp. beat | seat record | avg. seat\n-- | ---- | --- | ------ | ---------- | ----------- | ----------- | ---------\n1  | P04  | 8   | WD     | 14.29%     | 3           | 2/4 3/4     | 45.35%   \n2  | P14  | 8   | DW     | 5.95%      | 3           | 4/4 1/4     | 50.00%   \n3  | P15  | 8   | WD     | 5.95%      | 3           | 1/4 4/4     | 50.00%   \n4  | P02  | 7   | LW     | 20.24%     | 3           | 3/4 2/4     | 45.35%   \n5  | P05  | 7   | WL     | 11.90%     | 3           | 1/4 4/4     | 50.00%   \n6  | P00  | 2   | DD     | 25.00%     | 0           | 3/4 3/4     | 28.83%   \n7  | P11  | 2   | DD     | 25.00%     | 0           | 1/4 4/4     | 50.00%   \n8  | P08  | 1   | LD     | 30.95%     | 0           | 4/4 2/4     | 30.94%   \n9  | P07  | 1   | DL     | 30.95%     | 0           | 2/4 3/4     | 45.35%   \n10 | P12  | 1   | LD     | 22.62%     | 0           | 4/4 1/4     | 50.00%   \n11 | P06  | 1   | LD     | 22.62%     | 0           | 2/4 2/4     | 61.88%   \n12 | P13  | 1   | LD     | 22.62%     | 0           | 3/4 1/4     | 64.41%   \n13 | P01  | 0   | LL     | 28.57%     | 0           | 4/4 1/4     | 50.00%   \n14 | P03  | 0   | LL     | 28.57%     | 0           | 1/4 4/4     | 50.00%   \n15 | P09  | 0   | LL     | 20.24%     | 0           | 3/4 2/4     | 45.35%   \n16 | P10  | 0   | LL     | 20.24%     | 0           | 2/4 3/4     | 45.35%   "
+   }
+  },
+  {
+   "byes": [],
+   "pods": [
+    [
+     "P04",
+     "P14",
+     "P15",
+     "P05"
+    ],
+    [
+     "P00",
+     "P02",
      "P06",
-     "P11"
+     "P13"
+    ],
+    [
+     "P08",
+     "P09",
+     "P11",
+     "P01"
     ],
     [
      "P07",
-     "P09",
-     "P01",
-     "P13"
+     "P10",
+     "P12",
+     "P03"
     ]
    ],
-   "pods_export": "Pod 1 with 4/4 players:\n\t[L] P00 | rating: 8 | seat: 64%\t\n\t[L] P10 | rating: 1 | seat: 54%\t\n\t[W] P04 | rating: 15 | seat: 53%\t\n\t[L] P02 | rating: 8 | seat: 43%\t\n\nPod 2 with 4/4 players:\n\t[W] P12 | rating: 14 | seat: 54%\t\n\t[L] P08 | rating: 7 | seat: 54%\t\n\t[L] P15 | rating: 2 | seat: 43%\t\n\t[L] P03 | rating: 1 | seat: 41%\t\n\nPod 3 with 4/4 players:\n\t[L] P14 | rating: 0 | seat: 64%\t\n\t[W] P05 | rating: 8 | seat: 51%\t\n\t[L] P06 | rating: 0 | seat: 43%\t\n\t[L] P11 | rating: 2 | seat: 33%\t\n\nPod 4 with 4/4 players:\n\t[W] P07 | rating: 7 | seat: 53%\t\n\t[L] P09 | rating: 1 | seat: 41%\t\n\t[L] P01 | rating: 0 | seat: 40%\t\n\t[L] P13 | rating: 1 | seat: 33%\t",
+   "pods_export": "Pod 1 with 4/4 players:\n\t[L] P04 | rating: 8 | seat: 64%\t\n\t[L] P14 | rating: 8 | seat: 54%\t\n\t[W] P15 | rating: 15 | seat: 43%\t\n\t[L] P05 | rating: 7 | seat: 33%\t\n\nPod 2 with 4/4 players:\n\t[W] P00 | rating: 9 | seat: 53%\t\n\t[L] P02 | rating: 7 | seat: 51%\t\n\t[L] P06 | rating: 1 | seat: 51%\t\n\t[L] P13 | rating: 1 | seat: 43%\t\n\nPod 3 with 4/4 players:\n\t[L] P08 | rating: 1 | seat: 54%\t\n\t[W] P09 | rating: 7 | seat: 51%\t\n\t[L] P11 | rating: 2 | seat: 43%\t\n\t[L] P01 | rating: 0 | seat: 33%\t\n\nPod 4 with 4/4 players:\n\t[W] P07 | rating: 8 | seat: 64%\t\n\t[L] P10 | rating: 0 | seat: 51%\t\n\t[L] P12 | rating: 1 | seat: 43%\t\n\t[L] P03 | rating: 0 | seat: 33%\t",
    "stage": 0,
    "standings": {
-    "CSV": "#,name,pts,record,opp. win %,# opp. beat,seat record,avg. seat\n1,P04,15,WDW,19.05%,6,1/4 3/4 3/4,52.55%\n2,P12,14,WLW,10.58%,6,2/4 4/4 1/4,53.96%\n3,P02,8,WDL,25.00%,3,1/4 3/4 4/4,42.94%\n4,P00,8,DWL,22.75%,3,3/4 2/4 1/4,63.57%\n5,P05,8,LDW,18.52%,3,3/4 2/4 2/4,50.86%\n6,P08,7,LWL,21.69%,3,4/4 1/4 2/4,53.96%\n7,P07,7,LLW,14.88%,3,3/4 3/4 1/4,52.55%\n8,P15,2,DDL,30.16%,0,1/4 4/4 3/4,42.94%\n9,P11,2,DDL,15.34%,0,4/4 1/4 4/4,33.33%\n10,P03,1,LDL,29.63%,0,2/4 2/4 4/4,41.25%\n11,P10,1,LDL,29.17%,0,1/4 4/4 2/4,53.96%\n12,P13,1,LDL,25.40%,0,4/4 1/4 4/4,33.33%\n13,P09,1,DLL,16.07%,0,2/4 4/4 2/4,41.25%\n14,P06,0,LLL,29.10%,0,4/4 1/4 3/4,42.94%\n15,P01,0,LLL,28.57%,0,2/4 3/4 3/4,39.84%\n16,P14,0,LLL,21.69%,0,3/4 2/4 1/4,63.57%\n",
-    "JSON": "[\n  {\n    \"#\": \"1\",\n    \"name\": \"P04\",\n    \"pts\": \"15\",\n    \"record\": \"WDW\",\n    \"opp. win %\": \"19.05%\",\n    \"# opp. beat\": \"6\",\n    \"seat record\": \"1/4 3/4 3/4\",\n    \"avg. seat\": \"52.55%\"\n  },\n  {\n    \"#\": \"2\",\n    \"name\": \"P12\",\n    \"pts\": \"14\",\n    \"record\": \"WLW\",\n    \"opp. win %\": \"10.58%\",\n    \"# opp. beat\": \"6\",\n    \"seat record\": \"2/4 4/4 1/4\",\n    \"avg. seat\": \"53.96%\"\n  },\n  {\n    \"#\": \"3\",\n    \"name\": \"P02\",\n    \"pts\": \"8\",\n    \"record\": \"WDL\",\n    \"opp. win %\": \"25.00%\",\n    \"# opp. beat\": \"3\",\n    \"seat record\": \"1/4 3/4 4/4\",\n    \"avg. seat\": \"42.94%\"\n  },\n  {\n    \"#\": \"4\",\n    \"name\": \"P00\",\n    \"pts\": \"8\",\n    \"record\": \"DWL\",\n    \"opp. win %\": \"22.75%\",\n    \"# opp. beat\": \"3\",\n    \"seat record\": \"3/4 2/4 1/4\",\n    \"avg. seat\": \"63.57%\"\n  },\n  {\n    \"#\": \"5\",\n    \"name\": \"P05\",\n    \"pts\": \"8\",\n    \"record\": \"LDW\",\n    \"opp. win %\": \"18.52%\",\n    \"# opp. beat\": \"3\",\n    \"seat record\": \"3/4 2/4 2/4\",\n    \"avg. seat\": \"50.86%\"\n  },\n  {\n    \"#\": \"6\",\n    \"name\": \"P08\",\n    \"pts\": \"7\",\n    \"record\": \"LWL\",\n    \"opp. win %\": \"21.69%\",\n    \"# opp. beat\": \"3\",\n    \"seat record\": \"4/4 1/4 2/4\",\n    \"avg. seat\": \"53.96%\"\n  },\n  {\n    \"#\": \"7\",\n    \"name\": \"P07\",\n    \"pts\": \"7\",\n    \"record\": \"LLW\",\n    \"opp. win %\": \"14.88%\",\n    \"# opp. beat\": \"3\",\n    \"seat record\": \"3/4 3/4 1/4\",\n    \"avg. seat\": \"52.55%\"\n  },\n  {\n    \"#\": \"8\",\n    \"name\": \"P15\",\n    \"pts\": \"2\",\n    \"record\": \"DDL\",\n    \"opp. win %\": \"30.16%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"1/4 4/4 3/4\",\n    \"avg. seat\": \"42.94%\"\n  },\n  {\n    \"#\": \"9\",\n    \"name\": \"P11\",\n    \"pts\": \"2\",\n    \"record\": \"DDL\",\n    \"opp. win %\": \"15.34%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"4/4 1/4 4/4\",\n    \"avg. seat\": \"33.33%\"\n  },\n  {\n    \"#\": \"10\",\n    \"name\": \"P03\",\n    \"pts\": \"1\",\n    \"record\": \"LDL\",\n    \"opp. win %\": \"29.63%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"2/4 2/4 4/4\",\n    \"avg. seat\": \"41.25%\"\n  },\n  {\n    \"#\": \"11\",\n    \"name\": \"P10\",\n    \"pts\": \"1\",\n    \"record\": \"LDL\",\n    \"opp. win %\": \"29.17%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"1/4 4/4 2/4\",\n    \"avg. seat\": \"53.96%\"\n  },\n  {\n    \"#\": \"12\",\n    \"name\": \"P13\",\n    \"pts\": \"1\",\n    \"record\": \"LDL\",\n    \"opp. win %\": \"25.40%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"4/4 1/4 4/4\",\n    \"avg. seat\": \"33.33%\"\n  },\n  {\n    \"#\": \"13\",\n    \"name\": \"P09\",\n    \"pts\": \"1\",\n    \"record\": \"DLL\",\n    \"opp. win %\": \"16.07%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"2/4 4/4 2/4\",\n    \"avg. seat\": \"41.25%\"\n  },\n  {\n    \"#\": \"14\",\n    \"name\": \"P06\",\n    \"pts\": \"0\",\n    \"record\": \"LLL\",\n    \"opp. win %\": \"29.10%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"4/4 1/4 3/4\",\n    \"avg. seat\": \"42.94%\"\n  },\n  {\n    \"#\": \"15\",\n    \"name\": \"P01\",\n    \"pts\": \"0\",\n    \"record\": \"LLL\",\n    \"opp. win %\": \"28.57%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"2/4 3/4 3/4\",\n    \"avg. seat\": \"39.84%\"\n  },\n  {\n    \"#\": \"16\",\n    \"name\": \"P14\",\n    \"pts\": \"0\",\n    \"record\": \"LLL\",\n    \"opp. win %\": \"21.69%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"3/4 2/4 1/4\",\n    \"avg. seat\": \"63.57%\"\n  }\n]",
-    "PLAIN": "#  | name | pts | record | opp. win % | # opp. beat | seat record | avg. seat\n-- | ---- | --- | ------ | ---------- | ----------- | ----------- | ---------\n1  | P04  | 15  | WDW    | 19.05%     | 6           | 1/4 3/4 3/4 | 52.55%   \n2  | P12  | 14  | WLW    | 10.58%     | 6           | 2/4 4/4 1/4 | 53.96%   \n3  | P02  | 8   | WDL    | 25.00%     | 3           | 1/4 3/4 4/4 | 42.94%   \n4  | P00  | 8   | DWL    | 22.75%     | 3           | 3/4 2/4 1/4 | 63.57%   \n5  | P05  | 8   | LDW    | 18.52%     | 3           | 3/4 2/4 2/4 | 50.86%   \n6  | P08  | 7   | LWL    | 21.69%     | 3           | 4/4 1/4 2/4 | 53.96%   \n7  | P07  | 7   | LLW    | 14.88%     | 3           | 3/4 3/4 1/4 | 52.55%   \n8  | P15  | 2   | DDL    | 30.16%     | 0           | 1/4 4/4 3/4 | 42.94%   \n9  | P11  | 2   | DDL    | 15.34%     | 0           | 4/4 1/4 4/4 | 33.33%   \n10 | P03  | 1   | LDL    | 29.63%     | 0           | 2/4 2/4 4/4 | 41.25%   \n11 | P10  | 1   | LDL    | 29.17%     | 0           | 1/4 4/4 2/4 | 53.96%   \n12 | P13  | 1   | LDL    | 25.40%     | 0           | 4/4 1/4 4/4 | 33.33%   \n13 | P09  | 1   | DLL    | 16.07%     | 0           | 2/4 4/4 2/4 | 41.25%   \n14 | P06  | 0   | LLL    | 29.10%     | 0           | 4/4 1/4 3/4 | 42.94%   \n15 | P01  | 0   | LLL    | 28.57%     | 0           | 2/4 3/4 3/4 | 39.84%   \n16 | P14  | 0   | LLL    | 21.69%     | 0           | 3/4 2/4 1/4 | 63.57%   "
+    "CSV": "#,name,pts,record,opp. win %,# opp. beat,seat record,avg. seat\n1,P15,15,WDW,22.22%,6,1/4 4/4 3/4,42.94%\n2,P00,9,DDW,23.28%,3,3/4 3/4 1/4,52.55%\n3,P14,8,DWL,29.63%,3,4/4 1/4 2/4,53.96%\n4,P04,8,WDL,22.22%,3,2/4 3/4 1/4,63.57%\n5,P07,8,DLW,17.99%,3,2/4 3/4 1/4,63.57%\n6,P05,7,WLL,25.40%,3,1/4 4/4 4/4,33.33%\n7,P02,7,LWL,18.52%,3,3/4 2/4 2/4,50.86%\n8,P09,7,LLW,16.07%,3,3/4 2/4 2/4,50.86%\n9,P11,2,DDL,22.75%,0,1/4 4/4 3/4,42.94%\n10,P06,1,LDL,29.17%,0,2/4 2/4 3/4,50.86%\n11,P08,1,LDL,25.93%,0,4/4 2/4 1/4,53.96%\n12,P12,1,LDL,24.40%,0,4/4 1/4 3/4,42.94%\n13,P13,1,LDL,20.83%,0,3/4 1/4 4/4,42.94%\n14,P01,0,LLL,28.57%,0,4/4 1/4 4/4,33.33%\n15,P03,0,LLL,23.81%,0,1/4 4/4 4/4,33.33%\n16,P10,0,LLL,21.77%,0,2/4 3/4 2/4,50.86%\n",
+    "JSON": "[\n  {\n    \"#\": \"1\",\n    \"name\": \"P15\",\n    \"pts\": \"15\",\n    \"record\": \"WDW\",\n    \"opp. win %\": \"22.22%\",\n    \"# opp. beat\": \"6\",\n    \"seat record\": \"1/4 4/4 3/4\",\n    \"avg. seat\": \"42.94%\"\n  },\n  {\n    \"#\": \"2\",\n    \"name\": \"P00\",\n    \"pts\": \"9\",\n    \"record\": \"DDW\",\n    \"opp. win %\": \"23.28%\",\n    \"# opp. beat\": \"3\",\n    \"seat record\": \"3/4 3/4 1/4\",\n    \"avg. seat\": \"52.55%\"\n  },\n  {\n    \"#\": \"3\",\n    \"name\": \"P14\",\n    \"pts\": \"8\",\n    \"record\": \"DWL\",\n    \"opp. win %\": \"29.63%\",\n    \"# opp. beat\": \"3\",\n    \"seat record\": \"4/4 1/4 2/4\",\n    \"avg. seat\": \"53.96%\"\n  },\n  {\n    \"#\": \"4\",\n    \"name\": \"P04\",\n    \"pts\": \"8\",\n    \"record\": \"WDL\",\n    \"opp. win %\": \"22.22%\",\n    \"# opp. beat\": \"3\",\n    \"seat record\": \"2/4 3/4 1/4\",\n    \"avg. seat\": \"63.57%\"\n  },\n  {\n    \"#\": \"5\",\n    \"name\": \"P07\",\n    \"pts\": \"8\",\n    \"record\": \"DLW\",\n    \"opp. win %\": \"17.99%\",\n    \"# opp. beat\": \"3\",\n    \"seat record\": \"2/4 3/4 1/4\",\n    \"avg. seat\": \"63.57%\"\n  },\n  {\n    \"#\": \"6\",\n    \"name\": \"P05\",\n    \"pts\": \"7\",\n    \"record\": \"WLL\",\n    \"opp. win %\": \"25.40%\",\n    \"# opp. beat\": \"3\",\n    \"seat record\": \"1/4 4/4 4/4\",\n    \"avg. seat\": \"33.33%\"\n  },\n  {\n    \"#\": \"7\",\n    \"name\": \"P02\",\n    \"pts\": \"7\",\n    \"record\": \"LWL\",\n    \"opp. win %\": \"18.52%\",\n    \"# opp. beat\": \"3\",\n    \"seat record\": \"3/4 2/4 2/4\",\n    \"avg. seat\": \"50.86%\"\n  },\n  {\n    \"#\": \"8\",\n    \"name\": \"P09\",\n    \"pts\": \"7\",\n    \"record\": \"LLW\",\n    \"opp. win %\": \"16.07%\",\n    \"# opp. beat\": \"3\",\n    \"seat record\": \"3/4 2/4 2/4\",\n    \"avg. seat\": \"50.86%\"\n  },\n  {\n    \"#\": \"9\",\n    \"name\": \"P11\",\n    \"pts\": \"2\",\n    \"record\": \"DDL\",\n    \"opp. win %\": \"22.75%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"1/4 4/4 3/4\",\n    \"avg. seat\": \"42.94%\"\n  },\n  {\n    \"#\": \"10\",\n    \"name\": \"P06\",\n    \"pts\": \"1\",\n    \"record\": \"LDL\",\n    \"opp. win %\": \"29.17%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"2/4 2/4 3/4\",\n    \"avg. seat\": \"50.86%\"\n  },\n  {\n    \"#\": \"11\",\n    \"name\": \"P08\",\n    \"pts\": \"1\",\n    \"record\": \"LDL\",\n    \"opp. win %\": \"25.93%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"4/4 2/4 1/4\",\n    \"avg. seat\": \"53.96%\"\n  },\n  {\n    \"#\": \"12\",\n    \"name\": \"P12\",\n    \"pts\": \"1\",\n    \"record\": \"LDL\",\n    \"opp. win %\": \"24.40%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"4/4 1/4 3/4\",\n    \"avg. seat\": \"42.94%\"\n  },\n  {\n    \"#\": \"13\",\n    \"name\": \"P13\",\n    \"pts\": \"1\",\n    \"record\": \"LDL\",\n    \"opp. win %\": \"20.83%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"3/4 1/4 4/4\",\n    \"avg. seat\": \"42.94%\"\n  },\n  {\n    \"#\": \"14\",\n    \"name\": \"P01\",\n    \"pts\": \"0\",\n    \"record\": \"LLL\",\n    \"opp. win %\": \"28.57%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"4/4 1/4 4/4\",\n    \"avg. seat\": \"33.33%\"\n  },\n  {\n    \"#\": \"15\",\n    \"name\": \"P03\",\n    \"pts\": \"0\",\n    \"record\": \"LLL\",\n    \"opp. win %\": \"23.81%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"1/4 4/4 4/4\",\n    \"avg. seat\": \"33.33%\"\n  },\n  {\n    \"#\": \"16\",\n    \"name\": \"P10\",\n    \"pts\": \"0\",\n    \"record\": \"LLL\",\n    \"opp. win %\": \"21.77%\",\n    \"# opp. beat\": \"0\",\n    \"seat record\": \"2/4 3/4 2/4\",\n    \"avg. seat\": \"50.86%\"\n  }\n]",
+    "PLAIN": "#  | name | pts | record | opp. win % | # opp. beat | seat record | avg. seat\n-- | ---- | --- | ------ | ---------- | ----------- | ----------- | ---------\n1  | P15  | 15  | WDW    | 22.22%     | 6           | 1/4 4/4 3/4 | 42.94%   \n2  | P00  | 9   | DDW    | 23.28%     | 3           | 3/4 3/4 1/4 | 52.55%   \n3  | P14  | 8   | DWL    | 29.63%     | 3           | 4/4 1/4 2/4 | 53.96%   \n4  | P04  | 8   | WDL    | 22.22%     | 3           | 2/4 3/4 1/4 | 63.57%   \n5  | P07  | 8   | DLW    | 17.99%     | 3           | 2/4 3/4 1/4 | 63.57%   \n6  | P05  | 7   | WLL    | 25.40%     | 3           | 1/4 4/4 4/4 | 33.33%   \n7  | P02  | 7   | LWL    | 18.52%     | 3           | 3/4 2/4 2/4 | 50.86%   \n8  | P09  | 7   | LLW    | 16.07%     | 3           | 3/4 2/4 2/4 | 50.86%   \n9  | P11  | 2   | DDL    | 22.75%     | 0           | 1/4 4/4 3/4 | 42.94%   \n10 | P06  | 1   | LDL    | 29.17%     | 0           | 2/4 2/4 3/4 | 50.86%   \n11 | P08  | 1   | LDL    | 25.93%     | 0           | 4/4 2/4 1/4 | 53.96%   \n12 | P12  | 1   | LDL    | 24.40%     | 0           | 4/4 1/4 3/4 | 42.94%   \n13 | P13  | 1   | LDL    | 20.83%     | 0           | 3/4 1/4 4/4 | 42.94%   \n14 | P01  | 0   | LLL    | 28.57%     | 0           | 4/4 1/4 4/4 | 33.33%   \n15 | P03  | 0   | LLL    | 23.81%     | 0           | 1/4 4/4 4/4 | 33.33%   \n16 | P10  | 0   | LLL    | 21.77%     | 0           | 2/4 3/4 2/4 | 50.86%   "
    }
   }
  ],
@@ -153,68 +153,68 @@
   },
   "players": [
    {
-    "name": "P08",
-    "uid": "ae6b2ec3-f5ce-4db9-846f-5b82b26e276a"
-   },
-   {
-    "name": "P11",
-    "uid": "e7f821df-11f9-472d-b62c-3fa5029774bd"
-   },
-   {
-    "name": "P10",
-    "uid": "dae7c6cb-1acc-4894-9d0a-70f904cee6ea"
-   },
-   {
-    "name": "P05",
-    "uid": "42a7d1e2-fb47-4db6-8c21-c68d54b67a20"
-   },
-   {
-    "name": "P15",
-    "uid": "93c525e9-0ddd-4bd1-b8d9-8a0dc8d09c95"
+    "name": "P00",
+    "uid": "00000000-0000-0000-0000-000000000001"
    },
    {
     "name": "P01",
-    "uid": "5d535030-dde3-4682-a5dd-06ac62587d9c"
-   },
-   {
-    "name": "P03",
-    "uid": "c87ff9b1-aff9-4c04-9569-d2e3ec4d56f6"
-   },
-   {
-    "name": "P04",
-    "uid": "ce134028-39ad-498d-a1fd-b5a7e9661f4d"
-   },
-   {
-    "name": "P14",
-    "uid": "a5b16ba3-20d5-45aa-94bc-af218d6f0b6f"
-   },
-   {
-    "name": "P00",
-    "uid": "9cf4f342-ea72-425c-a4fb-757fad0c2063"
-   },
-   {
-    "name": "P12",
-    "uid": "8d928595-fb77-4862-a0d7-113f059eb238"
-   },
-   {
-    "name": "P07",
-    "uid": "c0842694-3fa1-4025-867c-504e129475d7"
-   },
-   {
-    "name": "P09",
-    "uid": "f4292353-f937-41e1-9457-7f4efa2912cb"
-   },
-   {
-    "name": "P06",
-    "uid": "7f039101-9b19-4717-9a76-fce52788fede"
-   },
-   {
-    "name": "P13",
-    "uid": "c71e48dd-eeaa-4fa8-b06f-1a6ed88ffb04"
+    "uid": "00000000-0000-0000-0000-000000000002"
    },
    {
     "name": "P02",
-    "uid": "24e91140-d013-481c-8fc5-c9d6ef4c222f"
+    "uid": "00000000-0000-0000-0000-000000000003"
+   },
+   {
+    "name": "P03",
+    "uid": "00000000-0000-0000-0000-000000000004"
+   },
+   {
+    "name": "P04",
+    "uid": "00000000-0000-0000-0000-000000000005"
+   },
+   {
+    "name": "P05",
+    "uid": "00000000-0000-0000-0000-000000000006"
+   },
+   {
+    "name": "P06",
+    "uid": "00000000-0000-0000-0000-000000000007"
+   },
+   {
+    "name": "P07",
+    "uid": "00000000-0000-0000-0000-000000000008"
+   },
+   {
+    "name": "P08",
+    "uid": "00000000-0000-0000-0000-000000000009"
+   },
+   {
+    "name": "P09",
+    "uid": "00000000-0000-0000-0000-00000000000a"
+   },
+   {
+    "name": "P10",
+    "uid": "00000000-0000-0000-0000-00000000000b"
+   },
+   {
+    "name": "P11",
+    "uid": "00000000-0000-0000-0000-00000000000c"
+   },
+   {
+    "name": "P12",
+    "uid": "00000000-0000-0000-0000-00000000000d"
+   },
+   {
+    "name": "P13",
+    "uid": "00000000-0000-0000-0000-00000000000e"
+   },
+   {
+    "name": "P14",
+    "uid": "00000000-0000-0000-0000-00000000000f"
+   },
+   {
+    "name": "P15",
+    "uid": "00000000-0000-0000-0000-000000000010"
    }
   ],
   "rounds": [
@@ -230,101 +230,101 @@
       "games": [
        {
         "winners": [
-         "ce134028-39ad-498d-a1fd-b5a7e9661f4d"
+         "00000000-0000-0000-0000-000000000010"
         ]
        }
       ],
       "players": [
-       "ce134028-39ad-498d-a1fd-b5a7e9661f4d",
-       "c87ff9b1-aff9-4c04-9569-d2e3ec4d56f6",
-       "c0842694-3fa1-4025-867c-504e129475d7",
-       "7f039101-9b19-4717-9a76-fce52788fede"
+       "00000000-0000-0000-0000-000000000010",
+       "00000000-0000-0000-0000-000000000007",
+       "00000000-0000-0000-0000-00000000000a",
+       "00000000-0000-0000-0000-000000000002"
       ],
       "result": [
-       "ce134028-39ad-498d-a1fd-b5a7e9661f4d"
+       "00000000-0000-0000-0000-000000000010"
       ],
       "table": 1,
-      "tour_round": "54463ecc-15c5-4b9b-bd6b-c808d25cd369",
-      "uid": "e3ade75c-6ee2-4170-9c7d-f94870638db7"
+      "tour_round": "ROUND0",
+      "uid": "POD0.0"
      },
      {
       "cap": 4,
       "games": [
        {
         "winners": [
-         "8d928595-fb77-4862-a0d7-113f059eb238"
+         "00000000-0000-0000-0000-000000000005"
         ]
        }
       ],
       "players": [
-       "dae7c6cb-1acc-4894-9d0a-70f904cee6ea",
-       "8d928595-fb77-4862-a0d7-113f059eb238",
-       "a5b16ba3-20d5-45aa-94bc-af218d6f0b6f",
-       "c71e48dd-eeaa-4fa8-b06f-1a6ed88ffb04"
+       "00000000-0000-0000-0000-000000000004",
+       "00000000-0000-0000-0000-000000000005",
+       "00000000-0000-0000-0000-000000000003",
+       "00000000-0000-0000-0000-000000000009"
       ],
       "result": [
-       "8d928595-fb77-4862-a0d7-113f059eb238"
+       "00000000-0000-0000-0000-000000000005"
       ],
       "table": 2,
-      "tour_round": "54463ecc-15c5-4b9b-bd6b-c808d25cd369",
-      "uid": "dc2cec1e-f90e-47d4-8db1-0333d88e4376"
+      "tour_round": "ROUND0",
+      "uid": "POD0.1"
      },
      {
       "cap": 4,
       "games": [
        {
         "winners": [
-         "24e91140-d013-481c-8fc5-c9d6ef4c222f"
+         "00000000-0000-0000-0000-000000000006"
         ]
        }
       ],
       "players": [
-       "24e91140-d013-481c-8fc5-c9d6ef4c222f",
-       "5d535030-dde3-4682-a5dd-06ac62587d9c",
-       "42a7d1e2-fb47-4db6-8c21-c68d54b67a20",
-       "ae6b2ec3-f5ce-4db9-846f-5b82b26e276a"
+       "00000000-0000-0000-0000-000000000006",
+       "00000000-0000-0000-0000-00000000000b",
+       "00000000-0000-0000-0000-00000000000e",
+       "00000000-0000-0000-0000-00000000000d"
       ],
       "result": [
-       "24e91140-d013-481c-8fc5-c9d6ef4c222f"
+       "00000000-0000-0000-0000-000000000006"
       ],
       "table": 3,
-      "tour_round": "54463ecc-15c5-4b9b-bd6b-c808d25cd369",
-      "uid": "91f505f7-6450-4d89-b2d0-9e981dcc072d"
+      "tour_round": "ROUND0",
+      "uid": "POD0.2"
      },
      {
       "cap": 4,
       "games": [
        {
         "winners": [
-         "93c525e9-0ddd-4bd1-b8d9-8a0dc8d09c95",
-         "9cf4f342-ea72-425c-a4fb-757fad0c2063",
-         "e7f821df-11f9-472d-b62c-3fa5029774bd",
-         "f4292353-f937-41e1-9457-7f4efa2912cb"
+         "00000000-0000-0000-0000-000000000001",
+         "00000000-0000-0000-0000-000000000008",
+         "00000000-0000-0000-0000-00000000000c",
+         "00000000-0000-0000-0000-00000000000f"
         ]
        }
       ],
       "players": [
-       "93c525e9-0ddd-4bd1-b8d9-8a0dc8d09c95",
-       "f4292353-f937-41e1-9457-7f4efa2912cb",
-       "9cf4f342-ea72-425c-a4fb-757fad0c2063",
-       "e7f821df-11f9-472d-b62c-3fa5029774bd"
+       "00000000-0000-0000-0000-00000000000c",
+       "00000000-0000-0000-0000-000000000008",
+       "00000000-0000-0000-0000-000000000001",
+       "00000000-0000-0000-0000-00000000000f"
       ],
       "result": [
-       "93c525e9-0ddd-4bd1-b8d9-8a0dc8d09c95",
-       "9cf4f342-ea72-425c-a4fb-757fad0c2063",
-       "e7f821df-11f9-472d-b62c-3fa5029774bd",
-       "f4292353-f937-41e1-9457-7f4efa2912cb"
+       "00000000-0000-0000-0000-000000000001",
+       "00000000-0000-0000-0000-000000000008",
+       "00000000-0000-0000-0000-00000000000c",
+       "00000000-0000-0000-0000-00000000000f"
       ],
       "table": 4,
-      "tour_round": "54463ecc-15c5-4b9b-bd6b-c808d25cd369",
-      "uid": "d6a5f414-3d41-498b-96e7-9cef73294a7c"
+      "tour_round": "ROUND0",
+      "uid": "POD0.3"
      }
     ],
     "seed": 20260101,
     "seq": 0,
     "stage": 0,
-    "tour": "TOUR_UID",
-    "uid": "54463ecc-15c5-4b9b-bd6b-c808d25cd369"
+    "tour": "TOUR",
+    "uid": "ROUND0"
    },
    {
     "byes": [],
@@ -338,107 +338,107 @@
       "games": [
        {
         "winners": [
-         "24e91140-d013-481c-8fc5-c9d6ef4c222f",
-         "c87ff9b1-aff9-4c04-9569-d2e3ec4d56f6",
-         "dae7c6cb-1acc-4894-9d0a-70f904cee6ea",
-         "e7f821df-11f9-472d-b62c-3fa5029774bd"
+         "00000000-0000-0000-0000-000000000005",
+         "00000000-0000-0000-0000-000000000007",
+         "00000000-0000-0000-0000-00000000000c",
+         "00000000-0000-0000-0000-00000000000e"
         ]
        }
       ],
       "players": [
-       "e7f821df-11f9-472d-b62c-3fa5029774bd",
-       "c87ff9b1-aff9-4c04-9569-d2e3ec4d56f6",
-       "24e91140-d013-481c-8fc5-c9d6ef4c222f",
-       "dae7c6cb-1acc-4894-9d0a-70f904cee6ea"
+       "00000000-0000-0000-0000-00000000000e",
+       "00000000-0000-0000-0000-000000000007",
+       "00000000-0000-0000-0000-000000000005",
+       "00000000-0000-0000-0000-00000000000c"
       ],
       "result": [
-       "24e91140-d013-481c-8fc5-c9d6ef4c222f",
-       "c87ff9b1-aff9-4c04-9569-d2e3ec4d56f6",
-       "dae7c6cb-1acc-4894-9d0a-70f904cee6ea",
-       "e7f821df-11f9-472d-b62c-3fa5029774bd"
+       "00000000-0000-0000-0000-000000000005",
+       "00000000-0000-0000-0000-000000000007",
+       "00000000-0000-0000-0000-00000000000c",
+       "00000000-0000-0000-0000-00000000000e"
       ],
       "table": 1,
-      "tour_round": "284e9b9f-1aa9-4a0f-aa08-61dfc7f8b665",
-      "uid": "6ae23df4-c42e-47e0-aa16-89d7ceb638b7"
+      "tour_round": "ROUND1",
+      "uid": "POD1.0"
      },
      {
       "cap": 4,
       "games": [
        {
         "winners": [
-         "9cf4f342-ea72-425c-a4fb-757fad0c2063"
+         "00000000-0000-0000-0000-000000000003"
         ]
        }
       ],
       "players": [
-       "7f039101-9b19-4717-9a76-fce52788fede",
-       "9cf4f342-ea72-425c-a4fb-757fad0c2063",
-       "5d535030-dde3-4682-a5dd-06ac62587d9c",
-       "8d928595-fb77-4862-a0d7-113f059eb238"
+       "00000000-0000-0000-0000-000000000002",
+       "00000000-0000-0000-0000-000000000003",
+       "00000000-0000-0000-0000-000000000008",
+       "00000000-0000-0000-0000-000000000006"
       ],
       "result": [
-       "9cf4f342-ea72-425c-a4fb-757fad0c2063"
+       "00000000-0000-0000-0000-000000000003"
       ],
       "table": 2,
-      "tour_round": "284e9b9f-1aa9-4a0f-aa08-61dfc7f8b665",
-      "uid": "b28021d5-64a9-449f-b70d-7e0ae88e9c88"
+      "tour_round": "ROUND1",
+      "uid": "POD1.1"
      },
      {
       "cap": 4,
       "games": [
        {
         "winners": [
-         "42a7d1e2-fb47-4db6-8c21-c68d54b67a20",
-         "93c525e9-0ddd-4bd1-b8d9-8a0dc8d09c95",
-         "c71e48dd-eeaa-4fa8-b06f-1a6ed88ffb04",
-         "ce134028-39ad-498d-a1fd-b5a7e9661f4d"
+         "00000000-0000-0000-0000-000000000001",
+         "00000000-0000-0000-0000-000000000009",
+         "00000000-0000-0000-0000-00000000000d",
+         "00000000-0000-0000-0000-000000000010"
         ]
        }
       ],
       "players": [
-       "c71e48dd-eeaa-4fa8-b06f-1a6ed88ffb04",
-       "42a7d1e2-fb47-4db6-8c21-c68d54b67a20",
-       "ce134028-39ad-498d-a1fd-b5a7e9661f4d",
-       "93c525e9-0ddd-4bd1-b8d9-8a0dc8d09c95"
+       "00000000-0000-0000-0000-00000000000d",
+       "00000000-0000-0000-0000-000000000009",
+       "00000000-0000-0000-0000-000000000001",
+       "00000000-0000-0000-0000-000000000010"
       ],
       "result": [
-       "42a7d1e2-fb47-4db6-8c21-c68d54b67a20",
-       "93c525e9-0ddd-4bd1-b8d9-8a0dc8d09c95",
-       "c71e48dd-eeaa-4fa8-b06f-1a6ed88ffb04",
-       "ce134028-39ad-498d-a1fd-b5a7e9661f4d"
+       "00000000-0000-0000-0000-000000000001",
+       "00000000-0000-0000-0000-000000000009",
+       "00000000-0000-0000-0000-00000000000d",
+       "00000000-0000-0000-0000-000000000010"
       ],
       "table": 3,
-      "tour_round": "284e9b9f-1aa9-4a0f-aa08-61dfc7f8b665",
-      "uid": "ffc94f71-fdcf-40c2-a21b-21d213d91e4e"
+      "tour_round": "ROUND1",
+      "uid": "POD1.2"
      },
      {
       "cap": 4,
       "games": [
        {
         "winners": [
-         "ae6b2ec3-f5ce-4db9-846f-5b82b26e276a"
+         "00000000-0000-0000-0000-00000000000f"
         ]
        }
       ],
       "players": [
-       "ae6b2ec3-f5ce-4db9-846f-5b82b26e276a",
-       "a5b16ba3-20d5-45aa-94bc-af218d6f0b6f",
-       "c0842694-3fa1-4025-867c-504e129475d7",
-       "f4292353-f937-41e1-9457-7f4efa2912cb"
+       "00000000-0000-0000-0000-00000000000f",
+       "00000000-0000-0000-0000-00000000000a",
+       "00000000-0000-0000-0000-00000000000b",
+       "00000000-0000-0000-0000-000000000004"
       ],
       "result": [
-       "ae6b2ec3-f5ce-4db9-846f-5b82b26e276a"
+       "00000000-0000-0000-0000-00000000000f"
       ],
       "table": 4,
-      "tour_round": "284e9b9f-1aa9-4a0f-aa08-61dfc7f8b665",
-      "uid": "88f77e88-a108-4cc2-bed7-7b4501b8e7f4"
+      "tour_round": "ROUND1",
+      "uid": "POD1.3"
      }
     ],
     "seed": 20260101,
     "seq": 1,
     "stage": 0,
-    "tour": "TOUR_UID",
-    "uid": "284e9b9f-1aa9-4a0f-aa08-61dfc7f8b665"
+    "tour": "TOUR",
+    "uid": "ROUND1"
    },
    {
     "byes": [],
@@ -452,99 +452,98 @@
       "games": [
        {
         "winners": [
-         "ce134028-39ad-498d-a1fd-b5a7e9661f4d"
+         "00000000-0000-0000-0000-000000000010"
         ]
        }
       ],
       "players": [
-       "9cf4f342-ea72-425c-a4fb-757fad0c2063",
-       "dae7c6cb-1acc-4894-9d0a-70f904cee6ea",
-       "ce134028-39ad-498d-a1fd-b5a7e9661f4d",
-       "24e91140-d013-481c-8fc5-c9d6ef4c222f"
+       "00000000-0000-0000-0000-000000000005",
+       "00000000-0000-0000-0000-00000000000f",
+       "00000000-0000-0000-0000-000000000010",
+       "00000000-0000-0000-0000-000000000006"
       ],
       "result": [
-       "ce134028-39ad-498d-a1fd-b5a7e9661f4d"
+       "00000000-0000-0000-0000-000000000010"
       ],
       "table": 1,
-      "tour_round": "e7be726e-c7d2-4170-b055-be09a38507c6",
-      "uid": "37d2bf1e-6b74-4f92-9af8-e3e2d1ff7e6d"
+      "tour_round": "ROUND2",
+      "uid": "POD2.0"
      },
      {
       "cap": 4,
       "games": [
        {
         "winners": [
-         "8d928595-fb77-4862-a0d7-113f059eb238"
+         "00000000-0000-0000-0000-000000000001"
         ]
        }
       ],
       "players": [
-       "8d928595-fb77-4862-a0d7-113f059eb238",
-       "ae6b2ec3-f5ce-4db9-846f-5b82b26e276a",
-       "93c525e9-0ddd-4bd1-b8d9-8a0dc8d09c95",
-       "c87ff9b1-aff9-4c04-9569-d2e3ec4d56f6"
+       "00000000-0000-0000-0000-000000000001",
+       "00000000-0000-0000-0000-000000000003",
+       "00000000-0000-0000-0000-000000000007",
+       "00000000-0000-0000-0000-00000000000e"
       ],
       "result": [
-       "8d928595-fb77-4862-a0d7-113f059eb238"
+       "00000000-0000-0000-0000-000000000001"
       ],
       "table": 2,
-      "tour_round": "e7be726e-c7d2-4170-b055-be09a38507c6",
-      "uid": "c21d1539-363c-4971-b796-12acedd1e2e5"
+      "tour_round": "ROUND2",
+      "uid": "POD2.1"
      },
      {
       "cap": 4,
       "games": [
        {
         "winners": [
-         "42a7d1e2-fb47-4db6-8c21-c68d54b67a20"
+         "00000000-0000-0000-0000-00000000000a"
         ]
        }
       ],
       "players": [
-       "a5b16ba3-20d5-45aa-94bc-af218d6f0b6f",
-       "42a7d1e2-fb47-4db6-8c21-c68d54b67a20",
-       "7f039101-9b19-4717-9a76-fce52788fede",
-       "e7f821df-11f9-472d-b62c-3fa5029774bd"
+       "00000000-0000-0000-0000-000000000009",
+       "00000000-0000-0000-0000-00000000000a",
+       "00000000-0000-0000-0000-00000000000c",
+       "00000000-0000-0000-0000-000000000002"
       ],
       "result": [
-       "42a7d1e2-fb47-4db6-8c21-c68d54b67a20"
+       "00000000-0000-0000-0000-00000000000a"
       ],
       "table": 3,
-      "tour_round": "e7be726e-c7d2-4170-b055-be09a38507c6",
-      "uid": "acf8e524-b5f2-4110-a36f-8bb4e38634da"
+      "tour_round": "ROUND2",
+      "uid": "POD2.2"
      },
      {
       "cap": 4,
       "games": [
        {
         "winners": [
-         "c0842694-3fa1-4025-867c-504e129475d7"
+         "00000000-0000-0000-0000-000000000008"
         ]
        }
       ],
       "players": [
-       "c0842694-3fa1-4025-867c-504e129475d7",
-       "f4292353-f937-41e1-9457-7f4efa2912cb",
-       "5d535030-dde3-4682-a5dd-06ac62587d9c",
-       "c71e48dd-eeaa-4fa8-b06f-1a6ed88ffb04"
+       "00000000-0000-0000-0000-000000000008",
+       "00000000-0000-0000-0000-00000000000b",
+       "00000000-0000-0000-0000-00000000000d",
+       "00000000-0000-0000-0000-000000000004"
       ],
       "result": [
-       "c0842694-3fa1-4025-867c-504e129475d7"
+       "00000000-0000-0000-0000-000000000008"
       ],
       "table": 4,
-      "tour_round": "e7be726e-c7d2-4170-b055-be09a38507c6",
-      "uid": "3442c6fc-751b-4e87-ad6b-07f719d9a4a4"
+      "tour_round": "ROUND2",
+      "uid": "POD2.3"
      }
     ],
     "seed": 20260101,
     "seq": 2,
     "stage": 0,
-    "tour": "TOUR_UID",
-    "uid": "e7be726e-c7d2-4170-b055-be09a38507c6"
+    "tour": "TOUR",
+    "uid": "ROUND2"
    }
   ],
-  "seed": 20260101,
-  "uid": "TOUR_UID",
+  "uid": "TOUR",
   "updated_at": "2026-01-01T12:00:00+00:00"
  }
 }
