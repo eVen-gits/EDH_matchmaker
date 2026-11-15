@@ -103,6 +103,18 @@ vp = dict(zip((p.uid for p in pod.players), (10, 8, 6, 5)))
 tour.report_match(pod, [IGameResult(frozenset({pod.players[0].uid}), tuple(vp.items()))])
 ```
 
+In the GUI, pick **Catan** as the game in the tournament configuration
+dialog. Changing the game resets the pod sizes (4 and 3) and turns the
+allow-bye checkbox off, the Catan default; switching back to Commander turns it
+on again. To report a table, double-click it or right-click a player and pick
+**Report score...**. The dialog has one victory-point box per player, in seat
+order. The player with the most VP is the winner. OK stays disabled, and the
+status line says why, until the report is valid: exactly one winner, who has at
+least the game's victory points (10 by default), while all other players have
+fewer. The player list shows each player's `VP`, `VP%`, `2nd` and `3rd`
+standings columns. The "Report win" and "Report draw" actions do not apply to
+Catan and are hidden for its tables.
+
 After the semifinals, places 5-16 follow the semifinal finishing places; after
 the final, places 1-4 follow the final table (rule 1.4.4). The full rules
 behind this are in [`docs/tournament-log-spec.md`](docs/tournament-log-spec.md#catanruleset).
