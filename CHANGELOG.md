@@ -27,8 +27,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   independent draw. The exception is Catan preliminary games 2-3: they ignore
   results by rule and follow the plan made at its first game, so only a field
   change, a hand swap or a new seed passed for that game re-plans them. In the
-  GUI, **New Seed** draws a fresh seed for the next **Create Pods**. Log format `1.4` saves each round's `seed` and the engine
-  version (`generator.version`, from the new `src.__version__`).
+  GUI, **New Seed** draws a fresh seed for the next **Create Pods**. Log
+  format `1.4` saves each round's `seed` and the engine version
+  (`generator.version`, from the new `src.__version__`).
 
 ### Fixed
 - The 1v1 game tiebreakers (GW and OGW) now score a game won with the
