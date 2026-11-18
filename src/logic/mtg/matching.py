@@ -199,10 +199,16 @@ class Pairing1v1(CommonPairing):
             matching += zip(pool[::2], pool[1::2])
         else:
             matching = solve_by_group() if simple else []
-            # ponytail: a group that cannot avoid a rematch needs a farther
-            # pair-down (spec 4.1 rule 4), which only the full graph finds,
-            # so that field solves both.
-            if not matching or any(met(u, v) for u, v in matching if u in g and v in g):
+            # ponytail: group-wise is greedy top down. A rematch, or a
+            # pair-down past the next group, may have a better fix that
+            # only the full graph sees (spec 4.1), so that field solves
+            # both. With every gap <= 1, one pair crosses each odd
+            # boundary, which is already the minimum total squared gap.
+            if not matching or any(
+                met(u, v) or abs(g[u] - g[v]) > 1
+                for u, v in matching
+                if u in g and v in g
+            ):
                 matching = solve()
         if {n for pair in matching for n in pair} != expected:
             raise ValueError(

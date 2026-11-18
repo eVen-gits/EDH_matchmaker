@@ -686,6 +686,36 @@ class TestPairing1v1(unittest.TestCase):
                     t.random_results()
                     t.new_round()
 
+    def test_odd_group_pairs_down_where_later_groups_need_it(self):
+        # 9 pts {A,B,C}, 6 pts {D,E}, 3 pts {H,I}, 0 pts {F,G,J}. C has
+        # already beaten D and E, so if C pairs down it cannot be paired
+        # in the 6-point group and would drop two groups. A-D, B-C, E-I,
+        # H-F/G, F/G-J keeps every pairing within one group of each other.
+        rounds = [
+            ["CD", "AF", "BG", "EH", "IJ"],
+            ["CE", "AG", "BF", "DI", "HJ"],
+            ["CF", "AH", "BI", "DJ", "EG"],
+        ]
+        for seed in range(30):
+            with self.subTest(seed=seed):
+                random.seed(seed)
+                t = self._tournament(10, 4)
+                by_name = dict(zip("ABCDEFGHIJ", sorted(t.players, key=lambda p: p.uid.int)))
+                for pairs in rounds:
+                    t.new_round()
+                    for winner, loser in pairs:
+                        t.manual_pod([by_name[winner], by_name[loser]])
+                    for winner, _ in pairs:
+                        t.report_win(by_name[winner])
+                t.new_round()
+                t.create_pairings()
+                pts = {p: p.rating(t.tour_round) for p in t.players}  # pyright: ignore[reportCallIssue]
+                levels = sorted(set(pts.values()), reverse=True)
+                for pod in t.tour_round.pods:
+                    a, b = pod.players
+                    gap = abs(levels.index(pts[a]) - levels.index(pts[b]))
+                    self.assertLessEqual(gap, 1, f"{a.name} vs {b.name}")
+
     def test_anchored_pod_gets_filled(self):
         random.seed(6)
         t = self._tournament(6, 2)
