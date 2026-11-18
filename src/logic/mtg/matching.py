@@ -12,7 +12,10 @@ class Pairing1v1(CommonPairing):
     pod-fill: spec 4.1's rules (the bye to a fewest-byes, fewest-points
     player, no rematch when avoidable, fewest and smallest pair-downs)
     are exact priorities a greedy fill can't guarantee, but a matching
-    can. The shared CommonPairing base supplies rating helpers. This
+    can. For speed on large fields, round 1 pairs by seeded shuffle and
+    later rounds match one score group at a time, falling back to the
+    whole-field matching on a rematch or a pair-down past the next group.
+    The shared CommonPairing base supplies rating helpers. This
     algorithm has no tunable parameters, so it ships no sidecar.
     """
 
