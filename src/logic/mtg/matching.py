@@ -22,9 +22,6 @@ class Pairing1v1(CommonPairing):
     def make_pairings(
         self, tour_round: IRound, players: set[IPlayer], pods: list[IPod]
     ) -> set[IPlayer]:
-        # ponytail: complete graph, O(P^3); 256 players ~2.4 s. If large
-        # events need it, keep only edges within +-2 score groups and fall
-        # back to the full graph when the matching is not perfect.
         # Imported here, not at module level, so a missing networkx install
         # only breaks MTG Swiss pairing, not discovery of the whole mtg
         # package (matching.py/scoring.py are imported wholesale to find
@@ -115,36 +112,99 @@ class Pairing1v1(CommonPairing):
         def weight(cost: int) -> int:
             return -cost * unit + rng.randrange(jitter_range)
 
-        graph: Any = nx.Graph()
         bye_nodes = [f"__bye_{i}__" for i in range(n_byes)]
         # The graph's nodes are indices into `nodes`: max_weight_matching
         # hashes nodes O(P^3) times, and an int hashes much faster than a
         # player (whose hash is a Python method).
         nodes: list[Any] = [*ordered_players, *bye_nodes]
         n_ordered = len(ordered_players)
-        graph.add_nodes_from(range(len(nodes)))
+        expected = set(ordered_players) | set(bye_nodes)
 
-        for i, a in enumerate(ordered_players):
-            for j in range(i + 1, n_ordered):
-                b = ordered_players[j]
-                if a in anchored_set and b in anchored_set:
-                    continue
-                graph.add_edge(i, j, weight=weight(pair_cost(a, b)))
-            if a in free_set:
-                for k in range(n_ordered, len(nodes)):
-                    cost = (
-                        bye_unit * (a.byes(tour_round) - min_byes)
-                        + pts_unit * abs(g_cand - g[a])
-                        + rank_from_bottom[a]
-                    )
-                    graph.add_edge(i, k, weight=weight(cost))
+        def solve() -> list[tuple[Any, Any]]:
+            graph: Any = nx.Graph()
+            graph.add_nodes_from(range(len(nodes)))
+            for i, a in enumerate(ordered_players):
+                for j in range(i + 1, n_ordered):
+                    b = ordered_players[j]
+                    if a in anchored_set and b in anchored_set:
+                        continue
+                    graph.add_edge(i, j, weight=weight(pair_cost(a, b)))
+                if a in free_set:
+                    for k in range(n_ordered, len(nodes)):
+                        cost = (
+                            bye_unit * (a.byes(tour_round) - min_byes)
+                            + pts_unit * abs(g_cand - g[a])
+                            + rank_from_bottom[a]
+                        )
+                        graph.add_edge(i, k, weight=weight(cost))
+            return [
+                (nodes[u], nodes[v])
+                for u, v in nx.max_weight_matching(graph, maxcardinality=True)
+            ]
 
-        matching = [
-            (nodes[u], nodes[v])
-            for u, v in nx.max_weight_matching(graph, maxcardinality=True)
-        ]
-        matched = {node for pair in matching for node in pair}
-        if matched != set(ordered_players) | set(bye_nodes):
+        def solve_by_group() -> list[tuple[Any, Any]]:
+            # Spec 4.1: the bye is fixed first (it outranks everything), then
+            # each score group pairs inside itself, top down; an odd group
+            # pairs one player down into the next one. Many small matchings
+            # instead of one O(P^3) matching over the whole field.
+            field = list(ordered_players)
+            pairs: list[tuple[Any, Any]] = []
+            if n_byes:
+                bye_player = min(
+                    (
+                        a
+                        for a in free_players
+                        if a.byes(tour_round) == min_byes and g[a] == g_cand
+                    ),
+                    key=rank_from_bottom.__getitem__,
+                )
+                field.remove(bye_player)
+                pairs.append((bye_player, bye_nodes[0]))
+            groups: dict[int, list[IPlayer]] = {}
+            for a in field:
+                groups.setdefault(g[a], []).append(a)
+            keys = sorted(groups)
+            carry: list[IPlayer] = []
+            for idx, k in enumerate(keys):
+                pool = carry + groups[k]
+                carry = []
+                graph: Any = nx.Graph()
+                graph.add_nodes_from(range(len(pool)))
+                for i, a in enumerate(pool):
+                    for j in range(i + 1, len(pool)):
+                        graph.add_edge(
+                            i, j, weight=weight(pair_cost(a, pool[j]))
+                        )
+                if len(pool) % 2:  # the player who pairs down
+                    for i, a in enumerate(pool):
+                        gap = (keys[idx + 1] - g[a]) ** 2
+                        graph.add_edge(i, len(pool), weight=weight(gap_unit * gap))
+                for u, v in nx.max_weight_matching(graph, maxcardinality=True):
+                    if len(pool) in (u, v):
+                        carry.append(pool[v if u == len(pool) else u])
+                    else:
+                        pairs.append((pool[u], pool[v]))
+            return pairs
+
+        simple = not anchored_pods and n_byes <= 1
+        if tour_round.seq == 0 and n_groups == 1 and simple:
+            # Round 1: one score group and no history, so every pairing is
+            # equally good. The bye goes to the lowest-ranked player, as the
+            # matching would; the rest pair at random.
+            pool = list(ordered_players)
+            matching: list[tuple[Any, Any]] = (
+                [(pool.pop(), bye_nodes[0])] if n_byes else []
+            )
+            rng.shuffle(pool)
+            matching += zip(pool[::2], pool[1::2])
+        else:
+            matching = solve_by_group() if simple else []
+            # ponytail: a group that cannot avoid a rematch needs a farther
+            # pair-down (spec 4.1 rule 4), which only the full graph finds,
+            # so that field solves both.
+            if not matching or any(met(u, v) for u, v in matching if u in g and v in g):
+                matching = solve()
+        if {n for pair in matching for n in pair} != expected:
             raise ValueError(
                 "No valid 1v1 pairing: the field could not be fully matched."
             )
