@@ -180,6 +180,16 @@ class TournamentContext:
         self.tour_round = tour_round
         self.standings = standings
 
+    @functools.cached_property
+    def name_width(self) -> int:
+        """Width of the longest display name among the active players.
+
+        Cached: Player.__repr__ aligns every row to it, and each display_name
+        call scans the field, so computing it per row is O(P^3) per list.
+        """
+        assert self.tour.tour_round is not None
+        return max(len(p.display_name) for p in self.tour.tour_round.active_players)
+
 
 class StandingsExport(DataExport, IStandingsExport):
     class Field(Enum):
@@ -3115,7 +3125,12 @@ class Player(IPlayer):
         tsize = int(
             math.floor(math.log10(len(self.tour.tour_round.active_players))) + 1
         )
-        pname_size = max([len(p.display_name) for p in self.tour.tour_round.active_players])
+        if context is None:
+            pname_size = max(
+                len(p.display_name) for p in self.tour.tour_round.active_players
+            )
+        else:
+            pname_size = context.name_width
 
         tour_round = self.tour.rounds[args.round]
         if context is None:
@@ -3132,7 +3147,7 @@ class Player(IPlayer):
             fields.append(self.display_name.ljust(pname_size))
 
         if args.pod and len(tour_round.pods) > 0:
-            max_pod_id = max([len(str(p.table)) for p in tour_round.pods])
+            max_pod_id = len(str(len(tour_round.pods)))  # tables are 1..N
             pod = self.pod(tour_round)
             player_result = self.result(self.tour.tour_round)
             if self in self.tour.tour_round.dropped_players:
