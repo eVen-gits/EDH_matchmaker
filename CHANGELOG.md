@@ -63,6 +63,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   discovering could fail with "Unknown ruleset".
 
 ### Changed
+- 1v1 Swiss pairing (`Pairing1v1`) is much faster on large fields: round 1
+  pairs by a seeded shuffle, and later rounds match one score group at a
+  time, falling back to the whole-field matching only on a rematch or a
+  pair-down past the next group. The same seed can now give different 1v1
+  pairings than before. The GUI no longer hangs listing pods or standings
+  for large fields.
 - Tournament log format `1.3`: games can carry optional per-player scores, and
   a player's decklist is now optional and omitted when not recorded. See
   `docs/tournament-log-spec.md`.

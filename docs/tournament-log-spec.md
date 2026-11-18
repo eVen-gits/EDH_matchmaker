@@ -931,6 +931,12 @@ so far, and among those to one in the lowest score group, first; then avoid
 a rematch; then minimize the total squared (pair-down) score-group gap;
 then give the bye to the lowest-ranked player; with a small random
 tie-break last.
+Round 1 with a single score group, no anchored pods and at most one bye
+skips the matching: the lowest-ranked player gets the bye and the rest pair
+by a seeded shuffle. Later rounds (same conditions) first fix the bye, then
+match each score group on its own, top down, an odd group pairing one player
+down into the next. They fall back to the single whole-field matching above
+when that result has a rematch or a pair-down across more than one group.
 A reader reproducing this file's pairings needs the algorithm, not just
 this page - see `src/logic/mtg/mtr-1v1-spec.md` §4.1 for the rules it
 follows and the class's own docstring for the exact weight formula.
