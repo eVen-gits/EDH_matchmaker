@@ -2211,12 +2211,11 @@ class Tournament(ITournament):
         """
         if not self.tour_round:
             return ""
-        standings = self.get_standings(self.tour_round)
+        context = TournamentContext(
+            self, self.tour_round, self.get_standings(self.tour_round)
+        )
         export_str = "\n\n".join(
-            [
-                pod.__repr__(TournamentContext(self, self.tour_round, standings))
-                for pod in self.tour_round.pods
-            ]
+            [pod.__repr__(context) for pod in self.tour_round.pods]
         )
 
         if self.config.allow_bye and self.tour_round.unassigned:
