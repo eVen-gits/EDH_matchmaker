@@ -298,3 +298,16 @@ sidecar won't be configurable and may silently diverge from what's shown.
 
 _Avoid:_ don't restate sidecar values in `CLAUDE.md` or other docs — they
 drift; point at the sidecar file instead.
+
+## `<Ruleset>.setup.yaml` setup profile
+
+The YAML file next to a ruleset class that tells a front end (FairPair) how
+to set up an event of that ruleset: its category, formats, round timer,
+byes, points, report kind and table companion. Loaded into
+`IRuleset.SETUP_PROFILE` and exported by `python -m src.param_catalog`.
+
+**Lives in:** `src/setup_profile.py`, `src/logic/<game>/<Ruleset>.setup.yaml`
+**Invariant:** A category is a profile field, not a game directory: `mtg`
+spans `commander/` and `mtg/`. The loader rejects a profile whose `byes`
+disagree with the ruleset's `BYES_REQUIRED`/`DEFAULT_ALLOW_BYE` or whose
+structure names a top cut missing from `PLAYOFFS`.

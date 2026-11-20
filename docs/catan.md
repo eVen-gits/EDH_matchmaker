@@ -54,7 +54,8 @@ flowchart TB
 
 ## Event flow
 
-Structure by player count (rule 1.1.5, `recommended_structure(n)`). The config
+Structure by player count (rule 1.1.5, `recommended_structure(n)`, which reads
+the bands from `src/logic/catan/CatanRuleset.setup.yaml`). The config
 stays explicit; `CatanRuleset.warn_structure` logs once at game 1 if it differs
 or if there are fewer than 12 players.
 
@@ -142,6 +143,7 @@ Line numbers are as of commit `8e6fce3` and can drift.
 | `src/logic/catan/scoring.py:68` | `ScoringCatan` |
 | `src/logic/catan/matching.py:42` | `PairingCatanPrelim`; `plan` `:92`, `_schedule` `:129` |
 | `src/logic/catan/matching.py:278` | `PairingCatanSerpentine` |
+| `src/logic/catan/CatanRuleset.setup.yaml` | Setup profile: untimed rounds, table phase and turn timers, rule 1.1.5 bands, VP companion, `confirmations: all` |
 | `src/logic/catan/*.params.yaml` | `victory_points`, `eliminate_below_wins`, `win_points`/`bye_points`, prelim penalties, `seat_win_rates` |
 | `src/interface.py:13` | `IGameResult.scores` |
 | `src/interface.py:473`, `:550`, `:561` | `DEFAULT_ALLOW_BYE`, `playoff_standings`, `swiss_eliminations` |

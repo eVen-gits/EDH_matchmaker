@@ -1,0 +1,26 @@
+# Setup profile for CommanderRuleset: how a front end sets up an event.
+# Keys and their meaning: src/setup_profile.py.
+category: mtg
+formats:
+  commander: Commander
+  other: Other
+timer:
+  default_minutes: 75
+n_rounds: 5
+byes: allowed
+seat_order: organizer
+# Event defaults. bye 4 is the FairPair event default (ScoringDefault's own
+# bye_points default is 7), so new events keep today's points.
+points:
+  win: 7
+  draw: 1
+  bye: 4
+  locked: false
+decklists: true
+rules_enforcement: true
+open_play: true
+report: winners
+companion:
+  tracker: life
+  start: 40
+confirmations: 0

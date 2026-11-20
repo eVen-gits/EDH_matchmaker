@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Setup profiles: each ruleset ships a `<Ruleset>.setup.yaml` sidecar
+  (`src/setup_profile.py`) with what a front end needs to set up an event:
+  category (Commander and 1v1 are both `mtg`; Catan is `catan`), formats,
+  round timer (Commander 75 min, 1v1 50 min, Catan untimed with its table
+  phase and turn timers), rounds, rule 1.1.5's Catan structure, byes, points,
+  report kind, table companion and confirmations. `python -m src.param_catalog`
+  exports each profile, each ruleset's playoff stage sizes and a `categories`
+  index. `recommended_structure()` reads its bands from the Catan profile.
+  The desktop GUI ignores the profiles.
 - Catan tournament support (`CatanRuleset`), alongside Commander and 1v1
   Magic: victory-point (VP) reports, `ScoringCatan` with VP and place
   tiebreakers, the preliminary schedule, game-4 serpentine pairing with
@@ -32,6 +41,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`generator.version`, from the new `src.__version__`).
 
 ### Fixed
+- Pairing a Catan field that tables of 3-4 cannot seat (1, 2 or 5 players)
+  raised a raw `max() iterable argument is empty`; it now raises a
+  `ValueError` that says how many players cannot be seated.
 - 1v1 Swiss pairing (`Pairing1v1`) now gives the bye to a player with the
   fewest byes so far, and among those to one with the fewest points. It used
   to rank a second bye equal to a rematch, so in late rounds one player could
