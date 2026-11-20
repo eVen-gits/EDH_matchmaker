@@ -1,0 +1,984 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Matchmaking for EDH game">
+      
+      
+      
+        <link rel="canonical" href="https://even.github.io/EDH_matchmaker/catan/">
+      
+      
+        <link rel="prev" href="../tournament-log-spec/">
+      
+      
+        <link rel="next" href="../src/core/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
+    
+    
+      
+        <title>Catan Architecture - EDH Matchmaker</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.57a0d79d.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#catan-how-it-plugs-in" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="EDH Matchmaker" class="md-header__button md-logo" aria-label="EDH Matchmaker" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            EDH Matchmaker
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Catan Architecture
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="EDH Matchmaker" class="md-nav__button md-logo" aria-label="EDH Matchmaker" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    EDH Matchmaker
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tournament-log-spec/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tournament Log Format Spec
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Catan Architecture
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Catan Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#event-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Event flow
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#where-to-look" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where to look
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adding-another-game-the-same-way" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding another game the same way
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../src/core/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    src.core
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../src/interface/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    src.interface
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../src/misc/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    src.misc
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#event-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Event flow
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#where-to-look" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where to look
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adding-another-game-the-same-way" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding another game the same way
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="catan-how-it-plugs-in">Catan: how it plugs in</h1>
+<p>Catan support is a ruleset plug-in in <code>src/logic/catan/</code>. The engine did not
+change shape. It got one optional field (<code>IGameResult.scores</code>) and three opt-in
+<code>IRuleset</code> hooks. Each hook's default keeps Commander and 1v1 MTG on their old
+code path, and <code>tests/test_golden.py</code> checks this. Rules reference:
+<a href="https://catanevents.com/hosts/tournament-rules/">https://catanevents.com/hosts/tournament-rules/</a> (rule numbers below).
+Authoritative contracts: <code>docs/tournament-log-spec.md</code> (<code>CatanRuleset</code>,
+<code>ScoringCatan</code>, <code>PairingCatanPrelim</code>, <code>PairingCatanSerpentine</code>, format 1.3).</p>
+<h2 id="architecture">Architecture</h2>
+<pre class="mermaid"><code>flowchart TB
+  subgraph GUI["run_ui.py"]
+    MRD["MatchReportDialog (1v1)"]
+    WD["Report win/draw (Commander)"]
+    CRD["CatanReportDialog ✱"]
+    CFG["Config dialog: lists filtered by ruleset ✱"]
+  end
+  subgraph CORE["Engine core: src/core.py, src/interface.py"]
+    T["Tournament → Round → Pod → Player"]
+    TC["top-cut stages from IRuleset.PLAYOFFS&lt;br/&gt;disable_topcut, advancing_players"]
+    LOG["TournamentAction → JSON log, format 1.3 ✱"]
+    GR["IGameResult.scores ✱ (optional)"]
+    H1["IRuleset.playoff_standings ✱&lt;br/&gt;(get_standings asks first)"]
+    H2["IRuleset.swiss_eliminations ✱&lt;br/&gt;(Round.create_pairings, Swiss)"]
+    H3["IRuleset.DEFAULT_ALLOW_BYE ✱"]
+    RS["IPairingLogic/IScoringLogic.RULESETS ✱"]
+  end
+  subgraph LOGIC["src/logic/ (auto-discovered by filename)"]
+    COM["common: CommonPairing, FixedPointsScoring, PairingRandom"]
+    CMD["commander: CommanderRuleset, PairingTopCut, …"]
+    MTG["mtg: Mtg1v1Ruleset, Pairing1v1, Scoring1v1"]
+    CAT["catan ✱: CatanRuleset, CatanConfiguration,&lt;br/&gt;ScoringCatan, PairingCatanPrelim, PairingCatanSerpentine"]
+  end
+  CRD -- "report_match(pod, [IGameResult])" --&gt; T
+  CORE --&gt; LOGIC
+  CAT -- "subclasses" --&gt; COM
+  CAT -. "PLAYOFFS names 'PairingTopCut' (string lookup, no import)" .-&gt; CMD</code></pre>
+<p>✱ = added for Catan. Game directories never import each other
+(<code>tests/test_logic_layout.py:16-20</code>).</p>
+<table>
+<thead>
+<tr>
+<th>Seam</th>
+<th>Default (Commander, MTG)</th>
+<th>Catan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>IGameResult.scores</code></td>
+<td><code>None</code>, not written to the log</td>
+<td>VP for every seated player, required</td>
+</tr>
+<tr>
+<td><code>playoff_standings()</code></td>
+<td><code>None</code>: core's built-in playoff order runs</td>
+<td>Rule 1.4.4 ordering</td>
+</tr>
+<tr>
+<td><code>swiss_eliminations()</code></td>
+<td>Not overridden, so core never calls it</td>
+<td>Disables players below <code>eliminate_below_wins</code></td>
+</tr>
+<tr>
+<td><code>DEFAULT_ALLOW_BYE</code></td>
+<td><code>True</code></td>
+<td><code>False</code> (3-player tables absorb the remainder)</td>
+</tr>
+<tr>
+<td><code>RULESETS</code> on a logic</td>
+<td><code>None</code> = offered for every game</td>
+<td><code>("CatanRuleset",)</code></td>
+</tr>
+<tr>
+<td>Seat-average guard (<code>StandingsExport._get_avg_seat</code>, <code>Pod.__repr__</code>)</td>
+<td>Unchanged</td>
+<td>No <code>global_wr_seats</code>, so no seat average</td>
+</tr>
+</tbody>
+</table>
+<h2 id="event-flow">Event flow</h2>
+<p>Structure by player count (rule 1.1.5, <code>recommended_structure(n)</code>, which reads
+the bands from <code>src/logic/catan/CatanRuleset.setup.yaml</code>). The config
+stays explicit; <code>CatanRuleset.warn_structure</code> logs once at game 1 if it differs
+or if there are fewer than 12 players.</p>
+<table>
+<thead>
+<tr>
+<th>Players</th>
+<th>Swiss games</th>
+<th>Large-event step</th>
+<th>Playoffs</th>
+<th>Config</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>12–28</td>
+<td>3</td>
+<td>—</td>
+<td>Final (top 4)</td>
+<td><code>n_rounds=3, top_cut=4</code></td>
+</tr>
+<tr>
+<td>29–79</td>
+<td>3</td>
+<td>—</td>
+<td>Semis (top 16) → Final</td>
+<td><code>n_rounds=3, top_cut=16</code></td>
+</tr>
+<tr>
+<td>80+</td>
+<td>4</td>
+<td>0-win players out before game 4</td>
+<td>Semis (top 16) → Final</td>
+<td><code>n_rounds=4, top_cut=16</code>, round 4 <code>ruleset_params.eliminate_below_wins=1</code></td>
+</tr>
+</tbody>
+</table>
+<pre class="mermaid"><code>flowchart TD
+  A["Configure: ruleset=CatanRuleset&lt;br/&gt;→ CatanConfiguration, pods (4,3), byes off, ScoringCatan"] --&gt; B["Register players&lt;br/&gt;Tournament.add_player"]
+  B --&gt; C["Game 1: Round.create_pairings → swiss_pairing_logic&lt;br/&gt;→ PairingCatanPrelim plans games 1-3 at once (result-blind)&lt;br/&gt;warn_structure"]
+  C --&gt; D["Report each table: CatanReportDialog → validate_report&lt;br/&gt;→ Tournament.report_match"]
+  D --&gt; E["Games 2-3: plan recomputed from seed;&lt;br/&gt;drop / late player / hand swap → re-plan the rest"]
+  E --&gt; F{"eliminate_below_wins&lt;br/&gt;set for game 4?"}
+  F -- "80+" --&gt; G["swiss_eliminations disables 0-win players (stay ranked)&lt;br/&gt;→ PairingCatanSerpentine (3-player tables first)"]
+  F -- "no" --&gt; H
+  G --&gt; H["Preliminary standings: ScoringCatan.standings_keys"]
+  H --&gt; I{"top_cut"}
+  I -- "16" --&gt; J["Semis: PLAYOFFS[16] → disable_topcut&lt;br/&gt;→ PairingTopCut TOP_16 (T1 = 1, 8, 9, 16)"]
+  J --&gt; K
+  I -- "4" --&gt; K["Final: advancing_players → PairingTopCut TOP_4"]
+  K --&gt; L["Final standings: get_standings → CatanRuleset.playoff_standings&lt;br/&gt;1-4 by final place; 5-16 by semi place"]</code></pre>
+<ul>
+<li><strong>Prelim plan</strong> (<code>PairingCatanPrelim.plan</code>, <code>_schedule</code>): hill climbing over all
+  remaining preliminary games. Repeat opponents and repeat 3-player seats
+  cost 100× more than repeat play-order positions (rule 1.1.6 priority). The
+  seed is <code>sha256(tour uid | plan start round | sorted field)</code>, so nothing
+  extra is saved. If an earlier round's actual seating differs from the plan,
+  the plan restarts after it, with the real seating as history.</li>
+<li><strong>Game 4</strong> (<code>PairingCatanSerpentine</code>): pods sorted 3-seat first, then ranks
+  snaked across them, seat order = rank order (rule 1.1.7; the 45-player
+  example is a test).</li>
+<li><strong>Semis/final</strong>: no Catan pairing code. Commander's <code>PairingTopCut</code>,
+  looked up by name, already gives the rule 1.1.10 seating.</li>
+<li><strong>Playoff standings</strong> (<code>playoff_standings</code>): until every table of the round
+  has reported, the previous round's standings stand. Then that round's players
+  are grouped by finishing place at their table, with ties broken by the 1.4.2
+  chain over preliminary and playoff games. Everyone else keeps the previous order.</li>
+</ul>
+<h2 id="data">Data</h2>
+<pre class="mermaid"><code>flowchart LR
+  R["Report (one game per table)&lt;br/&gt;IGameResult(winners={P11},&lt;br/&gt;scores=((P8,9),(P10,9),(P11,10)))"] --&gt; P["Per game (scoring.py)&lt;br/&gt;finishing_places: P11=1, P8=2, P10=2&lt;br/&gt;vp_share: 3-player table adds dummy&lt;br/&gt;mean 9.33 → 9 (half-up); total 37"]
+  P --&gt; S["Per player: catan_stats → CatanStats&lt;br/&gt;vp = Σ min(VP, victory_points)&lt;br/&gt;vp_pct = Σ share (Fraction)&lt;br/&gt;second, third = place counts"]
+  S --&gt; K["ScoringCatan.standings_keys (desc)&lt;br/&gt;(wins·win_points, vp, vp_pct,&lt;br/&gt;second, third, -uid)"]
+  R --&gt; L["Log 1.3: pods[].games[] =&lt;br/&gt;{winners:[uid], scores:[[uid, vp], …]}"]</code></pre>
+<ul>
+<li><strong>Valid report</strong> (<code>CatanRuleset.validate_report</code>): exactly one game and one
+  winner; VP for exactly the seated players; winner ≥ <code>victory_points</code>
+  (default 10); everyone else below it. <code>report_from_winners</code> always refuses,
+  so a Catan win needs VP.</li>
+<li><strong>Places</strong>: by VP; tied players share the better place (two players on 9 VP
+  are both 2nd).</li>
+<li><strong>VP% (rule 1.4.3)</strong>: own VP / table total, summed over games as exact
+  <code>Fraction</code>s. A 3-player table adds a dummy fourth score, the mean rounded half
+  up (<code>dummy_score</code>, not <code>round()</code>). The column shows the share (0.2703), not
+  a percentage.</li>
+<li><strong>Byes</strong>: off by default. A forced bye scores <code>bye_points</code> (default 0) and
+  adds no VP. With byes off, pairing a field that tables of 3-4 cannot seat
+  (1, 2 or 5 players) raises a <code>ValueError</code> (<code>Round._require_seats</code>); a
+  table of 5 seated by hand in Manual Entry still pairs.</li>
+<li><strong>Lot</strong>: the core's stable UID order.</li>
+<li><strong>Log</strong>: only raw VP is stored (<code>games[].scores</code>, sorted by UID, omitted when
+  unset). Places, VP%, standings and the preliminary plan are recomputed on load.
+  Every file now says <code>"format_version": "1.3"</code>. <code>players[].decklist</code> is written
+  only when it is set.</li>
+</ul>
+<h2 id="where-to-look">Where to look</h2>
+<p>Line numbers are as of commit <code>8e6fce3</code> and can drift.</p>
+<table>
+<thead>
+<tr>
+<th>File:line</th>
+<th>What</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>src/logic/catan/rules.py:72</code></td>
+<td><code>CatanRuleset</code>: pod sizes, <code>PLAYOFFS</code>, <code>DEFAULT_ALLOW_BYE=False</code>, <code>CONFIG_CLASS</code></td>
+</tr>
+<tr>
+<td><code>src/logic/catan/rules.py:127</code></td>
+<td><code>validate_report</code></td>
+</tr>
+<tr>
+<td><code>src/logic/catan/rules.py:201</code></td>
+<td><code>swiss_pairing_logic</code>: Prelim, or Serpentine on an eliminating round</td>
+</tr>
+<tr>
+<td><code>src/logic/catan/rules.py:211</code></td>
+<td><code>swiss_eliminations</code> override</td>
+</tr>
+<tr>
+<td><code>src/logic/catan/rules.py:229</code></td>
+<td><code>playoff_standings</code> override (rule 1.4.4)</td>
+</tr>
+<tr>
+<td><code>src/logic/catan/rules.py:24</code>, <code>:107</code></td>
+<td><code>recommended_structure</code>, <code>warn_structure</code></td>
+</tr>
+<tr>
+<td><code>src/logic/catan/scoring.py:12-32</code></td>
+<td><code>dummy_score</code>, <code>vp_share</code>, <code>finishing_places</code></td>
+</tr>
+<tr>
+<td><code>src/logic/catan/scoring.py:45</code></td>
+<td><code>catan_stats</code> (shared by scoring and playoff standings)</td>
+</tr>
+<tr>
+<td><code>src/logic/catan/scoring.py:68</code></td>
+<td><code>ScoringCatan</code></td>
+</tr>
+<tr>
+<td><code>src/logic/catan/matching.py:42</code></td>
+<td><code>PairingCatanPrelim</code>; <code>plan</code> <code>:92</code>, <code>_schedule</code> <code>:129</code></td>
+</tr>
+<tr>
+<td><code>src/logic/catan/matching.py:278</code></td>
+<td><code>PairingCatanSerpentine</code></td>
+</tr>
+<tr>
+<td><code>src/logic/catan/CatanRuleset.setup.yaml</code></td>
+<td>Setup profile: untimed rounds, table phase and turn timers, rule 1.1.5 bands, VP companion, <code>confirmations: all</code></td>
+</tr>
+<tr>
+<td><code>src/logic/catan/*.params.yaml</code></td>
+<td><code>victory_points</code>, <code>eliminate_below_wins</code>, <code>win_points</code>/<code>bye_points</code>, prelim penalties, <code>seat_win_rates</code></td>
+</tr>
+<tr>
+<td><code>src/interface.py:13</code></td>
+<td><code>IGameResult.scores</code></td>
+</tr>
+<tr>
+<td><code>src/interface.py:473</code>, <code>:550</code>, <code>:561</code></td>
+<td><code>DEFAULT_ALLOW_BYE</code>, <code>playoff_standings</code>, <code>swiss_eliminations</code></td>
+</tr>
+<tr>
+<td><code>src/core.py:2251</code></td>
+<td><code>get_standings</code> asks <code>playoff_standings</code></td>
+</tr>
+<tr>
+<td><code>src/core.py:3948</code></td>
+<td><code>Round.create_pairings</code> calls <code>swiss_eliminations</code> (only if overridden)</td>
+</tr>
+<tr>
+<td><code>src/core.py:3496</code>, <code>:957</code></td>
+<td><code>Pod._serialize_game</code>, <code>LOG_FORMAT_VERSION</code></td>
+</tr>
+<tr>
+<td><code>src/core.py:1029</code>, <code>:1084</code></td>
+<td><code>selectable_*_logics(…, ruleset)</code> and the <code>RULESETS</code> filter</td>
+</tr>
+<tr>
+<td><code>src/logic/commander/matching.py:240</code></td>
+<td><code>PairingTopCut</code> (reused by name)</td>
+</tr>
+<tr>
+<td><code>run_ui.py:438</code>, <code>:581</code></td>
+<td><code>_vp_scored</code>, <code>CatanReportDialog</code></td>
+</tr>
+<tr>
+<td><code>tests/test_catan_*.py</code>, <code>tests/test_ui_catan.py</code></td>
+<td>Rule examples (1.1.7, 1.1.10, 1.4.3), end-to-end runs at 20/40/90 players</td>
+</tr>
+<tr>
+<td><code>tests/test_golden.py</code>, <code>tests/golden/</code></td>
+<td>Frozen Commander/MTG output</td>
+</tr>
+</tbody>
+</table>
+<h2 id="adding-another-game-the-same-way">Adding another game the same way</h2>
+<ol>
+<li><strong>Freeze first.</strong> Before you touch shared code, make sure
+   <code>tests/test_golden.py</code> covers the behaviour you could break, and keep it green.</li>
+<li><strong>Ruleset.</strong> <code>src/logic/&lt;game&gt;/rules.py</code>: an <code>IRuleset</code> (<code>validate_report</code>,
+   <code>match_winners</code>, <code>random_report</code>, <code>PLAYOFFS</code>, pod sizes, <code>DEFAULT_ALLOW_BYE</code>)
+   plus a <code>TournamentConfiguration</code> subclass named by <code>CONFIG_CLASS</code>, each with
+   a <code>.params.yaml</code> sidecar. Keep <code>IS_COMPLETE = False</code> until the game works
+   end to end.</li>
+<li><strong>Scoring and pairing</strong> on the <code>common</code> bases, with
+   <code>RULESETS = ("&lt;Game&gt;Ruleset",)</code>. Reuse another game's logic only by name
+   (for example in <code>PLAYOFFS</code>), never by import, and add the pairs to
+   <code>tests/test_logic_layout.py</code>.</li>
+<li><strong>Seams, not rewrites.</strong> If the core cannot express a rule, add an opt-in
+   hook or optional field whose default is the old path. Per-game result data
+   goes in <code>IGameResult.scores</code>.</li>
+<li><strong>Switch on.</strong> Rule-example tests, an end-to-end run, the spec section in
+   <code>docs/tournament-log-spec.md</code>, then <code>IS_COMPLETE = True</code>. Add a GUI dialog
+   only if the existing win/score dialogs cannot capture a result.</li>
+</ol>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.instant", "navigation.sections", "navigation.top", "content.code.copy"], "search": "../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>
