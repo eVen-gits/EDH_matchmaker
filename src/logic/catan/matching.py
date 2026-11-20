@@ -78,6 +78,9 @@ class PairingCatanPrelim(CommonPairing):
         CatanRuleset.warn_structure(tour_round)
         byes = self.assign_byes(tour_round, players, pods)
         by_uid = {p.uid: p for p in players - byes}
+        if not by_uid:
+            # Everyone already hand-seated (e.g. a judge's table of 5).
+            return players
         if any(len(pod) for pod in pods) or sum(p.cap for p in pods) != len(by_uid):
             # ponytail: pods pre-filled by hand get one greedy game, not a
             # plan; later rounds re-plan with it as history.

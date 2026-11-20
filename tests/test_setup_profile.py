@@ -151,6 +151,20 @@ class TestUnseatableCatanField(unittest.TestCase):
             any(p.result(t.tour_round) == IPlayer.EResult.BYE for p in t.players)
         )
 
+    def test_hand_seated_table_of_five_survives_pairing(self):
+        # Recorded decision: a judge may hand-seat a table of 5. Pairing the
+        # fully seated round must not crash (it raised "max() iterable
+        # argument is empty") nor bench anyone.
+        t = Tournament(TournamentConfiguration(ruleset="CatanRuleset"))
+        t.add_player([f"p{i}" for i in range(5)])
+        players = list(t.players)
+        t.manual_pod(players[:4])
+        assert t.tour_round is not None
+        t.move_player_to_pod(t.tour_round.pods[0], players[4], manual=True)
+        t.create_pairings()
+        self.assertEqual([len(p) for p in t.tour_round.pods], [5])
+        self.assertFalse(t.tour_round.byes)
+
     def test_seatable_fields_still_pair(self):
         for n in (3, 4, 6, 7, 9):
             with self.subTest(n=n):
