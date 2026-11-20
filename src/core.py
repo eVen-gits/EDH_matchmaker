@@ -4007,6 +4007,7 @@ class Round(IRound):
 
         self.create_pods()
         pods = [p for p in self.pods if all([not p.done, len(p) < p.cap])]
+        self._require_seats(pods)
 
         # The inputs stay fixed while pairing, so digest them once for every
         # draw instead of once per draw (per pod for seats).
@@ -4021,6 +4022,26 @@ class Round(IRound):
             self._digest = None
 
         self.sort_pods()
+
+    def _require_seats(self, pods: list[Pod]) -> None:
+        """Raises ValueError if a ruleset that forbids byes by default gets a
+        field the open pods cannot seat with the byes the config allows.
+
+        Core makes no pods for a field it cannot seat (e.g. 5 players at
+        Catan tables of 3-4), and pairing would otherwise bench everyone.
+        """
+        if type(self.tour.ruleset).DEFAULT_ALLOW_BYE:
+            return
+        config = self.tour.config
+        players = len(self.unassigned)
+        benched = players - sum(pod.cap - len(pod) for pod in pods)
+        allowed = config.max_byes if config.allow_bye else 0
+        if benched > allowed:
+            byes = f"up to {allowed} byes" if config.allow_bye else "no byes"
+            raise ValueError(
+                f"{players} players cannot be seated at tables of "
+                f"{sorted(config.pod_sizes)} with {byes}."
+            )
 
     def sort_pods_by_power(self) -> None:
         """Sort pods by number of players and average rating to establish a power-level baseline."""

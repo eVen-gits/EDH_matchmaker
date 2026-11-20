@@ -33,24 +33,6 @@ def _history(rounds: Sequence[IRound]) -> Schedule:
     return [[list(pod._players) for pod in r.pods] for r in rounds]  # type: ignore[attr-defined]
 
 
-def _require_seats(tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]) -> None:
-    """Raises ValueError if the pods cannot seat the players without more
-    byes than the config allows (Catan allows none by default).
-
-    Core makes no pods for a field it cannot seat (e.g. 5 players at
-    tables of 3-4), and would otherwise bench everyone.
-    """
-    config = tour_round.tour.config  # type: ignore[attr-defined]
-    benched = len(players) - sum(pod.cap - len(pod) for pod in pods)
-    allowed = config.max_byes if config.allow_bye else 0
-    if benched > allowed:
-        byes = f"up to {allowed} byes" if config.allow_bye else "no byes"
-        raise ValueError(
-            f"{len(players)} players cannot be seated at Catan tables of "
-            f"{sorted(config.pod_sizes)} with {byes}."
-        )
-
-
 def plan_seed(round_seed: int | None, field: frozenset[UUID], first_game: int) -> int:
     """Stable seed from the plan-start round's seed, its game and its field."""
     text = "|".join([str(round_seed), str(first_game), *sorted(map(str, field))])
@@ -94,7 +76,6 @@ class PairingCatanPrelim(CommonPairing):
         self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]
     ) -> set[IPlayer]:
         CatanRuleset.warn_structure(tour_round)
-        _require_seats(tour_round, players, pods)
         byes = self.assign_byes(tour_round, players, pods)
         by_uid = {p.uid: p for p in players - byes}
         if any(len(pod) for pod in pods) or sum(p.cap for p in pods) != len(by_uid):
@@ -319,7 +300,6 @@ class PairingCatanSerpentine(CommonPairing):
         self, tour_round: IRound, players: set[IPlayer], pods: Sequence[IPod]
     ) -> set[IPlayer]:
         CatanRuleset.warn_structure(tour_round)
-        _require_seats(tour_round, players, pods)
         byes = self.assign_byes(tour_round, players, pods)
         prev = tour_round.tour.previous_round(tour_round)  # type: ignore[attr-defined]
         rank = {p: i for i, p in enumerate(tour_round.tour.get_standings(prev))}  # type: ignore[attr-defined]

@@ -133,17 +133,23 @@ class TestUnseatableCatanField(unittest.TestCase):
     """A field Catan tables of 3-4 cannot seat is refused with a clear error."""
 
     def test_refused_with_clear_error(self):
-        for n in (1, 2, 5):
-            with self.subTest(n=n):
-                t = Tournament(TournamentConfiguration(ruleset="CatanRuleset"))
-                t.add_player([f"p{i}" for i in range(n)])
-                with self.assertRaisesRegex(ValueError, f"{n} players cannot be seated"):
-                    t.create_pairings()
-                # Refused before anyone is benched.
-                assert t.tour_round is not None
-                self.assertFalse(
-                    any(p.result(t.tour_round) == IPlayer.EResult.BYE for p in t.players)
-                )
+        for logic in (None, "PairingRandom", "PairingDefault", "PairingSnake"):
+            rounds = [{"logic": logic, "params": {}}] if logic else None
+            for n in (1, 2, 5):
+                with self.subTest(logic=logic, n=n):
+                    self.assert_refused(n, rounds)
+
+    def assert_refused(self, n, rounds):
+        kwargs = {"pairing_rounds": rounds} if rounds else {}
+        t = Tournament(TournamentConfiguration(ruleset="CatanRuleset", **kwargs))
+        t.add_player([f"p{i}" for i in range(n)])
+        with self.assertRaisesRegex(ValueError, f"{n} players cannot be seated"):
+            t.create_pairings()
+        # Refused before anyone is benched.
+        assert t.tour_round is not None
+        self.assertFalse(
+            any(p.result(t.tour_round) == IPlayer.EResult.BYE for p in t.players)
+        )
 
     def test_seatable_fields_still_pair(self):
         for n in (3, 4, 6, 7, 9):
