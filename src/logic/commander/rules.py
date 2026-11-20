@@ -22,7 +22,7 @@ class CommanderRuleset(IRuleset):
     """Commander's rules: one game per pod and the playoff plan.
 
     Save-format contracts: docs/tournament-log-spec.md, "Rulesets".
-    No sidecar: this ruleset takes no parameters.
+    No params sidecar: this ruleset takes no parameters.
     """
 
     IS_COMPLETE = True

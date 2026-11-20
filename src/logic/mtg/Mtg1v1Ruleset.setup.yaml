@@ -1,0 +1,32 @@
+# Setup profile for Mtg1v1Ruleset: how a front end sets up an event.
+# Keys and their meaning: src/setup_profile.py.
+category: mtg
+formats:
+  standard: Standard
+  modern: Modern
+  pioneer: Pioneer
+  pauper: Pauper
+  legacy: Legacy
+  premodern: Premodern
+  draft: Draft
+  sealed: Sealed
+  cube: Cube
+# Magic Tournament Rules, Appendix B: 50 minutes per Swiss round.
+timer:
+  default_minutes: 50
+n_rounds: 5
+byes: required
+seat_order: organizer
+points:
+  win: 3
+  draw: 1
+  bye: 3
+  locked: false
+decklists: true
+rules_enforcement: true
+open_play: true
+report: best_of
+companion:
+  tracker: life
+  start: 20
+confirmations: 0

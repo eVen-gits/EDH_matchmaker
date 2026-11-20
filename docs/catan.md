@@ -54,7 +54,8 @@ flowchart TB
 
 ## Event flow
 
-Structure by player count (rule 1.1.5, `recommended_structure(n)`). The config
+Structure by player count (rule 1.1.5, `recommended_structure(n)`, which reads
+the bands from `src/logic/catan/CatanRuleset.setup.yaml`). The config
 stays explicit; `CatanRuleset.warn_structure` logs once at game 1 if it differs
 or if there are fewer than 12 players.
 
@@ -118,7 +119,9 @@ flowchart LR
   up (`dummy_score`, not `round()`). The column shows the share (0.2703), not
   a percentage.
 - **Byes**: off by default. A forced bye scores `bye_points` (default 0) and
-  adds no VP.
+  adds no VP. With byes off, pairing a field that tables of 3-4 cannot seat
+  (1, 2 or 5 players) raises a `ValueError` (`Round._require_seats`); a
+  table of 5 seated by hand in Manual Entry still pairs.
 - **Lot**: the core's stable UID order.
 - **Log**: only raw VP is stored (`games[].scores`, sorted by UID, omitted when
   unset). Places, VP%, standings and the preliminary plan are recomputed on load.
@@ -142,6 +145,7 @@ Line numbers are as of commit `8e6fce3` and can drift.
 | `src/logic/catan/scoring.py:68` | `ScoringCatan` |
 | `src/logic/catan/matching.py:42` | `PairingCatanPrelim`; `plan` `:92`, `_schedule` `:129` |
 | `src/logic/catan/matching.py:278` | `PairingCatanSerpentine` |
+| `src/logic/catan/CatanRuleset.setup.yaml` | Setup profile: untimed rounds, table phase and turn timers, rule 1.1.5 bands, VP companion, `confirmations: all` |
 | `src/logic/catan/*.params.yaml` | `victory_points`, `eliminate_below_wins`, `win_points`/`bye_points`, prelim penalties, `seat_win_rates` |
 | `src/interface.py:13` | `IGameResult.scores` |
 | `src/interface.py:473`, `:550`, `:561` | `DEFAULT_ALLOW_BYE`, `playoff_standings`, `swiss_eliminations` |

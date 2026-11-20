@@ -8,6 +8,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 from .param_spec import ParamSpec, load_param_spec
+from .setup_profile import load_setup_profile
 
 
 @dataclass(frozen=True)
@@ -500,6 +501,9 @@ class IRuleset(ABC):
     # config.playoff_rounds[stage]["ruleset_params"].
     PARAM_SPEC: dict[str, ParamSpec] = {}
     DEFAULT_PARAMS: dict[str, Any] = {}
+    # Loaded at class definition from the sidecar `<ClassName>.setup.yaml`:
+    # how a front end sets up an event (see src/setup_profile.py). {} = none.
+    SETUP_PROFILE: dict[str, Any] = {}
 
     def __init__(self, name: str):
         self.name = name
@@ -508,6 +512,7 @@ class IRuleset(ABC):
         super().__init_subclass__(**kwargs)
         cls.PARAM_SPEC = load_param_spec(cls)
         cls.DEFAULT_PARAMS = {n: s.default for n, s in cls.PARAM_SPEC.items()}
+        cls.SETUP_PROFILE = load_setup_profile(cls)
 
     def params(self, tour_round: IRound) -> dict[str, Any]:
         """This round's ruleset params: overrides on top of the class

@@ -11,12 +11,17 @@ Run ``python -m src.param_catalog`` to print it, or call `catalog()`. Shape::
               "params": {<param>: <spec>},          # per-round ruleset params
               "config_fields": {<field>: <spec>},   # its CONFIG_CLASS's fields
               "defaults": {<field>: <value>},       # values of default_from
-              "choices": {<field>: [<value>] | null} # choices_from; null = any
+              "choices": {<field>: [<value>] | null}, # choices_from; null = any
+              "playoffs": {<top_cut>: [<stage size>]},   # PLAYOFFS stages
+              "setup": {<key>: <value>}     # setup profile (setup_profile.py)
             }
           },
           "scoring": {"<ScoringClass>": {<param>: <spec>}},
           "pairing": {"<PairingClass>": {<param>: <spec>}}
         }
+      },
+      "categories": {                               # setup profile category
+        "<category>": {"<RulesetClass>": {<format id>: <label>}}
       }
     }
 
@@ -68,6 +73,7 @@ def catalog() -> dict[str, Any]:
         A JSON-serializable dict; see the module docstring for its shape.
     """
     games: dict[str, dict[str, dict[str, Any]]] = {}
+    categories: dict[str, dict[str, dict[str, str]]] = {}
 
     def game(obj: object) -> dict[str, dict[str, Any]]:
         return games.setdefault(
@@ -93,7 +99,16 @@ def catalog() -> dict[str, Any]:
                 for field, spec in TournamentConfiguration.PARAM_SPEC.items()
                 if spec.choices_from and spec.choices_from.startswith("ruleset.")
             },
+            "playoffs": {
+                cut: [size for size, _ in stages]
+                for cut, stages in sorted(ruleset.PLAYOFFS.items())
+            },
+            "setup": ruleset.SETUP_PROFILE,
         }
+        if ruleset.SETUP_PROFILE:
+            categories.setdefault(ruleset.SETUP_PROFILE["category"], {})[name] = dict(
+                ruleset.SETUP_PROFILE["formats"]
+            )
     for name in Tournament.scoring_logic_names():
         logic = Tournament.get_scoring_logic(name)
         game(logic)["scoring"][name] = _spec_dict(logic.PARAM_SPEC)
@@ -103,6 +118,7 @@ def catalog() -> dict[str, Any]:
     return {
         "tournament": _spec_dict(TournamentConfiguration.PARAM_SPEC),
         "games": games,
+        "categories": categories,
     }
 
 

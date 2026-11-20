@@ -1,0 +1,79 @@
+# Setup profile for CatanRuleset: how a front end sets up an event.
+# Keys and their meaning: src/setup_profile.py. Rule numbers refer to the
+# official CATAN tournament rules, https://catanevents.com/hosts/tournament-rules/
+category: catan
+formats:
+  catan: Catan
+timer:
+  # No round clock: a game ends when a player claims 10 VP (rule 1.1.11).
+  default_minutes: null
+  # Table phases, timed globally by a host or judge. All times in seconds.
+  phases:
+    map_study:  # rule 1.1.8
+      seconds: 300
+      can_end_early: true
+    play_order_choice:  # rules 1.1.7, 1.1.10, 1.1.12
+      seconds: 120
+      when: [elimination_game, semifinal, final]
+    placement:  # rule 1.1.9
+      seconds: 120
+      double_seconds: 180
+      # The seat (play order) placing in each global placement window, by
+      # table size. Window double_window is the double placement: the last
+      # seat places twice in a row at the turn of the snake (interim reading;
+      # the rules do not define it). At a 3-player table, seat 1 keeps
+      # window 2 too, and placements end on the window of seat 2's second
+      # placement at a 4-player table (window 6).
+      double_window: 4
+      windows:
+        4: [1, 2, 3, 4, 3, 2, 1]
+        3: [1, 1, 2, 3, 2, 1]
+  # Per-table turn timer, rule 1.1.11. The organizer picks one option.
+  turn:
+    default: judge_enforced
+    options:
+      tournament_timer:  # option 1
+        turn_seconds: 90
+        bank_seconds: 600
+        # Interim: the rules do not say yet ("link to come").
+        bank_exhausted: overtime_alert_judge
+      judge_enforced:  # option 2
+        after_seconds: 3600
+        turn_seconds: 120
+        reducible: true
+        players_may_call_after_placements: true
+n_rounds: 3
+# Rule 1.1.5. recommended_structure() reads these bands; the first also
+# covers events below valid_from_players.
+structure:
+  - from_players: 1
+    n_rounds: 3
+    top_cut: 4
+  - from_players: 29
+    n_rounds: 3
+    top_cut: 16
+  - from_players: 80
+    n_rounds: 4
+    top_cut: 16
+    eliminations:
+      - before_game: 4
+        below_wins: 1
+valid_from_players: 12  # rule 1.1.3
+byes: forbidden
+# Play order is part of the pairing (rule 1.1.6).
+seat_order: engine
+# ScoringCatan's defaults; a Catan game has one winner and no draw.
+points:
+  win: 1
+  draw: 0
+  bye: 0
+  locked: true
+decklists: false
+rules_enforcement: false
+open_play: false
+report: scores
+companion:
+  tracker: vp
+  target: 10  # CatanRuleset's victory_points
+# Rule 1.3.4: all players agree before digital submission.
+confirmations: all

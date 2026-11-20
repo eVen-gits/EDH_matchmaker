@@ -113,8 +113,8 @@ class ParamSpec:
     choices_from: str | None = None
 
 
-def _sidecar_path(cls: type) -> Path | None:
-    """Returns the ``<ClassName>.params.yaml`` beside the class's module.
+def _sidecar_path(cls: type, suffix: str = ".params.yaml") -> Path | None:
+    """Returns the ``<ClassName><suffix>`` file beside the class's module.
 
     Walks the MRO so a subclass with no file of its own inherits the first
     ancestor that does (for example ScoringModifiedHareruya reuses
@@ -125,7 +125,7 @@ def _sidecar_path(cls: type) -> Path | None:
         module_file = getattr(module, "__file__", None)
         if module_file is None:
             continue
-        candidate = Path(module_file).parent / f"{ancestor.__name__}.params.yaml"
+        candidate = Path(module_file).parent / f"{ancestor.__name__}{suffix}"
         if candidate.is_file():
             return candidate
     return None

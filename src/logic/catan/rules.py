@@ -7,9 +7,6 @@ from ...core import Log, TournamentConfiguration
 from ...interface import IGameResult, IPlayer, IPod, IRound, IRuleset, ITournament
 from .scoring import catan_stats, finishing_places
 
-# Rule 1.1.3: fewer players give no valid results.
-MIN_PLAYERS = 12
-
 
 class CatanConfiguration(TournamentConfiguration):
     """Catan's config fields, on top of the shared ones.
@@ -25,16 +22,19 @@ def recommended_structure(n_players: int) -> tuple[int, int, dict[int, int]]:
     """Rule 1.1.5's structure for n_players: (n_rounds, top_cut, eliminations).
 
     eliminations maps a Swiss round's 0-based seq to its
-    eliminate_below_wins. 12-28 players: 3 games, then a top-4 final (28
-    follows 1.1.5, not 1.1.12's "12 to 27"). 29-79: 3 games, top-16
-    semifinals, then the final. 80+: 4 games, players without a win are
-    eliminated before game 4, then top-16 semifinals and the final.
+    eliminate_below_wins. The bands come from the setup profile's
+    `structure` (CatanRuleset.setup.yaml): 12-28 players: 3 games, then a
+    top-4 final (28 follows 1.1.5, not 1.1.12's "12 to 27"). 29-79: 3 games,
+    top-16 semifinals, then the final. 80+: 4 games, players without a win
+    are eliminated before game 4, then top-16 semifinals and the final.
     """
-    if n_players <= 28:
-        return 3, 4, {}
-    if n_players < 80:
-        return 3, 16, {}
-    return 4, 16, {3: 1}
+    bands = CatanRuleset.SETUP_PROFILE["structure"]
+    band = bands[0]
+    for b in bands:
+        if n_players >= b["from_players"]:
+            band = b
+    elim = {e["before_game"] - 1: e["below_wins"] for e in band.get("eliminations", [])}
+    return band["n_rounds"], band["top_cut"], elim
 
 
 def structure_warnings(tour: ITournament) -> list[str]:
@@ -43,9 +43,10 @@ def structure_warnings(tour: ITournament) -> list[str]:
     config = tour.config  # type: ignore[attr-defined]
     n = len(tour.players)
     out = []
-    if n < MIN_PLAYERS:
+    min_players = CatanRuleset.SETUP_PROFILE["valid_from_players"]
+    if n < min_players:
         out.append(
-            f"Catan tournament rule 1.1.3 needs at least {MIN_PLAYERS} players "
+            f"Catan tournament rule 1.1.3 needs at least {min_players} players "
             f"for valid results; this event has {n}."
         )
     rounds, top_cut, elim = recommended_structure(n)
