@@ -77,6 +77,29 @@ match's winner(s) from an already-valid report.
 `Tournament.report_match`), `src/interface.py`
 (`IRuleset.validate_report`, `IRuleset.match_winners`)
 
+## Correction and repair
+
+A **correction** is a match report for a pod in the round *before* the last
+one (`Tournament.report_match`/`reset_result` refuse anything older).
+Standings are never cached, so it moves them at once. It goes through the
+pod's own round, never `tour_round`: `Round.record_result` also clears the
+winners' bye and game loss in the round it is called on. When the last
+round's field came from the corrected standings (a playoff round, or a
+ruleset's `swiss_eliminations`), the correction pairs that round again in
+full, and is refused once any of its tables has reported.
+
+A **repair** is `Tournament.repair_pairings(players, mode, apply)`: after a
+correction, it moves as few players as possible in an ordinary Swiss last
+round. Only players at unreported tables, or with a bye, move, and table
+numbers stay. Modes are `REPAIR_MODES`. `apply=False` returns the
+`RepairPlan` and leaves the round unchanged. The `pods` and `open` modes
+hand a *partial* field to the round's own pairing logic, so a pairing
+logic must pair only the `players` it is given, never
+`tour_round.active_players`.
+
+**Lives in:** `src/core.py` (`Tournament.report_match`,
+`Tournament.repair_pairings`, `RepairPlan`)
+
 ## Ruleset
 
 The plugin kind that owns one game's rules: which match reports are

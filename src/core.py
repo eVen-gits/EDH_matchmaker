@@ -17,8 +17,10 @@ import random
 import tempfile
 import threading
 from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum, IntEnum
+from itertools import combinations
 from pathlib import Path
 from uuid import UUID
 
@@ -941,6 +943,25 @@ class TournamentConfiguration(ITournamentConfiguration):
 
 
 TournamentConfiguration.PARAM_SPEC = load_param_spec(TournamentConfiguration)
+
+
+REPAIR_MODES = ("swap", "rank", "pods", "open")
+
+
+@dataclass(frozen=True)
+class RepairPlan:
+    """A repair of the live round's pairings, proposed or applied.
+
+    Attributes:
+        mode: The repair mode that made this plan (one of REPAIR_MODES).
+        moves: One (player, from_table, to_table) entry for each player
+            whose table changes; a table of None is a bye.
+        tables: The table numbers whose players change, ascending.
+    """
+
+    mode: str
+    moves: tuple[tuple[Player, int | None, int | None], ...]
+    tables: tuple[int, ...]
 
 
 class Tournament(ITournament):
@@ -2024,23 +2045,273 @@ class Tournament(ITournament):
     def report_match(self, pod: Pod, games: list[IGameResult]) -> None:
         """Reports a pod's whole match, replacing any earlier report.
 
+        The pod may be in the last round or the round before it: a
+        correction to the previous round recomputes the standings at once.
+        If the last round's field was fixed from those standings (a playoff
+        round, or a ruleset's Swiss eliminations), the last round is paired
+        again in full - refused once any of its tables has reported. Moving
+        players in an ordinary Swiss round is repair_pairings' job.
+
         Args:
             pod: The pod being reported.
             games: The match's complete list of games, in play order - see
                 IRuleset.validate_report for what makes a report valid for
                 this tournament's ruleset.
+
+        Raises:
+            ValueError: If the report is not valid, the pod is older than
+                the previous round, or the correction would change a last
+                round that already has results.
         """
-        assert self.tour_round is not None
-        self.tour_round.record_result(pod, games)
+        self._check_correctable(pod)
+        old_games = list(pod._games)
+        pod.tour_round.record_result(pod, games)
+        live = self.last_round
+        if live is not None and live is not pod.tour_round:
+            try:
+                self._repair_dependent_round(live)
+            except ValueError:
+                pod._games = old_games
+                raise
 
     @TournamentAction.action
     def reset_result(self, pod: Pod) -> None:
         """Clears a pod's match report, reopening it for a new report.
 
         Args:
-            pod: The pod to reset.
+            pod: The pod to reset, in the last round or the round before it.
+
+        Raises:
+            ValueError: If the pod is older than the previous round.
         """
+        self._check_correctable(pod)
         pod.reset_result()
+
+    def _check_correctable(self, pod: Pod) -> None:
+        """Raises ValueError unless pod is in the last round or the one before."""
+        last = self.last_round
+        if last is not None and pod.tour_round.seq < last.seq - 1:
+            raise ValueError(
+                f"Only the last two rounds' results can be changed; {pod.name} "
+                f"is in round {pod.tour_round.seq + 1} of {last.seq + 1}."
+            )
+
+    def _repair_dependent_round(self, live: Round) -> None:
+        """Pairs live again in full if its field depends on the round before.
+
+        A playoff round's field, byes and bracket, and a Swiss round's ruleset
+        eliminations, are fixed from the previous round's standings when the
+        round is paired, so a correction there leaves them stale.
+
+        Raises:
+            ValueError: If live must be paired again but a table has reported.
+        """
+        prev = self.previous_round(live)
+        if prev is None or not live.pods:
+            return
+        if live.stage == Round.Stage.SWISS:
+            ruleset = self.ruleset
+            if type(ruleset).swiss_eliminations is IRuleset.swiss_eliminations:
+                return
+            eliminated = ruleset.swiss_eliminations(live, self.get_standings(prev))
+            if {p.uid for p in eliminated} == live._disabled - prev._disabled:
+                return
+        if any(pod.done for pod in live.pods):
+            raise ValueError(
+                f"The correction changes who plays in round {live.seq + 1}, "
+                "which already has results."
+            )
+        live.reset_pods()
+        live.create_pairings()
+
+    @TournamentAction.action
+    def repair_pairings(
+        self, players: Iterable[Player], mode: str = "swap", apply: bool = False
+    ) -> RepairPlan:
+        """Moves as few players as possible in the last round after a
+        correction to the round before it.
+
+        Only players at unreported tables, or with a bye, ever move, and
+        table numbers stay as they are. Modes (REPAIR_MODES):
+
+        - "swap": exchanges the seats of exactly two players, the recorded
+          and the real winner. With 1v1 pods the swap is skipped when it
+          makes a rematch, or does not bring the two tables' points closer
+          (a bye goes to the player with fewer byes, then fewer points);
+          with larger pods it always happens.
+        - "rank": the player in `players` with the most points takes the
+          seat at the strongest table (the highest average points of the
+          other players there; a bye is the weakest seat), and so on down.
+        - "pods": pairs everyone at the tables of `players`, and any of
+          them with a bye, again into those tables with the round's own
+          pairing logic.
+        - "open": the same over every unreported table and every bye.
+
+        Args:
+            players: The players whose points the correction changed.
+            mode: One of REPAIR_MODES.
+            apply: If False, returns the plan and leaves the round as it was.
+
+        Returns:
+            The plan: which players move, from and to which tables.
+
+        Raises:
+            ValueError: If mode is unknown, the last round is finished or a
+                playoff round, or a player is at a reported table or has
+                neither a seat nor a bye in the last round.
+        """
+        live = self.last_round
+        if mode not in REPAIR_MODES:
+            raise ValueError(f"Unknown repair mode {mode!r}; use one of {REPAIR_MODES}.")
+        if live is None or not live.pods or live.done:
+            raise ValueError("There is no round in progress to repair.")
+        if live.stage != Round.Stage.SWISS:
+            raise ValueError("A playoff round is only ever paired again in full.")
+        if self.previous_round(live) is None:
+            raise ValueError("The first round has no earlier result to correct.")
+        players = list(dict.fromkeys(players))
+        for p in players:
+            pod = p.pod(live)
+            if pod is None and p.uid not in live._byes:
+                raise ValueError(f"{p.name} has no seat or bye in round {live.seq + 1}.")
+            if pod is not None and pod.done:
+                raise ValueError(f"{p.name}'s table {pod.table} has already reported.")
+
+        layout = {pod: list(pod._players) for pod in live.pods}
+        byes = set(live._byes)
+
+        def restore() -> None:
+            for pod, uids in layout.items():
+                pod._players[:] = uids
+            live._byes.clear()
+            live._byes.update(byes)
+            live.refresh_player_location_map()
+
+        before = self._tables_of(live)
+        try:
+            if mode == "swap":
+                self._repair_swap(live, players)
+            elif mode == "rank":
+                self._repair_rank(live, players)
+            else:
+                if mode == "pods":
+                    pods = list(dict.fromkeys(p.pod(live) for p in players if p.pod(live)))
+                    benched = [p for p in players if p.uid in live._byes]
+                else:
+                    pods = [pod for pod in live.pods if not pod.done]
+                    benched = list(live.byes)
+                self._repair_pods(live, cast(list[Pod], pods), benched)
+            after = self._tables_of(live)
+        except Exception:
+            restore()
+            raise
+        if not apply:
+            restore()
+
+        moves = tuple(
+            sorted(
+                (
+                    (Player.get(self, uid), before.get(uid), after.get(uid))
+                    for uid in before.keys() | after.keys()
+                    if before.get(uid) != after.get(uid)
+                ),
+                key=lambda m: (m[0].name, str(m[0].uid)),
+            )
+        )
+        tables = tuple(sorted({t for m in moves for t in m[1:] if t is not None}))
+        return RepairPlan(mode, moves, tables)
+
+    @staticmethod
+    def _tables_of(live: Round) -> dict[UUID, int | None]:
+        """Each seated player's table, and None for each bye, in live."""
+        tables: dict[UUID, int | None] = {uid: None for uid in live._byes}
+        for pod in live.pods:
+            tables.update((uid, pod.table) for uid in pod._players)
+        return tables
+
+    @staticmethod
+    def _seat(live: Round, uid: UUID, slot: tuple[Pod, int] | None) -> None:
+        """Puts uid in slot (a pod and seat index), or on a bye for None."""
+        if slot is None:
+            live._byes.add(uid)
+        else:
+            live._byes.discard(uid)
+            slot[0]._players[slot[1]] = uid
+
+    @staticmethod
+    def _slot(live: Round, player: Player) -> tuple[Pod, int] | None:
+        pod = player.pod(live)
+        return None if pod is None else (pod, pod._players.index(player.uid))
+
+    def _repair_swap(self, live: Round, players: list[Player]) -> None:
+        if len(players) != 2:
+            raise ValueError("A swap takes exactly two players.")
+        a, b = players
+        slots = (self._slot(live, a), self._slot(live, b))
+        if slots[0] is not None and slots[1] is not None and slots[0][0] is slots[1][0]:
+            return  # Same table: nothing to exchange.
+        if self.config.max_pod_size > 2:
+            self._exchange(live, a, b, slots)
+            return
+        prev = self.previous_round(live)
+        assert prev is not None  # repair_pairings checked
+        ratings = self.field_ratings(prev)
+
+        def cost() -> tuple:
+            pods = {p.pod(live) for p in (a, b)} - {None}
+            pairs = [pair for pod in pods for pair in combinations(pod.players, 2)]  # pyright: ignore[reportOptionalMemberAccess]
+            rematches = sum(x.played(prev).count(y) for x, y in pairs)
+            gap = sum((ratings[x.uid] - ratings[y.uid]) ** 2 for x, y in pairs)
+            bye = next(((p.byes(prev), ratings[p.uid]) for p in (a, b) if p.uid in live._byes), ())
+            return (rematches, bye, gap)
+
+        kept = cost()
+        self._exchange(live, a, b, slots)
+        if not cost() < kept:
+            self._exchange(live, a, b, slots[::-1])
+
+    def _exchange(
+        self, live: Round, a: Player, b: Player, slots: tuple[tuple[Pod, int] | None, ...]
+    ) -> None:
+        """Puts a in slots[1] and b in slots[0]."""
+        self._seat(live, a.uid, slots[1])
+        self._seat(live, b.uid, slots[0])
+        live.refresh_player_location_map()
+
+    def _repair_rank(self, live: Round, players: list[Player]) -> None:
+        prev = self.previous_round(live)
+        assert prev is not None
+        ratings = self.field_ratings(prev)
+        moving = {p.uid for p in players}
+        slots = [self._slot(live, p) for p in players]
+
+        def strength(slot: tuple[Pod, int] | None) -> float:
+            if slot is None:
+                return -math.inf
+            others = [ratings[u] for u in slot[0]._players if u not in moving]
+            return float(np.mean(others)) if others else 0.0
+
+        ranked = sorted(players, key=lambda p: -ratings[p.uid])  # stable: ties stay put
+        for p, slot in zip(ranked, sorted(slots, key=lambda s: -strength(s))):
+            self._seat(live, p.uid, slot)
+        live.refresh_player_location_map()
+
+    def _repair_pods(self, live: Round, pods: list[Pod], benched: list[Player]) -> None:
+        """Empties pods and pairs their players, plus benched, into them again."""
+        free = {p for pod in pods for p in pod.players} | set(benched)
+        for pod in pods:
+            pod._players.clear()
+        live._byes -= {p.uid for p in free}
+        live.refresh_player_location_map()
+        live._digest = live.input_digest()
+        try:
+            live.logic.make_pairings(live, cast(set[IPlayer], free), pods)
+            if live.seq < self.config.n_rounds and self.ruleset.SEAT_BALANCING:
+                for pod in pods:
+                    pod.auto_assign_seats()
+        finally:
+            live._digest = None
+        live.refresh_player_location_map()
 
     @TournamentAction.action
     def random_results(self):
