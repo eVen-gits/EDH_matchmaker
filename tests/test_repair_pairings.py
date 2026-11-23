@@ -220,13 +220,27 @@ class TestPlayoffCorrection(unittest.TestCase):
         self.assertEqual(pod.result, {pod.players[0]})
 
     def test_correction_that_keeps_the_cut_is_allowed_after_it_reported(self):
-        layout = [list(pod.players) for pod in self.cut.pods]
+        # The 4th seed's 2-0 was really 2-1: a lower game-win % keeps them
+        # 4th among the 1-0 players, so the cut and its seeding stand.
+        fourth = self.t.get_standings(self.swiss)[3]
+        pod = fourth.pod(self.swiss)
+        assert pod is not None
+        loser = next(p for p in pod.players if p is not fourth)
+        layout = [list(p.players) for p in self.cut.pods]
         cut_pod = self.cut.pods[0]
         self.t.report_match(cut_pod, won(cut_pod.players[0], 2))
-        pod = self.swiss.pods[0]
-        self.t.report_match(pod, won(pod.players[0], 2))
+        self.t.report_match(pod, won(fourth) + won(loser) + won(fourth))
+        self.assertEqual(len(pod._games), 3)
         self.assertEqual([list(p.players) for p in self.cut.pods], layout)
         self.assertEqual(cut_pod.result, {cut_pod.players[0]})
+
+    def test_reset_that_changes_the_cut_is_refused_once_it_reported(self):
+        cut_pod = self.cut.pods[0]
+        self.t.report_match(cut_pod, won(cut_pod.players[0], 2))
+        pod = next(p for p in self.swiss.pods if p.players[0] in self.seated())
+        with self.assertRaises(ValueError):
+            self.t.reset_result(pod)
+        self.assertEqual(pod.result, {pod.players[0]})
 
     def test_playoff_round_is_not_repaired_in_part(self):
         with self.assertRaises(ValueError):

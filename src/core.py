@@ -2064,31 +2064,45 @@ class Tournament(ITournament):
                 the previous round, or the correction would change a last
                 round that already has results.
         """
-        self._check_correctable(pod)
-        live = self.last_round
-        dependent = live is not None and live is not pod.tour_round
-        field = self._dependent_field(live) if dependent else None
-        old_games = list(pod._games)
-        pod.tour_round.record_result(pod, games)
-        if dependent and self._dependent_field(live) != field:
-            try:
-                self._repair_dependent_round(live)
-            except Exception:
-                pod._games = old_games
-                raise
+        self._correct(pod, lambda: pod.tour_round.record_result(pod, games))
 
     @TournamentAction.action
     def reset_result(self, pod: Pod) -> None:
         """Clears a pod's match report, reopening it for a new report.
 
+        Resetting a pod in the previous round affects the last round as a
+        correction in report_match does.
+
         Args:
             pod: The pod to reset, in the last round or the round before it.
 
         Raises:
-            ValueError: If the pod is older than the previous round.
+            ValueError: If the pod is older than the previous round, or the
+                reset would change a last round that already has results.
         """
+        self._correct(pod, pod.reset_result)
+
+    def _correct(self, pod: Pod, change: Callable[[], None]) -> None:
+        """Runs change on pod's result, then pairs the last round again if
+        its field or seeding moved; undoes change if that fails."""
         self._check_correctable(pod)
-        pod.reset_result()
+        live = self.last_round
+        dependent = live is not None and live is not pod.tour_round
+        field = self._dependent_field(live) if dependent else None
+        tour_round = pod.tour_round
+        games = list(pod._games)
+        byes, game_loss = set(tour_round._byes), set(tour_round._game_loss)
+        change()
+        if dependent and self._dependent_field(live) != field:
+            try:
+                self._repair_dependent_round(cast(Round, live))
+            except Exception:
+                pod._games = games
+                tour_round._byes.clear()
+                tour_round._byes.update(byes)
+                tour_round._game_loss.clear()
+                tour_round._game_loss.update(game_loss)
+                raise
 
     def _check_correctable(self, pod: Pod) -> None:
         """Raises ValueError unless pod is in the last round or the one before."""

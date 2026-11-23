@@ -79,8 +79,9 @@ match's winner(s) from an already-valid report.
 
 ## Correction and repair
 
-A **correction** is a match report for a pod in the round *before* the last
-one (`Tournament.report_match`/`reset_result` refuse anything older).
+A **correction** is a match report or a result reset for a pod in the
+round *before* the last one (`Tournament.report_match`/`reset_result` refuse
+anything older).
 Standings are never cached, so it moves them at once. It goes through the
 pod's own round, never `tour_round`: `Round.record_result` also clears the
 winners' bye and game loss in the round it is called on. When the last
