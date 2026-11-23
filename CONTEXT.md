@@ -85,8 +85,10 @@ Standings are never cached, so it moves them at once. It goes through the
 pod's own round, never `tour_round`: `Round.record_result` also clears the
 winners' bye and game loss in the round it is called on. When the last
 round's field came from the corrected standings (a playoff round, or a
-ruleset's `swiss_eliminations`), the correction pairs that round again in
-full, and is refused once any of its tables has reported.
+ruleset's `swiss_eliminations`) and the correction changes that field or
+its seeding, the correction pairs that round again in full, and is refused
+once any of its tables has reported. A correction that leaves the field and
+seeding as they were leaves the round alone.
 
 A **repair** is `Tournament.repair_pairings(players, mode, apply)`: after a
 correction, it moves as few players as possible in an ordinary Swiss last

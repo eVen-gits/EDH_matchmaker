@@ -2048,8 +2048,9 @@ class Tournament(ITournament):
         The pod may be in the last round or the round before it: a
         correction to the previous round recomputes the standings at once.
         If the last round's field was fixed from those standings (a playoff
-        round, or a ruleset's Swiss eliminations), the last round is paired
-        again in full - refused once any of its tables has reported. Moving
+        round, or a ruleset's Swiss eliminations) and the correction changes
+        that field or its seeding, the last round is paired again in full -
+        refused once any of its tables has reported. Moving
         players in an ordinary Swiss round is repair_pairings' job.
 
         Args:
@@ -2064,13 +2065,15 @@ class Tournament(ITournament):
                 round that already has results.
         """
         self._check_correctable(pod)
+        live = self.last_round
+        dependent = live is not None and live is not pod.tour_round
+        field = self._dependent_field(live) if dependent else None
         old_games = list(pod._games)
         pod.tour_round.record_result(pod, games)
-        live = self.last_round
-        if live is not None and live is not pod.tour_round:
+        if dependent and self._dependent_field(live) != field:
             try:
                 self._repair_dependent_round(live)
-            except ValueError:
+            except Exception:
                 pod._games = old_games
                 raise
 
@@ -2096,33 +2099,56 @@ class Tournament(ITournament):
                 f"is in round {pod.tour_round.seq + 1} of {last.seq + 1}."
             )
 
-    def _repair_dependent_round(self, live: Round) -> None:
-        """Pairs live again in full if its field depends on the round before.
+    def _dependent_field(self, live: Round | None) -> object:
+        """What live's field was fixed from when it was paired: its seeded
+        playoff field, or its ruleset's Swiss eliminations; None if neither.
 
-        A playoff round's field, byes and bracket, and a Swiss round's ruleset
-        eliminations, are fixed from the previous round's standings when the
-        round is paired, so a correction there leaves them stale.
+        Computed against the previous round's disabled players, as
+        Round.create_pairings does.
+        """
+        prev = self.previous_round(live) if live is not None else None
+        if live is None or prev is None or not live.pods:
+            return None
+        ruleset = self.ruleset
+        swiss = live.stage == Round.Stage.SWISS
+        if swiss and type(ruleset).swiss_eliminations is IRuleset.swiss_eliminations:
+            return None
+        disabled = live._disabled
+        live._disabled = set(prev._disabled)
+        try:
+            standings = self.get_standings(prev)
+            if swiss:
+                return {p.uid for p in ruleset.swiss_eliminations(live, standings)}
+            if prev.stage == Round.Stage.SWISS:
+                standings = [p for p in standings if p in live.active_players]
+            return [p.uid for p in standings[: live.stage.value]]
+        finally:
+            live._disabled = disabled
+
+    def _repair_dependent_round(self, live: Round) -> None:
+        """Pairs live again in full after a correction changed its field.
 
         Raises:
-            ValueError: If live must be paired again but a table has reported.
+            ValueError: If a table of live has reported.
         """
-        prev = self.previous_round(live)
-        if prev is None or not live.pods:
-            return
-        if live.stage == Round.Stage.SWISS:
-            ruleset = self.ruleset
-            if type(ruleset).swiss_eliminations is IRuleset.swiss_eliminations:
-                return
-            eliminated = ruleset.swiss_eliminations(live, self.get_standings(prev))
-            if {p.uid for p in eliminated} == live._disabled - prev._disabled:
-                return
         if any(pod.done for pod in live.pods):
             raise ValueError(
                 f"The correction changes who plays in round {live.seq + 1}, "
                 "which already has results."
             )
+        pods = list(live._pods)
+        layout = {pod: list(pod._players) for pod in live.pods}
+        byes, disabled = set(live._byes), set(live._disabled)
         live.reset_pods()
-        live.create_pairings()
+        try:
+            live.create_pairings()
+        except Exception:
+            live._pods[:] = pods
+            for pod, uids in layout.items():
+                pod._players[:] = uids
+            live._byes, live._disabled = byes, disabled
+            live.refresh_player_location_map()
+            raise
 
     @TournamentAction.action
     def repair_pairings(
@@ -2291,8 +2317,10 @@ class Tournament(ITournament):
             others = [ratings[u] for u in slot[0]._players if u not in moving]
             return float(np.mean(others)) if others else 0.0
 
-        ranked = sorted(players, key=lambda p: -ratings[p.uid])  # stable: ties stay put
-        for p, slot in zip(ranked, sorted(slots, key=lambda s: -strength(s))):
+        ranked = sorted(
+            zip(players, slots), key=lambda ps: (-ratings[ps[0].uid], -strength(ps[1]))
+        )
+        for (p, _), slot in zip(ranked, sorted(slots, key=lambda s: -strength(s))):
             self._seat(live, p.uid, slot)
         live.refresh_player_location_map()
 

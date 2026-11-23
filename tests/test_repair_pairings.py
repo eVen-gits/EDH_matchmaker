@@ -1,5 +1,6 @@
 """Correcting the previous round's result, and repairing the live round."""
 
+import random
 import unittest
 
 from src.core import Player, Tournament, TournamentAction, TournamentConfiguration
@@ -156,6 +157,15 @@ class TestCommander(EventTestCase):
         self.assertEqual(self.layout(r2), ["EAFG", "BCDH"])
         self.assertEqual(plan.tables, (1, 2))
 
+    def test_rank_keeps_players_with_equal_points_in_place(self):
+        r1 = self.play("ABCD", "EFGH", winners="AE")
+        r2 = self.play("BFGH", "CAED")
+        ratings = self.t.field_ratings(r1)
+        self.assertEqual(ratings[self.p["B"].uid], ratings[self.p["C"].uid])
+        plan = self.t.repair_pairings(self.names("B", "C"), "rank", apply=True)
+        self.assertEqual(plan.moves, ())
+        self.assertEqual(self.layout(r2), ["BFGH", "CAED"])
+
 
 class TestCommanderPods(EventTestCase):
     def test_pods_repairs_only_the_affected_tables(self):
@@ -209,9 +219,47 @@ class TestPlayoffCorrection(unittest.TestCase):
             self.t.report_match(pod, won(pod.players[1], 2))
         self.assertEqual(pod.result, {pod.players[0]})
 
+    def test_correction_that_keeps_the_cut_is_allowed_after_it_reported(self):
+        layout = [list(pod.players) for pod in self.cut.pods]
+        cut_pod = self.cut.pods[0]
+        self.t.report_match(cut_pod, won(cut_pod.players[0], 2))
+        pod = self.swiss.pods[0]
+        self.t.report_match(pod, won(pod.players[0], 2))
+        self.assertEqual([list(p.players) for p in self.cut.pods], layout)
+        self.assertEqual(cut_pod.result, {cut_pod.players[0]})
+
     def test_playoff_round_is_not_repaired_in_part(self):
         with self.assertRaises(ValueError):
             self.t.repair_pairings(self.cut.pods[0].players, "swap")
+
+
+class TestCatanEliminationCorrection(unittest.TestCase):
+    def test_correction_that_eliminates_no_one_new_keeps_the_live_round(self):
+        random.seed(0)
+        t = Tournament(
+            TournamentConfiguration(
+                ruleset="CatanRuleset", auto_export=False, n_rounds=4, top_cut=0,
+                pairing_rounds=[{}, {}, {}, {"ruleset_params": {"eliminate_below_wins": 1}}],
+            )
+        )
+        t.add_player([f"P{i}" for i in range(24)])
+        for _ in range(3):
+            t.create_pairings()
+            t.random_results()
+        prev = t.tour_round
+        t.create_pairings()
+        live = t.tour_round
+        assert prev is not None and live is not None
+        self.assertTrue(live.disabled_players)
+        layout = [list(pod.players) for pod in live.pods]
+        t.report_match(live.pods[0], t.ruleset.random_report(live.pods[0]))
+
+        pod = prev.pods[0]
+        winner = next(iter(pod.result))
+        vp = {p.uid: (10 if p is winner else 2) for p in pod.players}
+        t.report_match(pod, [IGameResult(frozenset({winner.uid}), tuple(vp.items()))])
+        self.assertEqual([list(p.players) for p in live.pods], layout)
+        self.assertTrue(live.pods[0].done)
 
 
 if __name__ == "__main__":
