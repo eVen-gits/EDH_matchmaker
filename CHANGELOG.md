@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Previous-round corrections: `Tournament.report_match` and `reset_result`
+  accept a pod in the round before the last one, and refuse anything older
+  (`reset_result` used to accept any round). A correction that changes a
+  playoff round's field or seeding, or a Swiss round's eliminations, pairs
+  that round again, and is refused once that round has a reported table.
+  `Tournament.repair_pairings(players, mode, apply)` then moves as few players
+  as possible in a Swiss last round (`swap`, `rank`, `pods` or `open` mode),
+  or returns the plan without applying it. See CONTEXT.md's "Correction and
+  repair". The desktop GUI does not offer repairs yet.
 - Setup profiles: each ruleset ships a `<Ruleset>.setup.yaml` sidecar
   (`src/setup_profile.py`) with what a front end needs to set up an event:
   category (Commander and 1v1 are both `mtg`; Catan is `catan`), formats,

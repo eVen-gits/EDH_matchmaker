@@ -33,7 +33,9 @@ class PairingSnake(CommonPairing):
         prev_round: IRound = tour_round.tour.rounds[tour_round.seq - 1]
         ratings = self.field_ratings(tour_round)
         byes = self.assign_byes(tour_round, players, pods, ratings)
-        active_players = sorted(tour_round.active_players - byes, key=lambda p: p.uid)
+        # Only the players handed in: a partial re-pair (repair_pairings)
+        # leaves everyone else seated, and a hand-given bye or game loss sits out.
+        active_players = sorted(players - byes, key=lambda p: p.uid)
 
         snake_ranking: Callable[[IPlayer], tuple[float, int]] = (
             lambda x: self.snake_ranking(x, tour_round, ratings)
